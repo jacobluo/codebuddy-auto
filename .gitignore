@@ -1,0 +1,29 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+
+# build / test output
+dist/
+build/
+coverage/
+.vitest-cache/
+
+# env
+.env
+.env.*
+!.env.example
+
+# editors
+.DS_Store
+.vscode/
+.idea/
+
+# local task 产物（LocalTracker 用）
+tasks/
+logs/
+
+# codebuddy：只保留项目级 rules，其他运行时/个人数据忽略
+.codebuddy/*
+!.codebuddy/rules/
+!.codebuddy/rules/**
