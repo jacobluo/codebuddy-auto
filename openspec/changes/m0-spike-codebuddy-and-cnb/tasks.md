@@ -2,47 +2,47 @@
 
 ### 1.1 Environment check
 
-- [ ] 1.1.1 Confirm `codebuddy` binary path and version (`which codebuddy && codebuddy --version`); record in report header
-- [ ] 1.1.2 Confirm credentials are configured and the CLI can make at least one authenticated call
+- [x] 1.1.1 Confirm `codebuddy` binary path and version (`which codebuddy && codebuddy --version`); record in report header
+- [x] 1.1.2 Confirm credentials are configured and the CLI can make at least one authenticated call
 
 ### 1.2 Basic invocation (dimension 1: 3 checks)
 
-- [ ] 1.2.1 Capture full `codebuddy --help` output; record all subcommands and flags
-- [ ] 1.2.2 Verify whether `codebuddy code` subcommand exists; record actual invocation form
-- [ ] 1.2.3 Run minimal call (e.g., `codebuddy code "hello"`); record response body, exit code, wall-clock duration
+- [x] 1.2.1 Capture full `codebuddy --help` output; record all subcommands and flags
+- [x] 1.2.2 Verify whether `codebuddy code` subcommand exists; record actual invocation form
+- [x] 1.2.3 Run minimal call (e.g., `codebuddy code "hello"`); record response body, exit code, wall-clock duration
 
 ### 1.3 Session / resume (dimension 2: 5 checks) — gates PLAN §5
 
-- [ ] 1.3.1 Capture session_id from first call (stdout / env / file / explicit flag); document the extraction method
-- [ ] 1.3.2 Test `--resume <id>` / `--continue` / equivalent; record the actual flag name
-- [ ] 1.3.3 Two-turn context retention test: turn 1 says "my name is Alpha", turn 2 asks "what is my name"; verify turn 2 answers "Alpha" after resume
-- [ ] 1.3.4 Locate session persistence on disk (find directory, note scope: per-user / per-workspace / tmp)
+- [x] 1.3.1 Capture session_id from first call (stdout / env / file / explicit flag); document the extraction method
+- [x] 1.3.2 Test `--resume <id>` / `--continue` / equivalent; record the actual flag name
+- [x] 1.3.3 Two-turn context retention test: turn 1 says "my name is Alpha", turn 2 asks "what is my name"; verify turn 2 answers "Alpha" after resume
+- [x] 1.3.4 Locate session persistence on disk (find directory, note scope: per-user / per-workspace / tmp)
 - [ ] 1.3.5 Observe behavior when two concurrent invocations resume the same session_id (race / error / serialized?)
 
 ### 1.4 Event stream & output format (dimension 3: 5 checks) — gates PLAN §5
 
-- [ ] 1.4.1 Identify default stdout format: plain text vs JSON vs NDJSON
-- [ ] 1.4.2 Probe for `--output-format json` / `--stream` / `--quiet` / similar flags; record which exist
-- [ ] 1.4.3 If structured output is available, extract one full event's JSON schema (type / timestamp / payload / ...)
-- [ ] 1.4.4 Enumerate distinct event types observed across a 2+ turn session; map each to its closest Symphony §10.4 equivalent (session_started / turn_completed / turn_failed / turn_input_required / notification / other_message / malformed)
-- [ ] 1.4.5 Locate token usage reporting (per-event? exit-summary?); classify as absolute total vs delta (Symphony §11 requirement)
+- [x] 1.4.1 Identify default stdout format: plain text vs JSON vs NDJSON
+- [x] 1.4.2 Probe for `--output-format json` / `--stream` / `--quiet` / similar flags; record which exist
+- [x] 1.4.3 If structured output is available, extract one full event's JSON schema (type / timestamp / payload / ...)
+- [x] 1.4.4 Enumerate distinct event types observed across a 2+ turn session; map each to its closest Symphony §10.4 equivalent (session_started / turn_completed / turn_failed / turn_input_required / notification / other_message / malformed)
+- [x] 1.4.5 Locate token usage reporting (per-event? exit-summary?); classify as absolute total vs delta (Symphony §11 requirement)
 
 ### 1.5 Control flags (dimension 4: 4 checks)
 
-- [ ] 1.5.1 Verify `--max-turns <n>` support; if absent, document workaround (orchestrator-side counter)
-- [ ] 1.5.2 Verify `--timeout` / per-turn timeout support; record units (ms vs s)
-- [ ] 1.5.3 Verify sandbox / approval flags (`--sandbox workspace-write`, `--approval-policy ...`); record all recognized values
-- [ ] 1.5.4 Verify `--cwd` or positional working-directory support (Symphony §9.5 Invariant 1 requires launching in workspace path)
+- [x] 1.5.1 Verify `--max-turns <n>` support; if absent, document workaround (orchestrator-side counter)
+- [x] 1.5.2 Verify `--timeout` / per-turn timeout support; record units (ms vs s)
+- [x] 1.5.3 Verify sandbox / approval flags (`--sandbox workspace-write`, `--approval-policy ...`); record all recognized values
+- [x] 1.5.4 Verify `--cwd` or positional working-directory support (Symphony §9.5 Invariant 1 requires launching in workspace path)
 
 ### 1.6 Exit codes (dimension 5: 2 checks, light-touch only)
 
-- [ ] 1.6.1 Record exit code of a normally-completed turn
+- [x] 1.6.1 Record exit code of a normally-completed turn
 - [ ] 1.6.2 Record exit code of a user-interrupted run (SIGINT); note one observation, no stress testing
 
 ### 1.7 Artifact & evaluation
 
-- [ ] 1.7.1 Write `docs/references/codebuddy-cli-capabilities.md` with: summary one-liner / env / 17 checks as Yes-No-Degraded table / raw stdout sample of at least one 2+ turn session / mapping table to Symphony §10.4 / list of known risks / recommendations for PLAN §5
-- [ ] 1.7.2 State an explicit verdict on capability question: "Can CodeBuddy CLI fulfill Symphony §10 Agent Runner Protocol?" — 🟢 yes / 🟡 partial + what degrades / 🔴 no + what replaces it
+- [x] 1.7.1 Write `docs/references/codebuddy-cli-capabilities.md` with: summary one-liner / env / 17 checks as Yes-No-Degraded table / raw stdout sample of at least one 2+ turn session / mapping table to Symphony §10.4 / list of known risks / recommendations for PLAN §5
+- [x] 1.7.2 State an explicit verdict on capability question: "Can CodeBuddy CLI fulfill Symphony §10 Agent Runner Protocol?" — 🟢 yes / 🟡 partial + what degrades / 🔴 no + what replaces it
 
 ## 2. Spike B — cnb.cool Issue API capability verification
 
