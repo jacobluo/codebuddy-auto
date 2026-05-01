@@ -148,3 +148,4 @@
 | v0.1 | 2026-05-01 | 重命名为 `PLAN.md`；锁定 TS + pnpm + CodeBuddy CLI + cnb tracker 四项决策；加入 M0 spike 清单 |
 | v0.2 | 2026-05-01 | `AGENTS.md` 追加 §5 Superpowers Usage（MUST/SHOULD/NOT 三档），明确开发过程 skill 使用规约 |
 | v0.3 | 2026-05-01 | `AGENTS.md` 重构为项目专属规约一站式文档（§1 技术栈 / §2 编码规范 7 条硬约束 / §3 目录结构 / §4 Skill 规约）；PLAN §3.4 迁移至 AGENTS，通用 LLM 行为规则引用项目级 rule `karpathy-guidelines.mdc`；CLI 入口锁定 commander |
+| v0.4 | 2026-05-01 | `AGENTS.md` §4 重写为"开发工作流（OpenSpec + Superpowers）"融合版：6 条主流程纪律 + skill 速查表 + OpenSpec change 粒度约束 + NOT 清单 + 边界禁用；决定 M1 动工前引入 `@fission-ai/openspec` |

@@ -82,38 +82,100 @@ agentfirst-f1/
 
 ---
 
-## 4. 开发流程：Superpowers Skill 使用规约
+## 4. 开发工作流（OpenSpec + Superpowers）
 
-开发过程中使用 Claude Code superpowers 插件协助。Superpowers 是**插件级外部依赖**，**不是本项目的运行时依赖**；
-使用者无需手动安装，agent 会在关键节点主动 `use_skill` 加载。
+**OpenSpec 管规划，Superpowers 管编码纪律**。两者强绑定，不可单独使用其一。
 
-### MUST（强制）
+- **OpenSpec**（`@fission-ai/openspec`）：提供 `/opsx:propose` / `/opsx:apply` / `/opsx:archive` 三段工作流，
+  产出 `proposal.md` + `design.md` + `tasks.md` + `specs/`
+- **Superpowers**：提供 `brainstorming` / `test-driven-development` / `verification-before-completion` 等 skill
 
-- **起草 `PLAN.md` 任何新章节之前** → `brainstorming`
-  - 理由：§4 Tracker / §5 Agent 协议这类难章节最容易拍脑袋定接口
-- **任何 spike / 探索性验证动手之前** → `brainstorming`
-  - 理由：spike 最容易漏维度，先列验证清单再跑命令
-- **`typescript/src/` 下任何模块实现之前** → `writing-plans`
-  - 理由：调度器是状态机项目，无计划直接写等于预定返工
-- **任何模块被声明"完成 / 交付 / 修复"之前** → `verification-before-completion`
-  - 理由：调度器极易"看着能跑、实际错的"
+两者都是**开发工具，不是本项目的运行时依赖**。使用者无需手动安装，agent 会在关键节点自动调用。
 
-### SHOULD（推荐）
+### 4.1 主流程纪律（6 条）
 
-- **实现 continuation / Run 生命周期状态机核心** → `test-driven-development`
-  - Symphony 语义严格，TDD 是最快的实现路径
-- **debug 并发 / 死锁 / 事件流顺序问题** → `systematic-debugging`
-- **里程碑交付前** → `requesting-code-review`
+1. **新功能一律走 `/opsx:propose`**。在 propose **之前**，**必须**调用 `brainstorming` skill 脑暴；
+   **不**调用 `writing-plans`——因为 `/opsx:propose` 产出的 `proposal + design + tasks` 已等价于 writing-plans
+   的完整计划，再做一次 writing-plans 是重复。
 
-### NOT（无需仪式）
+2. **`/opsx:apply` 实施任务时，必须启用 `test-driven-development`**：先写失败测试，再写实现。
+   对 Symphony 严格语义的状态机代码尤其关键。
 
-- `README.md` / `PLAN.md` 的字段调整、typo、链接修复
+3. **并行派发（推荐，非强制）**：`tasks.md` 中存在 2+ 个独立任务时，**推荐**启用 `dispatching-parallel-agents`。
+   Agent 必须先论证"确实无依赖"才能派发——**包括文件级无冲突**（例如两个任务都改 `index.ts` 导出 = 有冲突，
+   不能并行）。有疑问则串行。
+
+4. **完成粒度双重审查**：
+   - 每完成 `tasks.md` 里**一个 task** → **推荐** `code-reviewer` 评审
+   - `/opsx:archive` 一个 proposal **之前** → **必须** `verification-before-completion`（跑真实命令拿证据）
+     **+** `code-reviewer`（review 变更整体）
+   - "code-reviewer 找问题" 与 "verification 拿证据" 语义不同，二者都做，不能二选一。
+
+5. **debug 纪律**：遇到测试失败、未预期行为、诡异日志时，**必须**启用 `systematic-debugging`。
+   禁止直接猜测原因、禁止直接改代码碰运气。
+
+6. **Git Worktree 隔离（带豁免）**：新功能必须在独立 Git Worktree 中开发（启用 `using-git-worktrees`）。
+   **豁免场景**（可直接在主分支改）：
+   - 纯文档改动：`docs/` / `AGENTS.md` / `PLAN.md` / `README.md`
+   - 单文件 typo / 链接修复 / 变更记录追加
+   - brainstorming 阶段的 design doc 起草（`docs/plans/YYYY-MM-DD-*.md`）
+
+### 4.2 Superpowers 技能触发速查表
+
+| 触发场景 | 必须调用 | 档位 |
+|---|---|---|
+| 启动新功能开发 | `using-git-worktrees` + `brainstorming` | MUST |
+| 脑暴未完成即想调用 `/opsx:propose` | `brainstorming` | MUST |
+| 实现新功能 / 修 bug | `test-driven-development` | MUST |
+| 测试失败 / 异常行为 / 未预期结果 | `systematic-debugging` | MUST |
+| 声称 "完成 / 修好 / 通过 / 搞定" 之前 | `verification-before-completion` | MUST |
+| 2+ 个独立无依赖、文件级无冲突的任务 | `dispatching-parallel-agents` | SHOULD |
+| 完成一个 task | `code-reviewer` | SHOULD |
+| `/opsx:archive` 前 | `verification-before-completion` + `code-reviewer` | MUST |
+| `/opsx:archive` 后 | `finishing-a-development-branch`（清理 worktree） | MUST |
+| 里程碑交付前 | `requesting-code-review` | SHOULD |
+
+### 4.3 OpenSpec 工作流规约
+
+#### Change 粒度
+
+一个 OpenSpec change 对应**一个可独立交付的能力**。参考标尺：
+
+- ✅ "实现 `CNBTracker.fetchCandidateIssues`"（独立能力，可测可交付）
+- ✅ "起草 PLAN §5 Agent 协议并迁移到 `openspec/specs/`"（独立规范产出）
+- ✅ "M0 Spike A：CodeBuddy CLI 能力验证"（独立调研任务）
+- ❌ "实现整个 M1"（过大，至少拆 5+ change）
+- ❌ "修 `tracker.ts` 的 typo"（过小，直接 commit，走下面的 NOT 清单）
+
+#### 规范约束（4 条）
+
+- `proposal.md` 生成后**必须**人工检查 "Out of Scope" 章节（避免 scope creep）
+- `tasks.md` 生成后**必须**人工检查任务顺序与遗漏
+- `specs/` 描述**行为**（GIVEN / WHEN / THEN），**不**描述实现（不写"导入什么模块"、"调用什么函数"）
+- 功能完成后**必须**执行 `/opsx:archive`，否则新会话会读到旧规范
+
+#### OpenSpec 其他命令
+
+- `/opsx:verify`：`/opsx:archive` 之前**推荐**跑，检查 specs / tasks 一致性
+- `/opsx:sync`：当 `specs/` 被手动改动过（例如 M0 结束时 `PLAN.md` → `openspec/specs/` 的一次性迁移），**必须**跑
+- `openspec update`：OpenSpec 版本升级后**必须**跑，刷新 agent 指令与斜杠命令
+
+### 4.4 NOT（无需仪式）
+
+以下改动**不触发** OpenSpec 流程，也不触发 Superpowers MUST 清单，直接 commit 即可：
+
+- `README.md` / `PLAN.md` / `AGENTS.md` 的字段调整、typo、链接修复、变更记录追加
 - `scripts/` 下的 bash 小改动
-- 直接抄 Symphony 的章节起草（§6 Run 生命周期 11 阶段、§9 超时矩阵 8 值）
-- 目录结构微调、变更记录追加
+- 直接抄 Symphony SPEC 的章节起草（§6 Run 生命周期 11 阶段、§9 超时矩阵 8 值）
+- 目录结构微调、文件重命名
+- 依赖版本 bump（非大版本）
 
-### 边界
+但仍受 `.codebuddy/rules/karpathy-guidelines.mdc` 约束（think before coding / simplicity first / surgical changes）。
 
-- 不把 superpowers 列入 `PLAN.md` 的依赖章节
-- 不在 `typescript/` 源码里 import 任何 superpowers 概念
-- 不复刻 superpowers 为 agentfirst-f1 的子模块（定位冲突 —— 本项目是调度器，不是 agent 辅助工具集）
+### 4.5 边界（禁用清单）
+
+- 不把 Superpowers 或 OpenSpec 列入 `PLAN.md` / `openspec/specs/` 的**运行时依赖**章节（它们是 dev-time tool）
+- 不在 `typescript/` 源码里 import 任何 Superpowers / OpenSpec 概念
+- 不复刻 Superpowers / OpenSpec 为 agentfirst-f1 的子模块（定位冲突 —— 本项目是 Symphony 调度器，
+  不是 agent 辅助工具集）
+- OpenSpec 遥测默认关闭：`export OPENSPEC_TELEMETRY=0`（写入 shell profile）
