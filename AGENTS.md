@@ -118,7 +118,6 @@ agentfirst-f1/
    **豁免场景**（可直接在主分支改）：
    - 纯文档改动：`docs/` / `AGENTS.md` / `PLAN.md` / `README.md`
    - 单文件 typo / 链接修复 / 变更记录追加
-   - brainstorming 阶段的 design doc 起草（`docs/plans/YYYY-MM-DD-*.md`）
 
 ### 4.2 Superpowers 技能触发速查表
 

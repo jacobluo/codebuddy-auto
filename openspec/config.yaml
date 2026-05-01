@@ -1,0 +1,37 @@
+schema: spec-driven
+
+# Project context (shown to AI when creating artifacts)
+context: |
+  agentfirst-f1 is a TypeScript reference implementation of the OpenAI Symphony
+  specification (docs/references/symphony-spec.md). Core constraints:
+
+  - Language: TypeScript + Node.js 20 LTS + pnpm
+  - Agent execution: CodeBuddy Code CLI subprocess (NOT SDK in-process)
+  - Primary tracker backend: cnb.cool (pluggable; TAPD / GitHub / Linear are future backends)
+  - Contract alignment: 14-chapter contract mirrors Symphony SPEC, implementation is phased (M0-M4)
+  - Naming: Symphony codex_* fields are renamed to agent_* in this project (see PLAN.md §3)
+  - Scheduler state: intentionally NOT persisted (aligned with Symphony SPEC §14.3)
+  - Coding conventions: see AGENTS.md §1 tech stack / §2 encoding rules / §3 directory layout
+
+  Every change MUST follow AGENTS.md §4:
+  - Brainstorming before /opsx:propose (Superpowers skill)
+  - TDD during /opsx:apply (test-driven-development skill)
+  - verification-before-completion + code-reviewer before /opsx:archive
+
+# Per-artifact rules
+rules:
+  proposal:
+    - "Reference Symphony SPEC chapters with explicit § numbers (e.g., SPEC §10.4 Emitted Runtime Events)"
+    - "'Impact' section must list affected PLAN.md chapters"
+    - "New capability names use kebab-case matching src/ directory layout (e.g., cnb-tracker-backend maps to typescript/src/tracker/cnb.ts)"
+  specs:
+    - "Describe BEHAVIOR (GIVEN / WHEN / THEN), never implementation (no import statements, no method calls)"
+    - "Use SHALL / MUST for normative requirements (avoid should / may in requirement bodies)"
+    - "Reference domain entities with full qualification: Issue.blocked_by, not bare blocked_by"
+  design:
+    - "Decisions section must list alternatives considered, not just the chosen path"
+    - "Risks section uses format: [Risk] -> Mitigation"
+  tasks:
+    - "Task granularity at most 2 hours"
+    - "TDD order: test task appears before implementation task for the same unit"
+    - "Each task verifiable: done must be objectively checkable (command output, file exists, test passes)"

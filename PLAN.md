@@ -84,19 +84,13 @@
 
 ### 3.1 阻塞性 spike（必须先做）
 
-- ⚪ **CodeBuddy Code CLI 能力验证** → `docs/references/codebuddy-cli-capabilities.md`
-  - session_id 捕获与 `--resume <id>` 行为
-  - 事件流格式（JSON / NDJSON / 自定义文本）
-  - `--max-turns` / `--timeout` / sandbox / approval-policy 支持
-  - 退出码语义
-- ⚪ **cnb.cool Issue API 验证** → `docs/references/cnb-issue-api.md`
-  - REST / GraphQL 协议
-  - 按 label 过滤 issue
-  - 给 issue 评论 / 改 label / 关 issue 的权限与方式
-  - 认证（PAT / OAuth）与速率限制
-  - 状态映射表草案：Symphony 语义状态 ↔ cnb issue 状态+label
+两份 spike 已纳入 OpenSpec change **`m0-spike-codebuddy-and-cnb`**（见 `openspec/changes/m0-spike-codebuddy-and-cnb/`）。
+详细 proposal / design / tasks / 能力骨架 spec 在 change 目录内维护，本节不重复清单。
 
-两份 spike 完成后，PLAN §4 和 §5 才有起草的前提。
+- ⚪ **Spike A — CodeBuddy CLI 能力验证** → `docs/references/codebuddy-cli-capabilities.md`
+- ⚪ **Spike B — cnb.cool Issue API 验证** → `docs/references/cnb-issue-api.md`
+
+两份 spike 完成且 change 归档（`/opsx:archive`）后，PLAN §4 和 §5 才有起草的前提。
 
 ### 3.2 文档修订
 
@@ -149,3 +143,4 @@
 | v0.2 | 2026-05-01 | `AGENTS.md` 追加 §5 Superpowers Usage（MUST/SHOULD/NOT 三档），明确开发过程 skill 使用规约 |
 | v0.3 | 2026-05-01 | `AGENTS.md` 重构为项目专属规约一站式文档（§1 技术栈 / §2 编码规范 7 条硬约束 / §3 目录结构 / §4 Skill 规约）；PLAN §3.4 迁移至 AGENTS，通用 LLM 行为规则引用项目级 rule `karpathy-guidelines.mdc`；CLI 入口锁定 commander |
 | v0.4 | 2026-05-01 | `AGENTS.md` §4 重写为"开发工作流（OpenSpec + Superpowers）"融合版：6 条主流程纪律 + skill 速查表 + OpenSpec change 粒度约束 + NOT 清单 + 边界禁用；决定 M1 动工前引入 `@fission-ai/openspec` |
+| v0.5 | 2026-05-01 | `openspec init` 落地；两份 spike 的 design doc 迁移到 `openspec/changes/m0-spike-codebuddy-and-cnb/`（proposal + design + tasks + 两份 skeleton spec）；删除 `docs/plans/2026-05-01-spike-ab-design.md`；AGENTS.md §4.1 豁免清单删除 `docs/plans/` 条目 |
