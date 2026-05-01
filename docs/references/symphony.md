@@ -250,20 +250,28 @@ agentfirst-f1 的 CodeBuddy Code CLI 事件模型需要自己映射到这套事�
 
 ---
 
-## 七、阻塞点（M0 spike 待办）
+## 七、阻塞点（M0 spike 已解除）
 
-### 7.1 CodeBuddy Code CLI session/continuation 能力
-- Symphony 的 continuation 机制依赖 `session_id` + `turn_id` 语义
-- CodeBuddy Code CLI 是否支持 `--resume <session_id>` / `--continue` / `--session-id` 参数？事件流是否结构化（NDJSON）？
-- 如果不支持，agentfirst-f1 要么自己实现 message history 持久化，要么放弃严格 continuation
+### 7.1 CodeBuddy Code CLI session/continuation 能力 — 🟢 已解除（2026-05-01）
 
-**产出**：`docs/references/codebuddy-cli-capabilities.md`
+**产出**：[`docs/references/codebuddy-cli-capabilities.md`](./codebuddy-cli-capabilities.md)
 
-### 7.2 cnb.cool Issue API 能力
-- REST 还是 GraphQL？认证方式？速率限制？
-- 是否支持：按 label 过滤 / 评论 / 改 label / 关 issue
-- 状态映射表草案：Symphony 语义状态（Done / Closed / Cancelled / Duplicate）↔ cnb issue.state + label
+**结论**：CodeBuddy Code CLI 2.93.6 能充分承接 Symphony §10 Agent Runner Protocol。原生支持
+`--session-id` / `--resume` / `--continue` + NDJSON 结构化事件流（`--output-format stream-json`）+
+`--max-turns` / `--permission-mode` / `--sandbox` / `--mcp-config`。缺的 `--cwd` 和 `--timeout`
+由 orchestrator 侧补位（Node spawn cwd + AbortController 计时）。
 
-**产出**：`docs/references/cnb-issue-api.md`
+### 7.2 cnb.cool Issue API 能力 — 🟡 已解除（2026-05-01，带 3 处降级）
 
-两份 spike 未完成前，`PLAN.md` §4 和 §5 不起草。
+**产出**：[`docs/references/cnb-issue-api.md`](./cnb-issue-api.md)
+
+**结论**：REST / Bearer token / 无公开 rate-limit header。核心能力（按 label 过滤 / comment /
+label 增删 / state 改（需 vnd accept + state+reason 成对）/ assignee）全部支持。三处降级：
+
+- ❌ 无批量按 id 查询 → Symphony §11 #3 `fetchIssueStatesByIds` 退化为 N 次并发单查
+- ❌ `labels=` 是 OR 语义，无 NOT → "含 agent-ready 且不含 skip-agent" 必须 orchestrator 侧客户端二次过滤
+- ❌ 无 issue 级 custom fields → `attempt` / `blocked-by:#N` 等元数据用 label 前缀约定承载
+
+**状态映射草案**详见该报告 §3.3。
+
+两份 spike 均已解除，`PLAN.md` §4 / §5 可进入起草阶段。
