@@ -112,7 +112,7 @@ agentfirst-f1/
    测试失败、未预期行为、诡异日志任一出现，必须启用 `systematic-debugging`；禁止猜测原因或直接改代码碰运气。
 
 6. **新运行时行为必须使用 Git Worktree 隔离**
-   凡引入新运行时行为的改动，必须启用 `using-git-worktrees`，在独立 Git Worktree 中开发。以下情况可直接在主分支处理：
+   新运行时行为的改动，必须启用 `using-git-worktrees`，在独立 Git Worktree 中开发。以下情况可直接在主分支处理：
    - 纯文档改动（注：`prompts/*.md` 除外，它定义 Agent 运行时行为）
    - 单文件 typo / 链接修复 / 非行为性配置（不新增运行时依赖）
    - 脚本小 bug fix（不新增脚本、不改主流程语义）
