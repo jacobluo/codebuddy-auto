@@ -1,10 +1,3 @@
----
-description: agentfirst-f1 项目专属规约（技术栈 / 编码规范 / 目录结构 / 开发流程）
-alwaysApply: true
-enabled: true
-updatedAt: 2026-05-01T01:44:00.000Z
----
-
 # agentfirst-f1 项目规约
 
 本项目是 [OpenAI Symphony](https://github.com/openai/symphony) 调度规范的 **TypeScript 参考实现**。
