@@ -26,7 +26,7 @@
 
 | 里程碑 | 契约章节（PLAN） | 实现（`typescript/`） |
 |---|---|---|
-| **M0** | 全部 14 章节 v0.1 骨架（含 CNB tracker / worker 抽象 / dashboard 占位） | 两份 spike 文档：CodeBuddy CLI + cnb API |
+| **M0** | 全部 18 章节 + Appendix A 骨架（含 CNB tracker / worker 抽象 / dashboard / security / test matrix 占位） | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 对齐 |
 | **M1** | — | `typescript/` 最小可跑：CNBTracker + LocalWorker + CodeBuddy CLI 单 turn + 单并发 |
 | **M2** | — | Continuation（基于 CLI `--resume`）+ baseline 闭环 + multi-turn |
 | **M3** | — | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
@@ -34,49 +34,155 @@
 
 ---
 
-## 2. 契约章节骨架（对标 Symphony SPEC）
+## 2. 契约章节骨架（对标最新版 Symphony SPEC）
 
-起草顺序建议：§1 → §14 → §6 → §9 → §3 → §7 → §5 → §8 → §4 → §2 → §10/§11/§12/§13。
+上游 [`docs/references/symphony-spec.md`](./docs/references/symphony-spec.md) 已扩展为 **18 章 + Appendix A**。
+当前 `PLAN.md` 正处于从旧的 **14 章骨架** 向最新版 **18 章 + Appendix A** 映射迁移的阶段，因此本节先显式标注滞后状态，避免后续实现继续按旧章节映射推进。
 
-- ⚪ **§1 项目定位**：与 Symphony 官方规范、TS 参考实现、CodeBuddy CLI 的边界
-- ⚪ **§2 架构分层**：Workflow Loader / Config / Tracker / Orchestrator / Workspace / Runner / Status / Logging
-- ⚪ **§3 State Schema**：运行时内存态（TS 类型 + zod 校验）+ 持久化策略（刻意不持久化调度状态）
-- ⚪ **§4 Tracker 接口**：
-  - 接口：`fetchCandidateIssues` / `fetchIssuesByStates` / `fetchIssueStatesByIds`
-  - 两个 backend：`CNBTracker`（主）/ `LocalTracker`（fallback）
-  - 显式状态映射表：Symphony 语义状态 ↔ cnb issue.state + label
-- ⚪ **§5 Agent 协议**：
-  - CodeBuddy Code CLI 调用契约（启动参数 / stdio 事件流 / 退出码语义）
-  - session / thread 语义（依赖 CLI `--resume` 能力，待 spike 验证）
-  - Continuation 规则（首轮渲染完整 prompt，后续轮仅发"继续指引"）
-- ⚪ **§6 Run 生命周期**：11 阶段状态机（直接对齐 Symphony）
-  ```
-  PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
-  → InitializingSession → StreamingTurn → Finishing
-  → [Succeeded | Failed | TimedOut | Stalled | CanceledByReconciliation]
-  ```
-- ⚪ **§7 工作空间管理**：per-task 目录 + 三不变量（cwd 校验 / workspace root prefix 校验 / key sanitization）
-- ⚪ **§8 Workflow 格式**：YAML front matter + prompt body；严格模板渲染（未知变量必须失败）
-- ⚪ **§9 超时矩阵**：8 个默认值（直接对齐 Symphony）
-  | 超时 | 默认值 |
-  |---|---|
-  | `polling.interval_ms` | 30000 |
-  | `hooks.timeout_ms` | 60000 |
-  | `codebuddy.turn_timeout_ms` | 3600000 (1h) |
-  | `codebuddy.read_timeout_ms` | 5000 |
-  | `codebuddy.stall_timeout_ms` | 300000 (5m) |
-  | `agent.max_retry_backoff_ms` | 300000 (5m) |
-  | `agent.max_turns` | 20 |
-  | `agent.max_concurrent_agents` | 10 |
-- ⚪ **§10 配置校验 Preflight**：启动前 + per-tick 校验；失败跳过本 tick 的派发
-- ⚪ **§11 Token 核算**：绝对总量 vs delta 的坑（优先绝对 thread 总量）
-- ⚪ **§12 可观测性**：结构化日志 + 运行时快照 JSON（MUST）；Web dashboard（MAY，M4）
-- ⚪ **§13 测试一致性**：Core / Extension / Real Integration 三档
-- ⚪ **§14 Non-Goals**：
-  - Linear 集成 —— **永不进入本项目范围**
-  - Phoenix LiveView 等价 Dashboard —— M4 再说
-  - SSH Worker 多机 —— M4 再说
-  - Elixir/OTP 监督树 —— 物理不可抄，以 "Node 子进程 + 心跳 + 崩溃重启" 作为语义等价实现
+状态说明：
+
+- `🔴` 严重滞后：章节边界或内容骨架已不足以承接最新版 SPEC
+- `🟡` 部分滞后：主方向仍成立，但缺少最新版 SPEC 的关键约束
+- `⚪` 未起草：方向已确定，但尚未落成文档
+
+建议起草顺序（按最新版 SPEC 重排）：§1/§2/§3 → §5/§6 → §7/§8/§9 → §10/§11/§12 → §13/§14/§15 → §17/§18 → Appendix A。
+
+- `🟡` **§1 项目定位**：仍可沿用，但需补上最新版 SPEC 的 `Goals / Non-Goals / trust boundary / handoff state` 边界。
+- `🟡` **§2 架构分层**：现仅覆盖组件名，缺少最新版 SPEC §3 的 `abstraction levels` 与 `external dependencies`。
+- `🔴` **§3 State Schema**：需从“运行时内存态”扩展为最新版 SPEC §4 + §7 的完整实体模型。
+  - 必补：`WorkflowDefinition`、`Workspace`、`RunAttempt`、`RetryEntry`、`Orchestrator Runtime State`
+  - 必补：`Issue` 归一化规则、`session_id = <thread_id>-<turn_id>`、`claimed/completed/retry_attempts` 语义
+- `🟡` **§4 Tracker 接口**：主抽象仍成立，但需补齐最新版 SPEC §11 的分页、错误分类、归一化细则、`Tracker Writes` 边界。
+  - 现有方向仍对：`fetchCandidateIssues` / `fetchIssuesByStates` / `fetchIssueStatesByIds`
+  - 必补：`candidate fetch failure / running refresh failure / startup cleanup failure` 的编排层行为
+- `🔴` **§5 Agent 协议**：这是当前最大滞后点之一，需从“CLI 调用契约”升级为最新版 SPEC §10 + §12 的完整 runner contract。
+  - 必补：launch contract、session startup responsibilities、streaming turn processing、emitted runtime events
+  - 必补：approval / user-input policy、timeout & error mapping、prompt construction / retry / continuation semantics
+- `🟡` **§6 Run 生命周期**：11 阶段状态机仍成立，但缺少最新版 SPEC §7 / §8 / §14 / §16 的编排状态与恢复规则。
+  - 必补：`Unclaimed / Claimed / Running / RetryQueued / Released`
+  - 必补：`worker exit(normal|abnormal)`、`retry timer fired`、`reconciliation`、`stall timeout` 触发器
+- `🟡` **§7 工作空间管理**：三不变量仍成立，但需补齐最新版 SPEC §9 / §15.2 / §15.4。
+  - 必补：workspace layout / create-or-reuse / optional population / hooks failure semantics
+  - 必补：hook 输出截断、trusted hook 风险声明
+- `🔴` **§8 Workflow 格式**：当前只写了 YAML + prompt，明显落后于最新版 SPEC §5 + §6。
+  - 必补：workflow file path precedence、front matter schema、typed config resolution pipeline、dynamic reload semantics
+  - 必补：validation error surface、`$VAR` / `~` / 相对路径解析规则
+- `🟡` **§9 超时矩阵**：8 个默认值仍有效，但已不足以独立承载最新版 SPEC §5.3 / §6.4 / §8.4。
+  - 必补：与 `codex.command`、`hooks.timeout_ms`、`max_concurrent_agents_by_state` 一起并入 config cheat sheet
+  - 必补：continuation retry 固定 `1000ms` 与 failure retry exponential backoff 的区别
+- `🟡` **§10 配置校验 Preflight**：方向正确，但需补齐最新版 SPEC §6.2 / §6.3。
+  - 必补：startup validation vs per-tick validation
+  - 必补：invalid reload 保留 `last known good config`，不能把服务打挂
+- `🟡` **§11 Token 核算**：方向正确，但需补齐最新版 SPEC §13.5 的 token / runtime / rate-limit 三件套。
+  - 必补：`absolute totals` 优先级、delta 去重、`seconds_running` 聚合、latest rate-limit snapshot
+- `🔴` **§12 可观测性**：当前只有“结构化日志 + JSON 快照”的一句话，已落后于最新版 SPEC §13。
+  - 必补：logging conventions、sink failure behavior、runtime snapshot、human-readable status surface
+  - 若实现 HTTP 扩展，还需补：`/api/v1/state`、`/api/v1/<issue_identifier>`、`/api/v1/refresh`
+- `🔴` **§13 测试一致性**：需要从一句“三档测试”扩展为最新版 SPEC §17 + §18 的验证矩阵与 DoD。
+  - 必补：workflow/config parsing、workspace safety、tracker client、orchestrator、runner、observability、CLI lifecycle
+- `🟡` **§14 Non-Goals**：非目标仍大体正确，但需与最新版 SPEC §2 / §14 / §15 / §18 对齐。
+  - 必补：`restart recovery is tracker/filesystem-driven`、安全/硬化由实现显式声明
+  - 保持不变：`Linear` 永不接入、Dashboard/SSH 延后、OTP 不做物理复刻
+
+### 2.1 上游新增但本地尚缺的一级章节
+
+以下内容在最新版 SPEC 中已成为一级章节或附录，但本地 `PLAN.md` 还没有显式章节承接：
+
+- `🔴` **§15 安全与操作安全**：信任边界、文件系统安全、secret handling、hook 风险、harness hardening
+- `🔴` **§16 参考算法**：startup / poll / reconcile / dispatch / worker attempt / retry handling 伪代码
+- `🔴` **§17 测试与验证矩阵**：Core Conformance / Extension Conformance / Real Integration Profile 的细项清单
+- `🔴` **§18 Implementation Checklist / DoD**：哪些能力是 REQUIRED，哪些是 RECOMMENDED extension
+- `🟡` **Appendix A SSH Worker Extension**：本项目 roadmap 已有 RemoteWorker，但还没有按上游附录拆出扩展契约
+
+### 2.2 结论
+
+- 本项目方案**仍然可行**，因为核心替换关系没变：`Linear -> cnb`、`Codex app-server -> CodeBuddy CLI/ACP`、`Elixir/OTP -> Node subprocess orchestration`。
+- 现在的主要问题不是“方案错误”，而是 **`PLAN.md` 的契约覆盖面已经落后于上游 SPEC 粒度**。
+- 在进入 `typescript/` 实现前，至少应先补齐 `§3 / §5 / §8 / §12 / §13`，否则实现会缺少最新版 SPEC 的关键约束面。
+
+### 2.3 可执行补齐清单
+
+以下清单按“先补契约、再写代码”的顺序组织。每项都应产出可检查的文档结果，而不是只做讨论。
+
+#### Phase 0 — 重排 PLAN 结构（必须先做）
+
+- [ ] **Task 0.1**：把 `PLAN.md` 的章节骨架从 14 章升级为与最新版 SPEC 对齐的 **18 章 + Appendix A 占位**。
+  - 完成标准：`PLAN.md` 出现 `§1` 到 `§18` 的一级章节骨架，并显式标出 `Appendix A`。
+- [ ] **Task 0.2**：为每个章节补上状态标记（`🟢/🟡/⚪`）与一句话范围说明。
+  - 完成标准：读 `PLAN.md` 目录区即可看出“哪些章节已起草、哪些仅占位、哪些仍滞后”。
+- [ ] **Task 0.3**：把当前“差距分析”保留为过渡信息，但避免它继续充当正式契约正文。
+  - 完成标准：差距分析被收拢到 roadmap / migration 语境，正式章节成为主线。
+
+#### Phase 1 — 先补最缺的 5 章（进入实现前必须完成）
+
+- [ ] **Task 1.1 — 补 §3 State Schema**
+  - 目标：把 `Issue / WorkflowDefinition / Workspace / RunAttempt / LiveSession / RetryEntry / RuntimeState` 定义完整。
+  - 完成标准：章节内明确字段、归一化规则、内存态边界，以及 `session_id` / `claimed` / `retry_attempts` 语义。
+- [ ] **Task 1.2 — 补 §5 Workflow Specification + §6 Configuration Specification**
+  - 目标：覆盖 `WORKFLOW.md` 发现规则、front matter schema、`$VAR` / `~` / 相对路径解析、dynamic reload、preflight validation。
+  - 完成标准：能直接指导 `workflow/` 与 `config/` 两个目录实现，不再依赖上游 SPEC 反复查漏。
+- [ ] **Task 1.3 — 补 §10 Agent Runner Protocol + §12 Prompt Construction**
+  - 目标：把 CodeBuddy CLI 适配写成正式契约，包括 launch、session、事件映射、approval policy、continuation、prompt retry 语义。
+  - 完成标准：`runner/` 可以按本地 `PLAN.md` 实现，不必再回退到 spike 文档拼装规则。
+- [ ] **Task 1.4 — 补 §13 Logging / Status / Observability**
+  - 目标：明确结构化日志字段、snapshot shape、token/runtime/rate-limit 聚合规则、可选 HTTP 扩展边界。
+  - 完成标准：`logging/` 与未来 dashboard API 有稳定输入输出契约。
+- [ ] **Task 1.5 — 补 §17 Test Matrix + §18 Definition of Done**
+  - 目标：把 conformance 检查拆成可执行测试清单。
+  - 完成标准：每个核心模块至少能映射到一个测试小节，且能作为 `typescript/test/` 的目录依据。
+
+#### Phase 2 — 补运行时主干章节（M1 开发前完成）
+
+- [ ] **Task 2.1 — 补 §1 Problem Statement / Project Positioning**
+  - 目标：说明本项目与上游 Symphony、CodeBuddy CLI、cnb tracker 的边界，以及“handoff state 不等于 Done”。
+  - 完成标准：不再只有“TS 参考实现”一句描述，而是有明确问题定义和适用边界。
+- [ ] **Task 2.2 — 补 §2 System Overview**
+  - 目标：把 components、abstraction levels、external dependencies 三层都写清楚。
+  - 完成标准：`tracker -> scheduler -> runner -> workspace -> logging` 的依赖方向在文档中可直接验证。
+- [ ] **Task 2.3 — 补 §7 Orchestration State Machine**
+  - 目标：写清 `Unclaimed / Claimed / Running / RetryQueued / Released` 与 11 阶段 run lifecycle 的关系。
+  - 完成标准：正常退出、异常退出、retry、stall、reconciliation 都有明确状态迁移说明。
+- [ ] **Task 2.4 — 补 §8 Polling / Scheduling / Reconciliation**
+  - 目标：写清 poll tick 顺序、dispatch eligibility、sort 规则、concurrency、retry/backoff、startup cleanup。
+  - 完成标准：`scheduler/` 可以直接据此实现主循环，无需再做大范围设计决策。
+- [ ] **Task 2.5 — 补 §9 Workspace Management and Safety**
+  - 目标：补 workspace layout、create/reuse、optional population、hooks、三不变量。
+  - 完成标准：`workspace/` 目录行为、hook failure semantics、cleanup 规则可直接落地。
+- [ ] **Task 2.6 — 补 §11 Tracker Integration Contract**
+  - 目标：把 `CNBTracker` 的分页、错误分类、labels/blocker 归一化、writes boundary 写成正式契约。
+  - 完成标准：cnb 的 3 个降级点被正式吸收到 contract，而不是只存在 spike 报告里。
+
+#### Phase 3 — 补安全、恢复、参考算法（M1 期间并行）
+
+- [ ] **Task 3.1 — 补 §14 Failure Model and Recovery**
+  - 目标：归类 config / workspace / runner / tracker / observability 故障，并定义恢复策略。
+  - 完成标准：restart recovery、skip-dispatch-but-keep-reconcile、worker retry 等行为有统一表述。
+- [ ] **Task 3.2 — 补 §15 Security and Operational Safety**
+  - 目标：明确 trust boundary、secret handling、hook 风险、harness hardening 建议。
+  - 完成标准：本项目的高信任/低信任运行假设被正式记录，不再散落在讨论里。
+- [ ] **Task 3.3 — 补 §16 Reference Algorithms**
+  - 目标：为 `startup / tick / reconcile / dispatch / run-agent-attempt / on-worker-exit` 写伪代码。
+  - 完成标准：核心流程可由伪代码直接映射为 TypeScript 函数骨架。
+- [ ] **Task 3.4 — 补 Appendix A SSH Worker Extension 占位**
+  - 目标：即便 M4 才实现，也先明确这是 extension，不属于 M1 conformance。
+  - 完成标准：RemoteWorker 的未来边界被写清，不与 LocalWorker 主线混淆。
+
+#### Phase 4 — 文档与 roadmap 收尾（避免文档彼此打架）
+
+- [ ] **Task 4.1**：同步 `README.md` 的里程碑与章节映射，去掉“14 章骨架”心智。
+  - 完成标准：README 中对 `PLAN.md` 的描述与当前章节结构一致。
+- [ ] **Task 4.2**：同步 [`docs/references/symphony.md`](./docs/references/symphony.md)，把“借鉴清单”引用改到最新版章节号。
+  - 完成标准：引用的 SPEC 章节编号不再失真。
+- [ ] **Task 4.3**：把 OpenSpec 后续 change 拆分为若干小 change，而不是一次性重写整份 `PLAN.md`。
+  - 建议拆分：`draft-plan-state-schema`、`draft-plan-workflow-config`、`draft-plan-runner-contract`、`draft-plan-observability-and-tests`。
+  - 完成标准：每个 change 可在 1 个顶层任务内完成并可审查。
+
+#### 建议优先级
+
+1. `P0`：`Task 0.1 ~ 0.3`，先把 `PLAN.md` 结构升级。
+2. `P0`：`Task 1.1 ~ 1.5`，这是进入 `typescript/` 实现前的最低文档门槛。
+3. `P1`：`Task 2.1 ~ 2.6`，补齐调度主干章节。
+4. `P2`：`Task 3.1 ~ 3.4` 与 `Task 4.1 ~ 4.3`，用于收束恢复、安全和后续 roadmap。
 
 ---
 
@@ -95,8 +201,8 @@
 ### 3.2 文档修订
 
 - 🟢 `SPEC.md` → 重命名并扩写为 `PLAN.md`（本文件）
-- ⚪ `README.md`：Python → TS、SDK → CLI、Linear 字样清理、里程碑表对齐、目录结构对齐
-- ⚪ `docs/references/symphony.md`：第 "#15 不抄" 小节重写为"分阶段实现 + 不做 Linear"
+- 🟡 `README.md`：已完成 Python → TS、SDK → CLI、Linear 字样清理；仍需把里程碑表与“18 章 + Appendix A”心智对齐
+- 🟡 `docs/references/symphony.md`：已完成“不做 Linear / 分阶段实现”重写；仍需把引用章节号同步到最新版 SPEC
 
 ### 3.3 骨架搭建（spike 验证通过后）
 
@@ -108,13 +214,17 @@
   ├── src/
   │   ├── spec/            ← 类型定义 + zod schema（对应 §3）
   │   ├── tracker/         ← CNBTracker + LocalTracker（对应 §4）
-  │   ├── runner/          ← CodeBuddy CLI 子进程封装（对应 §5）
+  │   ├── runner/          ← CodeBuddy CLI / ACP 适配层（对应 §10）
   │   ├── scheduler/       ← poll loop + dispatch（对应 §2）
   │   ├── workspace/       ← per-task 目录 + 三不变量（对应 §7）
+  │   ├── workflow/        ← WORKFLOW.md 加载 + 模板渲染（对应 §5）
+  │   ├── config/          ← typed config + reload/preflight（对应 §6）
+  │   ├── logging/         ← pino + snapshot/status surface（对应 §13）
   │   └── index.ts
   └── test/                ← vitest
   ```
 - ⚪ `scripts/baseline.sh` 的 `TESTS_DIR` / `API_SRC_DIR` 默认值从 `python/*` 改为 `typescript/*`
+- ⚪ `typescript/test/` 目录按最新版 SPEC §17 的验证矩阵镜像 `src/` 分层
 
 ### 3.4 技术栈选型（确认稿）
 
@@ -127,10 +237,11 @@
 
 | # | 风险 | 缓解 |
 |---|---|---|
-| R1 | CodeBuddy CLI 不支持严格的 `--resume` 语义 | M0 spike 先验；若不支持，Continuation 机制需自己在调度器侧维持 prompt 历史 |
-| R2 | cnb.cool API 不开放评论 / 改 label 权限 | M0 spike 先验；若受限，agent 自更新 ticket 降级为"调度器代为更新"，agent 只在 PR / commit message 里带结构化标记 |
-| R3 | 切 TS 后团队心智成本 | 可控；harness-f1 生态本身也是 Node 主导 |
-| R4 | Node 无 OTP 级监督树 | 已在 §14 承认，不再视为风险 |
+| R1 | CodeBuddy CLI `--resume` / stream-json / ACP 语义随版本演进漂移 | 用 `scripts/spike-a-probe.sh` 做回归探针；M1 固定一版 CLI 行为基线 |
+| R2 | cnb.cool API 的 batch-by-id / labels 过滤 / custom fields 仍有能力缺口 | 在 §11 正式吸收 3 处降级：并发单查、客户端二次过滤、label 前缀承载元数据 |
+| R3 | 最新版 SPEC 要求的 dynamic reload / observability / test matrix 尚未写入正式契约 | 先补 `§5/§6/§13/§17/§18`，再启动 `typescript/` 实现 |
+| R4 | 切 TS 后团队心智成本 | 可控；harness-f1 生态本身也是 Node 主导 |
+| R5 | Node 无 OTP 级监督树 | 已在 §14 承认，以 "Node 子进程 + 心跳 + 崩溃重启" 作为语义等价实现 |
 
 ---
 
@@ -145,3 +256,4 @@
 | v0.4 | 2026-05-01 | `AGENTS.md` §4 重写为"开发工作流（OpenSpec + Superpowers）"融合版：6 条主流程纪律 + skill 速查表 + OpenSpec change 粒度约束 + NOT 清单 + 边界禁用；决定 M1 动工前引入 `@fission-ai/openspec` |
 | v0.5 | 2026-05-01 | `openspec init` 落地；两份 spike 的 design doc 迁移到 `openspec/changes/m0-spike-codebuddy-and-cnb/`（proposal + design + tasks + 两份 skeleton spec）；删除 `docs/plans/2026-05-01-spike-ab-design.md`；AGENTS.md §4.1 豁免清单删除 `docs/plans/` 条目 |
 | v0.6 | 2026-05-01 | Spike A 完成（CodeBuddy CLI 2.93.6 🟢 充分承接 §10）；Spike B 完成（cnb.cool REST API 🟡 承接 §11 带 3 处降级：无 batch-by-id / labels OR-only / 无 custom fields）；`scripts/spike-b-probe.sh` 固化为可回归探针 |
+| v0.7 | 2026-05-18 | 基于最新版 `symphony/SPEC.md` 重评项目差距：`PLAN.md` 明确标出 18 章 + Appendix A 映射、滞后章节、可执行补齐清单，并同步修正 M0 里程碑、TS 目录骨架与风险表 |
