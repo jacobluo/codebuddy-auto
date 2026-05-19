@@ -1,14 +1,29 @@
 # agentfirst-f1
 
 > **TypeScript 参考实现 · 基于 OpenAI Symphony SPEC + CodeBuddy Code CLI**
->
-> 状态：🟡 起步阶段（M0 计划制定中 · 无可运行实现）
+
+## 项目目标
+
+本项目的目标是把 [OpenAI Symphony](https://github.com/openai/symphony) 的调度规范与核心运行语义，**翻译成一套可在 Node.js 生态运行的参考实现**：
+
+- 编排层使用 **TypeScript / Node.js 20 LTS**
+- 编码 agent 执行层使用 **CodeBuddy Code CLI**
+- issue tracker backend 使用 **cnb.cool git issue**
+
+翻译不是逐行搬运 Elixir 实现，而是在保持 Symphony 契约与调度语义的前提下，把其落地到 Node.js 子进程编排、CodeBuddy CLI 会话续跑、以及 cnb issue 状态同步这三条主线上。
 
 ## 项目定位
 
 本仓库是 [OpenAI Symphony](https://github.com/openai/symphony) 调度规范的一个 **TypeScript 参考实现**，使用 [CodeBuddy Code CLI](https://copilot.tencent.com/docs/cli/) 作为编码 agent 的执行层。
 
 Symphony 官方用 Elixir/OTP 实现参考版；本项目用 TypeScript / Node.js 实现，目标用户是希望在 Node 生态内部署类 Symphony 调度器的团队。
+
+当前仓库的主线不是“重写一个长得像 Symphony 的新系统”，而是把 Symphony 的这些核心能力在 Node.js 下重新建立出来：
+
+- 基于 issue 的候选拉取、认领、派发与续跑
+- 基于 per-task workspace 的隔离执行
+- 基于 CodeBuddy CLI 的 session / resume 运行模型
+- 基于 cnb.cool issue 的 tracker 读写与状态同步
 
 ## 与 Symphony 官方实现的关系
 
@@ -22,7 +37,7 @@ Symphony 官方用 Elixir/OTP 实现参考版；本项目用 TypeScript / Node.j
 | 对标契约 | `symphony/SPEC.md` | 本仓库 `PLAN.md`（契约完整对齐 + 实现分阶段） |
 
 **关键策略**：
-- **契约不降维**：`PLAN.md` 14 章节完整对齐 Symphony 语义
+- **契约不降维**：`PLAN.md` 按最新版 Symphony SPEC 的 **18 章 + Appendix A** 补齐语义边界
 - **实现分阶段**：M1 单机 + CNB tracker；M4 再做 Dashboard 与 SSH worker
 - **Linear 永不接入**：用 cnb.cool issue 替代
 
@@ -60,21 +75,21 @@ agentfirst-f1/
 ```bash
 # 验证基础工具链
 bash scripts/baseline.sh --no-tests    # 应输出合法 JSON
+
+# 进入 TypeScript 参考实现
+cd typescript
+pnpm install
+pnpm test
+pnpm check
 ```
 
-M1 实现落地后本节会扩充为端到端命令。
+当前 `typescript/` 目录已经有配置加载、tracker 抽象、scheduler 选择逻辑、workspace 管理、CodeBuddy 命令构造和对应测试；真正的多 turn orchestration、reconciliation 与 remote worker 仍在后续里程碑内。
 
-## 里程碑
+## 规划说明
 
-| 里程碑 | 产出 | 状态 |
-|---|---|---|
-| M0 | `PLAN.md` v0.1 骨架 + 两份 spike（CodeBuddy CLI / cnb API） | 🟡 进行中 |
-| M1 | `typescript/` 最小可跑：CNBTracker + LocalWorker + CodeBuddy CLI 单 turn | ⚪ 待启动 |
-| M2 | continuation（`--resume`）+ baseline 闭环 + multi-turn | ⚪ 待启动 |
-| M3 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree | ⚪ 待启动 |
-| M4 | Dashboard（SSE/WS）+ RemoteWorker（SSH） | ⚪ 待启动 |
+README 只保留项目目标、定位、技术路径和快速开始，不再承载任务状态、里程碑状态或待办清单。
 
-详细契约章节与当前阶段待办见 [`PLAN.md`](./PLAN.md)。
+所有任务规划、章节状态、里程碑推进和当前待办，统一以 [`PLAN.md`](./PLAN.md) 为准。
 
 ## License
 

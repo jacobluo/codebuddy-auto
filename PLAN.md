@@ -1,7 +1,7 @@
 # PLAN.md — agentfirst-f1 项目计划
 
-> **状态**：M0 起草中。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，对齐 Symphony SPEC 的语义，但
-> backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
+> **状态**：M0 已完成，当前处于 M1 实现 + PLAN 契约补齐并行阶段。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
+> 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
 >
 > 章节完成后把 ⚪ 改为 🟢。
 
@@ -24,20 +24,20 @@
 
 ## 1. 里程碑
 
-| 里程碑 | 契约章节（PLAN） | 实现（`typescript/`） |
-|---|---|---|
-| **M0** | 全部 18 章节 + Appendix A 骨架（含 CNB tracker / worker 抽象 / dashboard / security / test matrix 占位） | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 对齐 |
-| **M1** | — | `typescript/` 最小可跑：CNBTracker + LocalWorker + CodeBuddy CLI 单 turn + 单并发 |
-| **M2** | — | Continuation（基于 CLI `--resume`）+ baseline 闭环 + multi-turn |
-| **M3** | — | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
-| **M4** | — | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
+| 里程碑 | 状态 | 契约章节（PLAN） | 实现（`typescript/`） |
+|---|---|---|---|
+| **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
+| **M1** | 🟡 进行中 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 最小骨架已落地，目标是补齐单 turn + 单并发的主流程 |
+| **M2** | ⚪ 待启动 | continuation、baseline 闭环、多 turn 相关章节细化 | Continuation（基于 CLI `--resume`）+ baseline 闭环 + multi-turn |
+| **M3** | ⚪ 待启动 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
+| **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
 
 ---
 
-## 2. 契约章节骨架（对标最新版 Symphony SPEC）
+## 2. 契约章节差距清单（对标最新版 Symphony SPEC）
 
 上游 [`docs/references/symphony-spec.md`](./docs/references/symphony-spec.md) 已扩展为 **18 章 + Appendix A**。
-当前 `PLAN.md` 正处于从旧的 **14 章骨架** 向最新版 **18 章 + Appendix A** 映射迁移的阶段，因此本节先显式标注滞后状态，避免后续实现继续按旧章节映射推进。
+当前 `PLAN.md` 仍以“差距分析 + 补齐清单”为主，还不是按最新版 SPEC 重写后的正式 18 章正文；因此本节先显式标注滞后状态，避免后续实现继续按旧章节映射推进。
 
 状态说明：
 
@@ -98,22 +98,23 @@
 
 - 本项目方案**仍然可行**，因为核心替换关系没变：`Linear -> cnb`、`Codex app-server -> CodeBuddy CLI/ACP`、`Elixir/OTP -> Node subprocess orchestration`。
 - 现在的主要问题不是“方案错误”，而是 **`PLAN.md` 的契约覆盖面已经落后于上游 SPEC 粒度**。
-- 在进入 `typescript/` 实现前，至少应先补齐 `§3 / §5 / §8 / §12 / §13`，否则实现会缺少最新版 SPEC 的关键约束面。
+- 当前 `typescript/` 已有最小骨架，但在把它推进到可闭环的 M1 主流程前，至少应先补齐 `§3 / §5 / §8 / §12 / §13`，否则实现会缺少最新版 SPEC 的关键约束面。
 
 ### 2.3 可执行补齐清单
 
 以下清单按“先补契约、再写代码”的顺序组织。每项都应产出可检查的文档结果，而不是只做讨论。
+其中 `Phase 0` 与 `Phase 1` 是当前整理 `PLAN.md` 的主线，`Phase 2` 之后的内容在正式章节主线建立后推进。
 
 #### Phase 0 — 重排 PLAN 结构（必须先做）
 
-- [ ] **Task 0.1**：把 `PLAN.md` 的章节骨架从 14 章升级为与最新版 SPEC 对齐的 **18 章 + Appendix A 占位**。
-  - 完成标准：`PLAN.md` 出现 `§1` 到 `§18` 的一级章节骨架，并显式标出 `Appendix A`。
-- [ ] **Task 0.2**：为每个章节补上状态标记（`🟢/🟡/⚪`）与一句话范围说明。
-  - 完成标准：读 `PLAN.md` 目录区即可看出“哪些章节已起草、哪些仅占位、哪些仍滞后”。
+- [ ] **Task 0.1**：把 `PLAN.md` 从“差距清单主导”改写为与最新版 SPEC 对齐的 **18 章 + Appendix A 正式章节主线**。
+  - 完成标准：`PLAN.md` 以 `§1` 到 `§18` 的正式章节为主线组织内容，并显式标出 `Appendix A`。
+- [ ] **Task 0.2**：为正式章节目录补上状态标记（`🟢/🟡/⚪`）与一句话范围说明。
+  - 完成标准：读章节目录区即可看出“哪些章节已起草、哪些仅占位、哪些仍滞后”。
 - [ ] **Task 0.3**：把当前“差距分析”保留为过渡信息，但避免它继续充当正式契约正文。
   - 完成标准：差距分析被收拢到 roadmap / migration 语境，正式章节成为主线。
 
-#### Phase 1 — 先补最缺的 5 章（进入实现前必须完成）
+#### Phase 1 — 先补最缺的 5 章（推进 M1 主流程前必须完成）
 
 - [ ] **Task 1.1 — 补 §3 State Schema**
   - 目标：把 `Issue / WorkflowDefinition / Workspace / RunAttempt / LiveSession / RetryEntry / RuntimeState` 定义完整。
@@ -131,7 +132,7 @@
   - 目标：把 conformance 检查拆成可执行测试清单。
   - 完成标准：每个核心模块至少能映射到一个测试小节，且能作为 `typescript/test/` 的目录依据。
 
-#### Phase 2 — 补运行时主干章节（M1 开发前完成）
+#### Phase 2 — 补运行时主干章节（M1 主流程收口前完成）
 
 - [ ] **Task 2.1 — 补 §1 Problem Statement / Project Positioning**
   - 目标：说明本项目与上游 Symphony、CodeBuddy CLI、cnb tracker 的边界，以及“handoff state 不等于 Done”。
@@ -169,26 +170,28 @@
 
 #### Phase 4 — 文档与 roadmap 收尾（避免文档彼此打架）
 
-- [ ] **Task 4.1**：同步 `README.md` 的里程碑与章节映射，去掉“14 章骨架”心智。
-  - 完成标准：README 中对 `PLAN.md` 的描述与当前章节结构一致。
+- [x] **Task 4.1**：同步 `README.md` 的职责边界，去掉 README 承载任务状态与“14 章骨架”心智。
+  - 完成标准：README 中仅保留项目目标 / 定位 / 技术路径 / 快速开始，并明确任务规划统一以 `PLAN.md` 为准。
 - [ ] **Task 4.2**：同步 [`docs/references/symphony.md`](./docs/references/symphony.md)，把“借鉴清单”引用改到最新版章节号。
   - 完成标准：引用的 SPEC 章节编号不再失真。
 - [ ] **Task 4.3**：把 OpenSpec 后续 change 拆分为若干小 change，而不是一次性重写整份 `PLAN.md`。
   - 建议拆分：`draft-plan-state-schema`、`draft-plan-workflow-config`、`draft-plan-runner-contract`、`draft-plan-observability-and-tests`。
   - 完成标准：每个 change 可在 1 个顶层任务内完成并可审查。
 
-#### 建议优先级
+#### 当前建议优先级
 
-1. `P0`：`Task 0.1 ~ 0.3`，先把 `PLAN.md` 结构升级。
-2. `P0`：`Task 1.1 ~ 1.5`，这是进入 `typescript/` 实现前的最低文档门槛。
-3. `P1`：`Task 2.1 ~ 2.6`，补齐调度主干章节。
-4. `P2`：`Task 3.1 ~ 3.4` 与 `Task 4.1 ~ 4.3`，用于收束恢复、安全和后续 roadmap。
+1. `P0`：`Task 0.1 ~ 0.3`，先把 `PLAN.md` 从“差距分析主导”升级为“正式章节主导”。
+2. `P0`：`Task 1.1 ~ 1.5`，这是把 M1 从“最小骨架”推进到“可闭环主流程”的最低文档门槛。
+3. `P1`：`Task 2.1 ~ 2.6`，补齐调度主干章节，使 `scheduler / workspace / tracker` 主流程有完整契约。
+4. `P2`：`Task 3.1 ~ 3.4` 与 `Task 4.2 ~ 4.3`，用于收束恢复、安全、附录扩展和后续 roadmap。
 
 ---
 
-## 3. M0 待办（当前阶段）
+## 3. 当前实现状态（截至 2026-05-19）
 
-### 3.1 阻塞性 spike（必须先做）
+### 3.1 已完成的前置验证（M0）
+
+本小节记录已经完成并关闭的前置验证，避免后续把它们继续当作当前待办。
 
 两份 spike 已纳入 OpenSpec change **`m0-spike-codebuddy-and-cnb`**（见 `openspec/changes/m0-spike-codebuddy-and-cnb/`）。
 详细 proposal / design / tasks / 能力骨架 spec 在 change 目录内维护，本节不重复清单。
@@ -196,17 +199,17 @@
 - 🟢 **Spike A — CodeBuddy CLI 能力验证** → [`docs/references/codebuddy-cli-capabilities.md`](./docs/references/codebuddy-cli-capabilities.md)（2026-05-01 完成，Verdict 🟢）
 - 🟢 **Spike B — cnb.cool Issue API 验证** → [`docs/references/cnb-issue-api.md`](./docs/references/cnb-issue-api.md)（2026-05-01 完成，Verdict 🟡 带 3 处降级）
 
-两份 spike 完成且 change 归档（`/opsx:archive`）后，PLAN §4 和 §5 才有起草的前提。
+两份 spike 已完成且 change 已归档，因此 PLAN §4 和 §5 的细化起草条件已经满足。
 
-### 3.2 文档修订
+### 3.2 已完成的文档收敛
 
 - 🟢 `SPEC.md` → 重命名并扩写为 `PLAN.md`（本文件）
-- 🟡 `README.md`：已完成 Python → TS、SDK → CLI、Linear 字样清理；仍需把里程碑表与“18 章 + Appendix A”心智对齐
+- 🟢 `README.md`：已收敛为“项目目标 / 定位 / 技术路径 / 快速开始”，不再承载任务状态
 - 🟡 `docs/references/symphony.md`：已完成“不做 Linear / 分阶段实现”重写；仍需把引用章节号同步到最新版 SPEC
 
-### 3.3 骨架搭建（spike 验证通过后）
+### 3.3 已落地的 TypeScript 骨架
 
-- ⚪ 新建 `typescript/` 目录
+- 🟢 新建 `typescript/` 目录
   ```
   typescript/
   ├── package.json         (pnpm + 工作区预留)
@@ -223,10 +226,25 @@
   │   └── index.ts
   └── test/                ← vitest
   ```
-- ⚪ `scripts/baseline.sh` 的 `TESTS_DIR` / `API_SRC_DIR` 默认值从 `python/*` 改为 `typescript/*`
-- ⚪ `typescript/test/` 目录按最新版 SPEC §17 的验证矩阵镜像 `src/` 分层
+- 🟢 `typescript/` 已落地最小骨架：`spec / tracker / runner / scheduler / workspace / workflow / config / logging / cli` 均已有源码与基础测试
+- 🟢 `scripts/baseline.sh` 的 `TESTS_DIR` / `API_SRC_DIR` 默认值已从 `python/*` 改为 `typescript/*`
+- 🟢 `typescript/test/` 已按 `src/` 主要模块镜像分层，具备基础验证矩阵雏形
 
-### 3.4 技术栈选型（确认稿）
+### 3.4 当前仍然打开的 M1 缺口
+
+- 🟡 scheduler 仍只有单次 `runDispatchCycle()` 骨架，尚未实现持续 poll loop、reconciliation、retry/backoff
+- 🟡 runner 目前只覆盖 workspace 准备与 CodeBuddy 命令构造，尚未实现真实子进程拉起、NDJSON 事件流解析、turn 生命周期映射
+- 🟡 workflow / config 已有 front matter 解析与基础 preflight，但尚未覆盖 dynamic reload、严格模板渲染、last-known-good 配置保留
+- 🟡 logging 目前只有基础 `pino` logger，尚未形成 runtime snapshot、token/runtime 聚合与 operator status surface
+
+### 3.5 下一步应直接对应的 PLAN 章节
+
+- `§3 State Schema`：把当前 `spec/` 中已出现的 `Issue / RuntimeState / RetryEntry` 扩成正式实体契约
+- `§5 Workflow Specification` 与 `§6 Configuration Specification`：把现有 `loadWorkflow()` / `loadServiceConfig()` 的行为上升为正式规范
+- `§10 Agent Runner Protocol` 与 `§12 Prompt Construction`：把现有 `buildCodebuddyCommand()` 和 spike 结论汇总成可实现的 runner contract
+- `§13 Logging / Status / Observability` 与 `§17 Test Matrix`：让当前 `logging/` 与 `typescript/test/` 有明确完成标准
+
+### 3.6 技术栈选型（确认稿）
 
 详见 [`AGENTS.md` §1 技术栈（锁定）](./AGENTS.md#1-技术栈锁定) 和 [§2 编码规范（硬约束）](./AGENTS.md#2-编码规范硬约束)。
 本节不重复。
@@ -239,7 +257,7 @@
 |---|---|---|
 | R1 | CodeBuddy CLI `--resume` / stream-json / ACP 语义随版本演进漂移 | 用 `scripts/spike-a-probe.sh` 做回归探针；M1 固定一版 CLI 行为基线 |
 | R2 | cnb.cool API 的 batch-by-id / labels 过滤 / custom fields 仍有能力缺口 | 在 §11 正式吸收 3 处降级：并发单查、客户端二次过滤、label 前缀承载元数据 |
-| R3 | 最新版 SPEC 要求的 dynamic reload / observability / test matrix 尚未写入正式契约 | 先补 `§5/§6/§13/§17/§18`，再启动 `typescript/` 实现 |
+| R3 | 最新版 SPEC 要求的 dynamic reload / observability / test matrix 尚未写入正式契约，且实现也仅到最小骨架 | 先补 `§5/§6/§13/§17/§18`，并同步推进 `typescript/` 的 orchestration / runner 主流程 |
 | R4 | 切 TS 后团队心智成本 | 可控；harness-f1 生态本身也是 Node 主导 |
 | R5 | Node 无 OTP 级监督树 | 已在 §14 承认，以 "Node 子进程 + 心跳 + 崩溃重启" 作为语义等价实现 |
 
@@ -257,3 +275,4 @@
 | v0.5 | 2026-05-01 | `openspec init` 落地；两份 spike 的 design doc 迁移到 `openspec/changes/m0-spike-codebuddy-and-cnb/`（proposal + design + tasks + 两份 skeleton spec）；删除 `docs/plans/2026-05-01-spike-ab-design.md`；AGENTS.md §4.1 豁免清单删除 `docs/plans/` 条目 |
 | v0.6 | 2026-05-01 | Spike A 完成（CodeBuddy CLI 2.93.6 🟢 充分承接 §10）；Spike B 完成（cnb.cool REST API 🟡 承接 §11 带 3 处降级：无 batch-by-id / labels OR-only / 无 custom fields）；`scripts/spike-b-probe.sh` 固化为可回归探针 |
 | v0.7 | 2026-05-18 | 基于最新版 `symphony/SPEC.md` 重评项目差距：`PLAN.md` 明确标出 18 章 + Appendix A 映射、滞后章节、可执行补齐清单，并同步修正 M0 里程碑、TS 目录骨架与风险表 |
+| v0.8 | 2026-05-19 | README 收敛为项目说明文档；PLAN 将已完成的 M0 文档/骨架事项与仍打开的 M1 缺口分开表述，避免把已落地内容继续记为待办 |

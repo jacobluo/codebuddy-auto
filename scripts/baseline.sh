@@ -16,8 +16,8 @@
 #     当 runtime 在 pytest 内驱动 baseline 时，调用方应显式传 --no-tests。
 #
 # 环境变量：
-#   TESTS_DIR      测试目录（默认 python/tests）
-#   API_SRC_DIR    public_api_hash 的源目录（默认 python/src）
+#   TESTS_DIR      测试目录（默认 typescript/test）
+#   API_SRC_DIR    public_api_hash 的源目录（默认 typescript/src）
 #
 # 字段清单：
 #   git_head / tests_pass / tests_fail / tests_total / skipped /
@@ -98,7 +98,7 @@ if [[ "$NO_TESTS" == "1" || -n "${PYTEST_CURRENT_TEST:-}" ]]; then
 elif [[ -z "$PYTEST_BIN" ]]; then
     SKIPPED="true"
 else
-    TESTS_DIR="${TESTS_DIR:-python/tests}"
+    TESTS_DIR="${TESTS_DIR:-typescript/test}"
     if [[ ! -d "$TESTS_DIR" ]]; then
         SKIPPED="true"
     else
@@ -132,8 +132,8 @@ fi
 # ---- public_api_hash ----
 API_HASH="null"
 if [[ "$INCLUDE_API_HASH" == "1" ]]; then
-    API_SRC_DIR="${API_SRC_DIR:-python/src}"
-    API_SRC=$(find "$API_SRC_DIR" -name '*.py' 2>/dev/null | sort | xargs grep -hE '^(def|class|async def)' 2>/dev/null || true)
+    API_SRC_DIR="${API_SRC_DIR:-typescript/src}"
+    API_SRC=$(find "$API_SRC_DIR" -name '*.ts' 2>/dev/null | sort | xargs grep -hE '^(export |interface |type |class |async function |function )' 2>/dev/null || true)
     if [[ -n "$API_SRC" ]]; then
         H=$(echo "$API_SRC" | shasum -a 1 2>/dev/null | awk '{print $1}')
         if [[ -z "$H" ]]; then
