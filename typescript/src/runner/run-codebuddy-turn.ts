@@ -17,14 +17,24 @@ const rawSystemInitEventSchema = z.object({
 const rawResultEventSchema = z.object({
   type: z.literal('result'),
   subtype: z.string().optional(),
+  session_id: z.string().optional(),
   is_error: z.boolean().optional(),
   duration_ms: z.number().int().nonnegative().optional(),
   num_turns: z.number().int().nonnegative().optional(),
   usage: z.record(z.string(), z.number()).optional(),
+  permission_denials: z.array(z.unknown()).optional(),
 });
 
 const rawAssistantEventSchema = z.object({
   type: z.literal('assistant'),
+  message: z.object({
+    usage: z.record(z.string(), z.number()).optional(),
+    providerData: z.object({
+      rawUsage: z.object({
+        credit: z.number().optional(),
+      }).partial().optional(),
+    }).partial().optional(),
+  }).partial().passthrough().optional(),
 }).passthrough();
 
 const rawMessageEventSchema = z.object({
@@ -70,7 +80,27 @@ export type CodebuddyRunnerEvent =
       };
     }
   | {
+      event: 'turn_input_required';
+      payload: {
+        message?: string;
+        sessionId?: string;
+        permissionDenials: number;
+      };
+    }
+  | {
       event: 'turn_timed_out';
+      payload: {
+        timeoutMs: number;
+      };
+    }
+  | {
+      event: 'turn_stalled';
+      payload: {
+        timeoutMs: number;
+      };
+    }
+  | {
+      event: 'turn_read_timed_out';
       payload: {
         timeoutMs: number;
       };
@@ -79,6 +109,8 @@ export type CodebuddyRunnerEvent =
       event: 'other_message';
       payload: {
         raw: Record<string, unknown>;
+        usage?: Record<string, number>;
+        credit?: number;
       };
     }
   | {
@@ -90,7 +122,9 @@ export type CodebuddyRunnerEvent =
 
 export interface RunCodebuddyTurnInput {
   command: CodebuddyCommand;
+  readTimeoutMs?: number;
   turnTimeoutMs?: number;
+  stallTimeoutMs?: number;
 }
 
 export interface RunCodebuddyTurnResult {
@@ -133,6 +167,17 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
   }
 
   if (event.type === 'result') {
+    if ((event.permission_denials?.length ?? 0) > 0) {
+      return {
+        event: 'turn_input_required',
+        payload: {
+          message: event.subtype,
+          sessionId: event.session_id,
+          permissionDenials: event.permission_denials?.length ?? 0,
+        },
+      };
+    }
+
     if (event.is_error === true) {
       return {
         event: 'turn_failed',
@@ -156,6 +201,8 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
     event: 'other_message',
     payload: {
       raw: event,
+      usage: event.type === 'assistant' ? event.message?.usage : undefined,
+      credit: event.type === 'assistant' ? event.message?.providerData?.rawUsage?.credit : undefined,
     },
   };
 }
@@ -179,21 +226,75 @@ export async function runCodebuddyTurn(
   const stdoutReader = readline.createInterface({ input: stdout, crlfDelay: Infinity });
   const stderrReader = readline.createInterface({ input: stderr, crlfDelay: Infinity });
 
+  let receivedOutput = false;
+  let readTimedOut = false;
+  let readTimeoutHandle: NodeJS.Timeout | null = null;
+
+  function clearReadTimer(): void {
+    if (readTimeoutHandle) {
+      clearTimeout(readTimeoutHandle);
+      readTimeoutHandle = null;
+    }
+  }
+
+  function markReadable(): void {
+    if (receivedOutput) {
+      return;
+    }
+
+    receivedOutput = true;
+    clearReadTimer();
+  }
+
   stdoutReader.on('line', (line) => {
+    markReadable();
+    refreshStallTimer();
     events.push(parseEventLine(line));
   });
 
   stderrReader.on('line', (line) => {
+    markReadable();
+    refreshStallTimer();
     stderrLines.push(line);
   });
 
   let timedOut = false;
+  let stalled = false;
+  if (input.readTimeoutMs) {
+    readTimeoutHandle = setTimeout(() => {
+      readTimedOut = true;
+      child.kill('SIGTERM');
+    }, input.readTimeoutMs);
+  }
+
   const timeoutHandle = input.turnTimeoutMs
     ? setTimeout(() => {
         timedOut = true;
         child.kill('SIGTERM');
       }, input.turnTimeoutMs)
     : null;
+  let stallTimeoutHandle: NodeJS.Timeout | null = null;
+
+  function clearStallTimer(): void {
+    if (stallTimeoutHandle) {
+      clearTimeout(stallTimeoutHandle);
+      stallTimeoutHandle = null;
+    }
+  }
+
+  function refreshStallTimer(): void {
+    if (!input.stallTimeoutMs) {
+      return;
+    }
+
+    clearStallTimer();
+    stallTimeoutHandle = setTimeout(() => {
+      stalled = true;
+      child.kill('SIGTERM');
+    }, input.stallTimeoutMs);
+  }
+
+  refreshStallTimer();
 
   const exitCode = await new Promise<number>((resolve, reject) => {
     child.once('error', (error) => {
@@ -208,6 +309,8 @@ export async function runCodebuddyTurn(
   if (timeoutHandle) {
     clearTimeout(timeoutHandle);
   }
+  clearReadTimer();
+  clearStallTimer();
 
   stdoutReader.close();
   stderrReader.close();
@@ -225,8 +328,37 @@ export async function runCodebuddyTurn(
     };
   }
 
+  if (readTimedOut && input.readTimeoutMs) {
+    return {
+      events: [{
+        event: 'turn_read_timed_out',
+        payload: {
+          timeoutMs: input.readTimeoutMs,
+        },
+      }],
+      exitCode: null,
+      stderr: stderrLines,
+    };
+  }
+
+  if (stalled && input.stallTimeoutMs) {
+    return {
+      events: [{
+        event: 'turn_stalled',
+        payload: {
+          timeoutMs: input.stallTimeoutMs,
+        },
+      }],
+      exitCode: null,
+      stderr: stderrLines,
+    };
+  }
+
   const hasTerminalEvent = events.some(
-    (event) => event.event === 'turn_completed' || event.event === 'turn_failed',
+    (event) => event.event === 'turn_completed'
+      || event.event === 'turn_failed'
+      || event.event === 'turn_stalled'
+      || event.event === 'turn_read_timed_out',
   );
   if (!hasTerminalEvent && exitCode !== 0) {
     events.push({

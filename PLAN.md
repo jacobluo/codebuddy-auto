@@ -232,10 +232,10 @@
 
 ### 3.4 当前仍然打开的 M1 缺口
 
-- 🟡 scheduler 仍只有单次 `runDispatchCycle()` 骨架，尚未实现持续 poll loop、reconciliation、retry/backoff
-- 🟡 runner 目前只覆盖 workspace 准备与 CodeBuddy 命令构造，尚未实现真实子进程拉起、NDJSON 事件流解析、turn 生命周期映射
-- 🟡 workflow / config 已有 front matter 解析与基础 preflight，但尚未覆盖 dynamic reload、严格模板渲染、last-known-good 配置保留
-- 🟡 logging 目前只有基础 `pino` logger，尚未形成 runtime snapshot、token/runtime 聚合与 operator status surface
+- 🟡 scheduler 已具备 startup cleanup、poll loop、reconciliation、continuation、retry/backoff 主干，并已补上 terminal issue workspace cleanup / beforeRemove hook 路径；baseline 脚本也已切到 Node/TypeScript 测试面，当前主要缺口收敛为 baseline 对比接线与多 issue worktree 隔离
+- 🟡 runner 已覆盖真实子进程拉起、NDJSON 事件流解析、read/turn/stall timeout、token/runtime 聚合、continuation resume，以及 approval/user-input 的主要策略面（permission mode、tool gating、add-dir、permission denial 映射），但仍缺少更细的交互式审批回放语义
+- 🟡 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径/$VAR/~/MCP 路径解析；剩余缺口主要是更正式的 workflow watch/discovery 契约
+- 🟡 logging 已形成 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface 与 issue-scoped child logger，但 HTTP status API 与更正式的 observability contract 仍未落地
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 

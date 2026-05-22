@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ensureWorkspace } from '../../src/workspace/index.js';
+import { DEFAULT_SERVICE_CONFIG } from '../../src/spec/index.js';
 
 const tempDirs: string[] = [];
 
@@ -38,5 +39,33 @@ describe('ensureWorkspace', () => {
     const workspace = await ensureWorkspace(root, 'ABC-123');
 
     expect(workspace.createdNow).toBe(false);
+  });
+
+  it('runs afterCreate hooks when a workspace is first created', async () => {
+    const root = createTempRoot();
+    const markerPath = path.join(root, 'hook-created.txt');
+
+    const workspace = await ensureWorkspace(root, 'ABC-123', {
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        afterCreate: `echo ok > "${markerPath}"`,
+      },
+    });
+
+    expect(workspace.createdNow).toBe(true);
+    expect(fs.readFileSync(markerPath, 'utf8').trim()).toBe('ok');
+  });
+
+  it('fails workspace creation when the afterCreate hook fails', async () => {
+    const root = createTempRoot();
+
+    await expect(
+      ensureWorkspace(root, 'ABC-123', {
+        hooks: {
+          ...DEFAULT_SERVICE_CONFIG.hooks,
+          afterCreate: 'exit 7',
+        },
+      }),
+    ).rejects.toThrow('afterCreate hook failed for workspace creation');
   });
 });

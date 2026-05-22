@@ -18,4 +18,16 @@ describe('serviceConfigSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('rejects non-positive turn timeout values', () => {
+    expect(() =>
+      serviceConfigSchema.parse({
+        ...DEFAULT_SERVICE_CONFIG,
+        codebuddy: {
+          ...DEFAULT_SERVICE_CONFIG.codebuddy,
+          turnTimeoutMs: 0,
+        },
+      }),
+    ).toThrow();
+  });
 });

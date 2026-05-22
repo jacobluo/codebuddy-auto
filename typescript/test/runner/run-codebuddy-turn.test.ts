@@ -94,6 +94,34 @@ describe('runCodebuddyTurn', () => {
     });
   });
 
+  it('maps permission denials into turn_input_required events', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-approval');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'result',subtype:'approval_required',session_id:'session-2',is_error:true,permission_denials:[{kind:'exec'}]}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.events).toEqual([
+      {
+        event: 'turn_input_required',
+        payload: {
+          message: 'approval_required',
+          sessionId: 'session-2',
+          permissionDenials: 1,
+        },
+      },
+    ]);
+  });
+
   it('emits turn_failed when the subprocess exits non-zero before any result event', async () => {
     const workspacePath = ensureWorkspaceDir('agentfirst-runner-failure');
     const result = await runCodebuddyTurn({
@@ -141,6 +169,60 @@ describe('runCodebuddyTurn', () => {
     expect(result.events).toEqual([
       {
         event: 'turn_timed_out',
+        payload: {
+          timeoutMs: 50,
+        },
+      },
+    ]);
+  });
+
+  it('kills the subprocess when the output stream stalls for too long', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-stall');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'assistant',message:{content:[{type:'output_text',text:'working'}]}}));",
+            'setTimeout(() => console.log(JSON.stringify({type:"result",subtype:"success",is_error:false})), 1000);',
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+      stallTimeoutMs: 50,
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.events).toEqual([
+      {
+        event: 'turn_stalled',
+        payload: {
+          timeoutMs: 50,
+        },
+      },
+    ]);
+  });
+
+  it('kills the subprocess when no output is received before the read timeout', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-read-timeout');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          'setTimeout(() => console.log(JSON.stringify({type:"result",subtype:"success",is_error:false})), 1000);',
+        ],
+        cwd: workspacePath,
+      },
+      readTimeoutMs: 50,
+      stallTimeoutMs: 200,
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(result.events).toEqual([
+      {
+        event: 'turn_read_timed_out',
         payload: {
           timeoutMs: 50,
         },

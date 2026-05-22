@@ -87,4 +87,18 @@ describe('selectDispatchCandidates', () => {
 
     expect(selected).toHaveLength(1);
   });
+
+  it('does not redispatch issues with pending retry entries', () => {
+    const selected = selectDispatchCandidates({
+      issues: [makeIssue({ id: 'retrying', identifier: 'ABC-9' })],
+      activeStates: ['open'],
+      terminalStates: ['closed'],
+      runningIssueIds: new Set(),
+      claimedIssueIds: new Set(['retrying']),
+      maxConcurrentAgents: 10,
+      runningCount: 0,
+    });
+
+    expect(selected).toEqual([]);
+  });
 });

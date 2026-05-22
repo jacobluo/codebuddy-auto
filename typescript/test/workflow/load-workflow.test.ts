@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { parseWorkflow } from '../../src/workflow/index.js';
+import { parseWorkflow, resolveWorkflowPath } from '../../src/workflow/index.js';
 
 describe('parseWorkflow', () => {
   it('parses front matter and trims the prompt body', () => {
@@ -43,5 +43,19 @@ body
     expect(() => parseWorkflow(workflow, path.resolve('/repo/WORKFLOW.md'))).toThrow(
       'workflow front matter must decode to an object',
     );
+  });
+
+  it('uses WORKFLOW.md in the provided cwd when no explicit path is supplied', () => {
+    expect(resolveWorkflowPath('WORKFLOW.md', '/repo')).toEqual({
+      workflowPath: '/repo/WORKFLOW.md',
+      explicit: false,
+    });
+  });
+
+  it('preserves explicit relative workflow paths', () => {
+    expect(resolveWorkflowPath('./ops/alt-workflow.md', '/repo')).toEqual({
+      workflowPath: '/repo/ops/alt-workflow.md',
+      explicit: true,
+    });
   });
 });

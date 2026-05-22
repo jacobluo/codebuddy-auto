@@ -27,7 +27,14 @@ agent:
   max_turns: 8
 codebuddy:
   command: codebuddy --print
+  subagent_permission_mode: plan
+  tools: [mcp__cnb_api__comment]
+  allowed_tools: [Read]
+  disallowed_tools: [WebSearch]
+  add_dirs: [./shared, ~/scratch]
+  mcp_config: ./.codebuddy/mcp.json
   mcp_strict: false
+  dangerously_skip_permissions: true
 ---
 You are working on {{ issue.identifier }}.
 `;
@@ -42,7 +49,17 @@ You are working on {{ issue.identifier }}.
     expect(config.polling.intervalMs).toBe(15_000);
     expect(config.agent.maxTurns).toBe(8);
     expect(config.codebuddy.command).toBe('codebuddy --print');
+    expect(config.codebuddy.subagentPermissionMode).toBe('plan');
+    expect(config.codebuddy.tools).toEqual(['mcp__cnb_api__comment']);
+    expect(config.codebuddy.allowedTools).toEqual(['Read']);
+    expect(config.codebuddy.disallowedTools).toEqual(['WebSearch']);
+    expect(config.codebuddy.addDirs).toEqual([
+      path.resolve('/repo', 'shared'),
+      '/home/tester/scratch',
+    ]);
+    expect(config.codebuddy.mcpConfig).toBe(path.resolve('/repo', '.codebuddy/mcp.json'));
     expect(config.codebuddy.mcpStrict).toBe(false);
+    expect(config.codebuddy.dangerouslySkipPermissions).toBe(true);
   });
 
   it('expands home-prefixed workspace roots', () => {

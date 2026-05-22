@@ -53,16 +53,38 @@ function makeConfig(): ServiceConfig {
   };
 }
 
+function makeRuntimeMetrics() {
+  return {
+    secondsRunning: 0,
+    tokenUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      creditCost: 0,
+    },
+    lastReportedTotals: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    },
+  };
+}
+
 describe('runSchedulerOnce', () => {
   it('reconciles running issues before dispatching new work', async () => {
     const state = createRuntimeState();
     state.running['done-1'] = {
       issue: makeIssue({ id: 'done-1', identifier: '#done-1' }),
+      workspacePath: '/tmp/done-1',
       sessionId: 'done-1-turn-1',
       startedAt: '2026-05-19T00:00:00Z',
       turnCount: 1,
       lastEvent: 'turn_completed',
       lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
     };
     state.claimed.add('done-1');
 
@@ -79,9 +101,12 @@ describe('runSchedulerOnce', () => {
         dispatchableIssueIds: ['fresh-1'],
         claimedIssueIds: ['fresh-1'],
       }),
+      removeWorkspace: async () => ({ workspacePath: '/tmp/done-1', removed: true }),
     });
 
     expect(result.releasedIssueIds).toEqual(['done-1']);
+    expect(result.cleanedWorkspaceIssueIds).toEqual(['done-1']);
+    expect(result.continuedIssueIds).toEqual([]);
     expect(result.dispatch.dispatchableIssueIds).toEqual(['fresh-1']);
     expect(state.completed.has('done-1')).toBe(true);
   });
@@ -99,6 +124,213 @@ describe('runSchedulerOnce', () => {
     });
 
     expect(result.releasedIssueIds).toEqual([]);
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual([]);
     expect(result.dispatch.dispatchableIssueIds).toEqual([]);
+  });
+
+  it('continues dispatch when reconciliation lookup fails', async () => {
+    const state = createRuntimeState();
+    state.running['stuck-1'] = {
+      issue: makeIssue({ id: 'stuck-1', identifier: '#stuck-1' }),
+      workspacePath: '/tmp/stuck-1',
+      sessionId: 'stuck-1-turn-1',
+      startedAt: '2026-05-19T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('stuck-1');
+
+    const tracker: Tracker = {
+      async fetchCandidateIssues() {
+        return [makeIssue({ id: 'fresh-2', identifier: '#fresh-2' })];
+      },
+      async fetchIssuesByStates() {
+        return [];
+      },
+      async fetchIssueStatesByIds() {
+        throw new Error('tracker refresh failed');
+      },
+    };
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: ['fresh-2'],
+        claimedIssueIds: ['fresh-2', 'stuck-1'],
+      }),
+    });
+
+    expect(result.releasedIssueIds).toEqual([]);
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual([]);
+    expect(result.dispatch.dispatchableIssueIds).toEqual(['fresh-2']);
+    expect(state.running['stuck-1']).toBeDefined();
+  });
+
+  it('releases retry entries whose due time has passed so they can be dispatched again', async () => {
+    const state = createRuntimeState();
+    state.claimed.add('retry-1');
+    state.retryAttempts['retry-1'] = {
+      issueId: 'retry-1',
+      identifier: '#retry-1',
+      mode: 'failure',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_failed',
+    };
+
+    const tracker = new StubTracker(
+      [makeIssue({ id: 'retry-1', identifier: '#retry-1' })],
+      new Map(),
+    );
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: ['retry-1'],
+        claimedIssueIds: ['retry-1'],
+      }),
+    });
+
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual([]);
+    expect(result.dispatch.dispatchableIssueIds).toEqual(['retry-1']);
+    expect(state.retryAttempts['retry-1']).toBeUndefined();
+    expect(state.claimed.has('retry-1')).toBe(false);
+  });
+
+  it('keeps retry-pending issues claimed until their due time arrives', async () => {
+    const state = createRuntimeState();
+    state.claimed.add('retry-2');
+    state.retryAttempts['retry-2'] = {
+      issueId: 'retry-2',
+      identifier: '#retry-2',
+      mode: 'failure',
+      attempt: 1,
+      dueAtMs: Date.now() + 60_000,
+      error: 'turn_failed',
+    };
+
+    const tracker = new StubTracker(
+      [makeIssue({ id: 'retry-2', identifier: '#retry-2' })],
+      new Map(),
+    );
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: [],
+        claimedIssueIds: ['retry-2'],
+      }),
+    });
+
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual([]);
+    expect(result.dispatch.dispatchableIssueIds).toEqual([]);
+    expect(state.retryAttempts['retry-2']).toBeDefined();
+    expect(state.claimed.has('retry-2')).toBe(true);
+  });
+
+  it('drops stale retry claims when the tracker no longer returns that issue', async () => {
+    const state = createRuntimeState();
+    state.claimed.add('retry-3');
+    state.retryAttempts['retry-3'] = {
+      issueId: 'retry-3',
+      identifier: '#retry-3',
+      mode: 'failure',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_failed',
+    };
+
+    const tracker = new StubTracker([], new Map());
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: [],
+        claimedIssueIds: [],
+      }),
+    });
+
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual([]);
+    expect(result.dispatch.dispatchableIssueIds).toEqual([]);
+    expect(state.retryAttempts['retry-3']).toBeUndefined();
+    expect(state.claimed.has('retry-3')).toBe(false);
+  });
+
+  it('surfaces dispatch errors after retry release has already happened', async () => {
+    const state = createRuntimeState();
+    state.claimed.add('retry-4');
+    state.retryAttempts['retry-4'] = {
+      issueId: 'retry-4',
+      identifier: '#retry-4',
+      mode: 'failure',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_failed',
+    };
+
+    const tracker = new StubTracker([], new Map());
+
+    await expect(
+      runSchedulerOnce(state, tracker, makeConfig(), {
+        runDispatchCycle: async () => {
+          throw new Error('dispatch failed');
+        },
+      }),
+    ).rejects.toThrow('dispatch failed');
+
+    expect(state.retryAttempts['retry-4']).toBeUndefined();
+    expect(state.claimed.has('retry-4')).toBe(false);
+  });
+
+  it('runs continuation retries for active running issues before fresh dispatch', async () => {
+    const state = createRuntimeState();
+    state.running['cont-1'] = {
+      issue: makeIssue({ id: 'cont-1', identifier: '#cont-1' }),
+      workspacePath: '/tmp/cont-1',
+      sessionId: 'session-1',
+      startedAt: '2026-05-19T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('cont-1');
+    state.retryAttempts['cont-1'] = {
+      issueId: 'cont-1',
+      identifier: '#cont-1',
+      mode: 'continuation',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_completed',
+    };
+
+    const tracker = new StubTracker([], new Map([
+      ['cont-1', { id: 'cont-1', state: 'open', labels: [] }],
+    ]));
+
+    const runContinuationCycle = async () => ({
+      continuedIssueIds: ['cont-1'],
+    });
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runContinuationCycle,
+      runDispatchCycle: async () => ({
+        availableSlots: 9,
+        dispatchableIssueIds: [],
+        claimedIssueIds: ['cont-1'],
+      }),
+    });
+
+    expect(result.releasedIssueIds).toEqual([]);
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.continuedIssueIds).toEqual(['cont-1']);
+    expect(result.dispatch.claimedIssueIds).toEqual(['cont-1']);
   });
 });

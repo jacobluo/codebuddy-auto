@@ -1,12 +1,18 @@
 export { createLocalTracker } from './create-local-tracker.js';
+export { createRetryEntry } from './create-retry-entry.js';
 export { createRuntimeState } from './create-runtime-state.js';
 export { planDispatchCycle } from './plan-dispatch-cycle.js';
 export { reconcileRuntimeState } from './reconcile-runtime-state.js';
+export { runContinuationCycle } from './run-continuation-cycle.js';
 export { runDispatchCycle } from './run-dispatch-cycle.js';
+export { runStartupCleanup } from './run-startup-cleanup.js';
 export { runSchedulerOnce } from './run-scheduler-once.js';
 export { startScheduler } from './start-scheduler.js';
 export { selectDispatchCandidates } from './select-dispatch-candidates.js';
+export type { ContinuationCycleResult } from './run-continuation-cycle.js';
 export type { DispatchCycleResult } from './run-dispatch-cycle.js';
+export type { StartupCleanupDependencies, StartupCleanupResult } from './run-startup-cleanup.js';
+export type { CreateRetryEntryInput } from './create-retry-entry.js';
 export type { ReconcileRuntimeStateResult } from './reconcile-runtime-state.js';
 export type { SchedulerOnceDependencies, SchedulerOnceResult } from './run-scheduler-once.js';
 export type { SchedulerRuntime, StartSchedulerDependencies } from './start-scheduler.js';

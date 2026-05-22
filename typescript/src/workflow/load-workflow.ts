@@ -8,6 +8,11 @@ export interface WorkflowDefinition {
   workflowPath: string;
 }
 
+export interface WorkflowPathResolution {
+  workflowPath: string;
+  explicit: boolean;
+}
+
 const FRONT_MATTER_PATTERN = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 
 function ensureObject(value: unknown): Record<string, unknown> {
@@ -43,8 +48,27 @@ export function parseWorkflow(workflowSource: string, workflowPath: string): Wor
   };
 }
 
+export function resolveWorkflowPath(
+  workflowPath = 'WORKFLOW.md',
+  cwd = process.cwd(),
+): WorkflowPathResolution {
+  if (path.isAbsolute(workflowPath)) {
+    return {
+      workflowPath,
+      explicit: true,
+    };
+  }
+
+  const usesDefaultPath = workflowPath === 'WORKFLOW.md';
+
+  return {
+    workflowPath: path.resolve(cwd, workflowPath),
+    explicit: !usesDefaultPath,
+  };
+}
+
 export async function loadWorkflow(workflowPath: string): Promise<WorkflowDefinition> {
-  const resolvedPath = path.resolve(workflowPath);
-  const workflowSource = await fs.readFile(resolvedPath, 'utf8');
-  return parseWorkflow(workflowSource, resolvedPath);
+  const resolved = resolveWorkflowPath(workflowPath);
+  const workflowSource = await fs.readFile(resolved.workflowPath, 'utf8');
+  return parseWorkflow(workflowSource, resolved.workflowPath);
 }

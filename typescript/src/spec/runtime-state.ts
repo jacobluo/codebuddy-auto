@@ -24,6 +24,7 @@ export const issueSchema = z.object({
 export const retryEntrySchema = z.object({
   issueId: z.string(),
   identifier: z.string(),
+  mode: z.enum(['continuation', 'failure']),
   attempt: z.number().int().positive(),
   dueAtMs: z.number().int().nonnegative(),
   error: z.string().nullable(),
@@ -31,11 +32,27 @@ export const retryEntrySchema = z.object({
 
 export const runningEntrySchema = z.object({
   issue: issueSchema,
+  workspacePath: z.string(),
   sessionId: z.string().nullable(),
   startedAt: z.string(),
   turnCount: z.number().int().nonnegative(),
   lastEvent: z.string().nullable(),
   lastEventAt: z.string().nullable(),
+  secondsRunning: z.number().nonnegative(),
+  tokenUsage: z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+    cacheCreationInputTokens: z.number().int().nonnegative(),
+    cacheReadInputTokens: z.number().int().nonnegative(),
+    creditCost: z.number().nonnegative(),
+  }),
+  lastReportedTotals: z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    cacheCreationInputTokens: z.number().int().nonnegative(),
+    cacheReadInputTokens: z.number().int().nonnegative(),
+  }),
 });
 
 export const orchestratorRuntimeStateSchema = z.object({

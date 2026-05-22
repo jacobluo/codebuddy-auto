@@ -19,6 +19,24 @@ function splitCommand(command: string): string[] {
   return parts.map((part) => part.replace(/^['"]|['"]$/g, ''));
 }
 
+function appendCsvFlag(args: string[], flag: string, values: string[] | undefined): void {
+  if (!values || values.length === 0) {
+    return;
+  }
+
+  args.push(flag, values.join(','));
+}
+
+function appendRepeatedFlag(args: string[], flag: string, values: string[] | undefined): void {
+  if (!values || values.length === 0) {
+    return;
+  }
+
+  for (const value of values) {
+    args.push(flag, value);
+  }
+}
+
 export function buildCodebuddyCommand(input: BuildCodebuddyCommandInput): CodebuddyCommand {
   const commandParts = splitCommand(input.config.codebuddy.command);
   const executable = commandParts[0];
@@ -40,8 +58,21 @@ export function buildCodebuddyCommand(input: BuildCodebuddyCommandInput): Codebu
     args.push('--permission-mode', input.config.codebuddy.permissionMode);
   }
 
+  if (input.config.codebuddy.subagentPermissionMode) {
+    args.push('--subagent-permission-mode', input.config.codebuddy.subagentPermissionMode);
+  }
+
   if (input.config.codebuddy.sandbox) {
     args.push('--sandbox', input.config.codebuddy.sandbox);
+  }
+
+  appendCsvFlag(args, '--tools', input.config.codebuddy.tools);
+  appendCsvFlag(args, '--allowedTools', input.config.codebuddy.allowedTools);
+  appendCsvFlag(args, '--disallowedTools', input.config.codebuddy.disallowedTools);
+  appendRepeatedFlag(args, '--add-dir', input.config.codebuddy.addDirs);
+
+  if (input.config.codebuddy.dangerouslySkipPermissions) {
+    args.push('-y');
   }
 
   if (input.config.codebuddy.mcpConfig) {

@@ -77,6 +77,15 @@ function getObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function getStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const values = value.filter((entry): entry is string => typeof entry === 'string');
+  return values.length > 0 ? values : undefined;
+}
+
 export function loadServiceConfig(
   workflowSource: string,
   workflowPath: string,
@@ -140,6 +149,28 @@ export function loadServiceConfig(
   ) {
     agent.maxConcurrentAgentsByState = agentOverrides.max_concurrent_agents_by_state as Record<string, number>;
   }
+  if (typeof codebuddyOverrides.subagent_permission_mode === 'string') {
+    codebuddy.subagentPermissionMode = codebuddyOverrides.subagent_permission_mode;
+  }
+  if (typeof codebuddyOverrides.mcp_config === 'string') {
+    codebuddy.mcpConfig = resolvePathValue(codebuddyOverrides.mcp_config, workflowPath, env);
+  }
+  const codebuddyTools = getStringArray(codebuddyOverrides.tools);
+  if (codebuddyTools) {
+    codebuddy.tools = codebuddyTools;
+  }
+  const allowedTools = getStringArray(codebuddyOverrides.allowed_tools);
+  if (allowedTools) {
+    codebuddy.allowedTools = allowedTools;
+  }
+  const disallowedTools = getStringArray(codebuddyOverrides.disallowed_tools);
+  if (disallowedTools) {
+    codebuddy.disallowedTools = disallowedTools;
+  }
+  const addDirs = getStringArray(codebuddyOverrides.add_dirs);
+  if (addDirs) {
+    codebuddy.addDirs = addDirs.map((entry) => resolvePathValue(entry, workflowPath, env));
+  }
   if (typeof codebuddyOverrides.turn_timeout_ms === 'number') {
     codebuddy.turnTimeoutMs = codebuddyOverrides.turn_timeout_ms;
   }
@@ -151,6 +182,9 @@ export function loadServiceConfig(
   }
   if (typeof codebuddyOverrides.mcp_strict === 'boolean') {
     codebuddy.mcpStrict = codebuddyOverrides.mcp_strict;
+  }
+  if (typeof codebuddyOverrides.dangerously_skip_permissions === 'boolean') {
+    codebuddy.dangerouslySkipPermissions = codebuddyOverrides.dangerously_skip_permissions;
   }
   if (typeof codebuddy.command !== 'string' || codebuddy.command.length === 0) {
     codebuddy.command = DEFAULT_SERVICE_CONFIG.codebuddy.command;

@@ -22,6 +22,7 @@ describe('orchestratorRuntimeStateSchema', () => {
     state.retryAttempts['retry-1'] = {
       issueId: 'retry-1',
       identifier: '#1',
+      mode: 'failure',
       attempt: 2,
       dueAtMs: 5000,
       error: 'turn_failed',
@@ -33,6 +34,7 @@ describe('orchestratorRuntimeStateSchema', () => {
     expect(parsed.retryAttempts['retry-1']).toEqual({
       issueId: 'retry-1',
       identifier: '#1',
+      mode: 'failure',
       attempt: 2,
       dueAtMs: 5000,
       error: 'turn_failed',

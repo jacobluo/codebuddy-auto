@@ -35,7 +35,13 @@ export const agentConfigSchema = z.object({
 export const codebuddyConfigSchema = z.object({
   command: z.string(),
   permissionMode: z.string().optional(),
+  subagentPermissionMode: z.string().optional(),
   sandbox: z.string().optional(),
+  tools: z.array(z.string()).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  disallowedTools: z.array(z.string()).optional(),
+  addDirs: z.array(z.string()).optional(),
+  dangerouslySkipPermissions: z.boolean(),
   mcpConfig: z.string().optional(),
   mcpStrict: z.boolean(),
   turnTimeoutMs: z.number().int().positive(),
@@ -79,6 +85,7 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
   codebuddy: {
     command: 'codebuddy',
+    dangerouslySkipPermissions: false,
     mcpStrict: true,
     turnTimeoutMs: 3_600_000,
     readTimeoutMs: 5_000,

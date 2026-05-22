@@ -9,11 +9,10 @@
 #
 # 行为：
 #   - 无 --out 时输出 JSON 到 stdout
-#   - 无 pytest 可用时 tests_* 字段写 null，并设 skipped=true
+#   - 无 vitest 可用时 tests_* 字段写 null，并设 skipped=true
 #   - 非 git 仓库时 git_head=null
-#   - --no-tests 或检测到已在 pytest 环境内（$PYTEST_CURRENT_TEST 存在）时，
-#     跳过跑 pytest 环节（tests_* = null, skipped=true），避免递归调用——
-#     当 runtime 在 pytest 内驱动 baseline 时，调用方应显式传 --no-tests。
+#   - --no-tests 或检测到已在 pytest / vitest 环境内时，
+#     跳过跑测试环节（tests_* = null, skipped=true），避免递归调用
 #
 # 环境变量：
 #   TESTS_DIR      测试目录（默认 typescript/test）
@@ -77,44 +76,45 @@ if command -v git >/dev/null 2>&1; then
     fi
 fi
 
-# ---- pytest discovery ----
-PYTEST_BIN=""
-if [[ -x ".venv/bin/pytest" ]]; then
-    PYTEST_BIN=".venv/bin/pytest"
-elif command -v pytest >/dev/null 2>&1; then
-    PYTEST_BIN="$(command -v pytest)"
-fi
-
 TESTS_PASS="null"
 TESTS_FAIL="null"
 TESTS_TOTAL="null"
 SKIPPED="false"
 
-# 递归守卫：--no-tests 显式指定，或当前已在 pytest 环境内（$PYTEST_CURRENT_TEST
-# 由 pytest 自动注入），跳过 pytest 执行。否则若 runtime 在 smoke 里调 baseline，
-# baseline 又会跑 pytest，导致无限递归。
-if [[ "$NO_TESTS" == "1" || -n "${PYTEST_CURRENT_TEST:-}" ]]; then
+TESTS_DIR="${TESTS_DIR:-typescript/test}"
+VITEST_COMMAND=""
+if [[ -x "typescript/node_modules/.bin/vitest" ]]; then
+    VITEST_COMMAND="./node_modules/.bin/vitest run"
+elif command -v pnpm >/dev/null 2>&1; then
+    VITEST_COMMAND="pnpm test"
+fi
+
+# 递归守卫：--no-tests 显式指定，或当前已在 pytest/vitest 环境内，跳过测试执行。
+if [[ "$NO_TESTS" == "1" || -n "${PYTEST_CURRENT_TEST:-}" || -n "${VITEST:-}" ]]; then
     SKIPPED="true"
-elif [[ -z "$PYTEST_BIN" ]]; then
+elif [[ -z "$VITEST_COMMAND" ]]; then
+    SKIPPED="true"
+elif [[ ! -d "$TESTS_DIR" ]]; then
     SKIPPED="true"
 else
-    TESTS_DIR="${TESTS_DIR:-typescript/test}"
-    if [[ ! -d "$TESTS_DIR" ]]; then
-        SKIPPED="true"
+    if [[ "$VITEST_COMMAND" == "pnpm test" ]]; then
+        RUN_OUT=$(cd typescript && pnpm test -- --run 2>/dev/null | tail -20 || true)
     else
-        COLLECTED_OUT=$("$PYTEST_BIN" --co -q "$TESTS_DIR" 2>/dev/null | tail -5 || true)
-        COLLECTED=$(echo "$COLLECTED_OUT" | grep -oE '[0-9]+ test' | head -1 | grep -oE '[0-9]+' || true)
+        RUN_OUT=$(cd typescript && ./node_modules/.bin/vitest run 2>/dev/null | tail -20 || true)
+    fi
 
-        RUN_OUT=$("$PYTEST_BIN" -q --tb=no "$TESTS_DIR" 2>/dev/null | tail -5 || true)
-        PASS=$(echo "$RUN_OUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || true)
-        FAIL=$(echo "$RUN_OUT" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || true)
-        PASS="${PASS:-0}"
-        FAIL="${FAIL:-0}"
-        COLLECTED="${COLLECTED:-$((PASS + FAIL))}"
+    PASSED=$(echo "$RUN_OUT" | grep -oE 'Tests[[:space:]]+[0-9]+ passed' | grep -oE '[0-9]+' | tail -1 || true)
+    TOTAL=$(echo "$RUN_OUT" | grep -oE 'Tests[[:space:]]+[0-9]+ passed \([0-9]+\)' | grep -oE '\([0-9]+\)' | tr -d '()' | tail -1 || true)
 
-        TESTS_PASS="$PASS"
-        TESTS_FAIL="$FAIL"
-        TESTS_TOTAL="$COLLECTED"
+    if [[ -n "$PASSED" && -n "$TOTAL" ]]; then
+        TESTS_PASS="$PASSED"
+        TESTS_TOTAL="$TOTAL"
+        TESTS_FAIL="$((TOTAL - PASSED))"
+    else
+        SKIPPED="true"
+        TESTS_PASS="null"
+        TESTS_FAIL="null"
+        TESTS_TOTAL="null"
     fi
 fi
 

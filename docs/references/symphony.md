@@ -26,7 +26,7 @@ symphony/
     └── mix.exs
 ```
 
-官方明确鼓励"用任何语言按 SPEC 自己实现一份"——agentfirst-f1 就是这个方向的 TypeScript 版。
+官方明确鼓励"用任何语言按 SPEC 自己实现一份"，agentfirst-f1 就是这个方向的 TypeScript 版。
 
 ---
 
@@ -86,7 +86,7 @@ You are working on issue {{ issue.identifier }}.
 ```
 - 配置跟仓库一起版本化
 - 运行时可热重载，失败时保留上一份有效配置
-- **落点**：agentfirst-f1 的 `WORKFLOW.md`（M1 加，格式对齐 Symphony）
+- **落点**：`PLAN.md` §5 Workflow Specification + §6 Configuration Specification
 
 #### 3. Run 生命周期 11 阶段状态机
 ```
@@ -95,13 +95,13 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 → [Succeeded | Failed | TimedOut | Stalled | CanceledByReconciliation]
 ```
 - 比 "running / done / failed" 三态诊断精度高得多
-- **落点**：`PLAN.md` §6
+- **落点**：`PLAN.md` §7 Orchestration State Machine
 
 #### 4. Continuation 机制（worker 退出 ≠ 完成）
 - worker 正常退出后 1 秒 retry，重新检查 tracker 状态
 - 若仍 active，在**同 session_id + 同 workspace** 启动下一轮（最多 `agent.max_turns`）
 - 首轮渲染完整 prompt；后续轮次仅发"继续指引"
-- **落点**：`PLAN.md` §5 Agent 协议；依赖 CodeBuddy Code CLI 的 `--resume` 能力（M0 spike 验证）
+- **落点**：`PLAN.md` §8 Polling / Scheduling / Reconciliation + §10 Agent Runner Protocol + §12 Prompt Construction；依赖 CodeBuddy Code CLI 的 `--resume` 能力（M0 spike 验证）
 
 ### P1 应抄（规则/工程细节）
 
@@ -109,11 +109,11 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 - **Invariant 1**：Coding agent 仅在 per-issue workspace 中运行（launch 前校验 `cwd == workspace_path`）
 - **Invariant 2**：Workspace 路径必须在 workspace root 下（规范化绝对路径 + prefix 校验）
 - **Invariant 3**：Workspace key 经过 sanitization（仅 `[A-Za-z0-9._-]`）
-- **落点**：`PLAN.md` §7 工作空间管理
+- **落点**：`PLAN.md` §9 Workspace Management and Safety
 
 #### 6. 严格模板渲染
 - 未知变量/filter 必须失败，不允许静默注入默认值
-- **落点**：`PLAN.md` §5，与 CodeBuddy Code CLI 的 prompt 拼装层对接
+- **落点**：`PLAN.md` §12 Prompt Construction，与 CodeBuddy Code CLI 的 prompt 拼装层对接
 
 #### 7. 超时矩阵（8 个默认值）
 | 超时 | 默认值 | 用途 |
@@ -126,29 +126,29 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 | `agent.max_retry_backoff_ms` | 300000 (5m) | 重试回退上限 |
 | `agent.max_turns` | 20 | 单 worker 轮次上限 |
 | `agent.max_concurrent_agents` | 10 | 全局并发 |
-- **落点**：`PLAN.md` §9（字段名 `codex.*` → `codebuddy.*`）
+- **落点**：`PLAN.md` §6 Configuration Specification（字段名 `codex.*` → `codebuddy.*`）
 
 #### 8. 重试与回退策略
 - **正常延续 retry**：固定 `1000ms`
 - **失败驱动 retry**：`delay = min(10000 * 2^(attempt-1), agent.max_retry_backoff_ms)`
-- **落点**：`PLAN.md` §6
+- **落点**：`PLAN.md` §8 Polling / Scheduling / Reconciliation
 
 #### 9. Token 核算：绝对总量 vs delta
 - **优先**：绝对 thread 总量（`thread/tokenUsage/updated`、`total_token_usage`）
 - **忽略**：delta 式 payload 作为累计值
 - 用"上次报告的总量"计算增量，避免重复计数
-- **落点**：`PLAN.md` §11
+- **落点**：`PLAN.md` §13 Logging / Status / Observability
 
 #### 10. 配置验证 Preflight
 - **启动前**：workflow file 可加载、tracker.kind 存在、api_key / 凭据存在、`codebuddy` CLI 可执行
 - **每 Tick 重新验证**：失败跳过此 tick 的派发，但 reconciliation 仍运行
-- **落点**：`PLAN.md` §10
+- **落点**：`PLAN.md` §6 Configuration Specification + §8 Polling / Scheduling / Reconciliation
 
 #### 11. 重启恢复：内存态 + tracker/FS 恢复
 - Symphony 刻意不持久化调度状态
 - 重启后：无 retry 定时器恢复、无 running session 恢复
 - 恢复路径：终态 workspace 清理 + 重新轮询 + 重新派发
-- **落点**：`PLAN.md` §3，与 state persistence 的设计对立
+- **落点**：`PLAN.md` §4 Core Domain Model，与 state persistence 的设计对立
 
 ### P2 可抄（流程/测试）
 
@@ -156,16 +156,16 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 - **Core Conformance**：所有实现必需的确定性测试
 - **Extension Conformance**：可选扩展（若实现则必需）
 - **Real Integration Profile**：生产前推荐的依赖环境烟测
-- **落点**：`PLAN.md` §13 + `typescript/test/` 分层（vitest）
+- **落点**：`PLAN.md` §17 Test Matrix + `typescript/test/` 分层（vitest）
 
 #### 13. 信任边界由实现方显式声明
 - Symphony 不强制统一 approval/sandbox 策略
 - 实现方须声明自己的信任边界
-- **落点**：`WORKFLOW.md` 的 `codebuddy.approval_policy` / `codebuddy.sandbox`
+- **落点**：`PLAN.md` §6 Configuration Specification 中的 `codebuddy.permissionMode` / `codebuddy.sandbox`
 
 #### 14. 结构化日志 + 运行时快照 JSON
 - 结构化字段：`issue_id` / `issue_identifier` / `session_id`
-- 快照 JSON 示例（Symphony SPEC §5.5）：
+- 快照 JSON 示例（Symphony SPEC §13.5）：
   ```json
   {
     "generated_at": "时间戳",
@@ -175,15 +175,15 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
     "rate_limits": null
   }
   ```
-- **落点**：`PLAN.md` §12
+- **落点**：`PLAN.md` §13 Logging / Status / Observability
 
 ### 分阶段实现（不是"不抄"）
 
 #### 15. 架构/产品层的分期与等价替代（2026-05-01 修订）
 | Symphony 特性 | agentfirst-f1 的处置 |
 |---|---|
-| Elixir/OTP + BEAM 监督树 | **物理不可抄**；以 "Node 子进程 + 心跳 + 崩溃重启" 作为语义等价实现（PLAN §14） |
-| Linear API + linear_graphql 工具 | **永不接入**；用 cnb.cool git issue + `cnb_api` 工具等价替代（PLAN §4） |
+| Elixir/OTP + BEAM 监督树 | **物理不可抄**；以 "Node 子进程 + 心跳 + 崩溃重启" 作为语义等价实现（PLAN §14 Failure Model and Recovery） |
+| Linear API + linear_graphql 工具 | **永不接入**；用 cnb.cool git issue + `cnb_api` 工具等价替代（PLAN §11 Tracker Integration Contract） |
 | Phoenix LiveView + Bandit HTTP | 结构化日志 + JSON 快照为 MUST；Web dashboard 为 MAY，M4 交付 |
 | SSH Worker 多机部署 | 接口预留（Worker 抽象），M4 交付 RemoteWorker |
 | Codex app-server stdio 协议 | **同构替代**：CodeBuddy Code CLI 子进程；不是降维 |
@@ -192,7 +192,7 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 
 ## 四、Symphony SPEC.md 里的其他要点
 
-### 组件接口（Symphony §2）
+### 组件接口（Symphony §3）
 | 组件 | 职责 |
 |---|---|
 | Workflow Loader | 读 `WORKFLOW.md`，解析 YAML front matter + prompt body |
@@ -204,9 +204,9 @@ PreparingWorkspace → BuildingPrompt → LaunchingAgentProcess
 | Status Surface（可选） | 操作员可见运行时状态 |
 | Logging | 结构化日志 |
 
-这张表几乎可以**原样**搬到 agentfirst-f1 的 `PLAN.md` §2 架构分层（只需把"Codex app-server 子进程"替换为"CodeBuddy Code CLI 子进程"）。
+这张表几乎可以**原样**搬到 agentfirst-f1 的 `PLAN.md` §3 System Overview（只需把"Codex app-server 子进程"替换为"CodeBuddy Code CLI 子进程"）。
 
-### Agent 输出事件类型（Symphony §4.2）
+### Agent 输出事件类型（Symphony §10.4）
 ```
 session_started       startup_failed
 turn_completed        turn_failed
@@ -217,7 +217,7 @@ other_message         malformed
 ```
 每个事件包含：`event` / `timestamp` / `codex_app_server_pid` / 可选 `usage` / payload
 
-agentfirst-f1 的 CodeBuddy Code CLI 事件模型需要自己映射到这套事件语义（M0 spike 任务之一）。
+agentfirst-f1 的 CodeBuddy Code CLI 事件模型需要自己映射到这套事件语义（对应 `PLAN.md` §10 Agent Runner Protocol）。
 
 ---
 
@@ -228,25 +228,25 @@ agentfirst-f1 的 CodeBuddy Code CLI 事件模型需要自己映射到这套事�
 1. **baseline.sh 递归守卫**：runtime 在测试里跑时，调用 baseline.sh 要显式传 `--no-tests`；baseline.sh 自身检查 `$PYTEST_CURRENT_TEST` 环境变量兜底（TS 侧 vitest 没有等价环境变量，需要在 runtime 显式传 `--no-tests`）。M2 踩过一次级联爆炸坑，2160 个临时 task 目录被爆炸产出。
 2. **task_id 防碰撞**：不要只用秒级时间戳，加 `process.hrtime.bigint() + pid` 防同秒冲突。
 3. **workspace 路径算法**：路径拼接写法非常容易算错，加 self-test 验证。
-4. **mock 模式的合法边界**：不要在 runtime 里"注入默认值让校验通过"——Symphony §5 严格模板渲染已经否决这个做法。
+4. **mock 模式的合法边界**：不要在 runtime 里"注入默认值让校验通过"，Symphony §5/§6 的 strict workflow/config contract 已经否决这个做法。
 5. **YAML 示例块的双路提取**：先 `yaml.parse`，失败再按行扫描，不要无条件走 fallback。
 
 ---
 
 ## 六、起草 PLAN.md 契约章节的建议顺序
 
-1. **§1 项目定位**（最容易，30min）
-2. **§14 Non-Goals**（最容易，明确 Non-Goals 框住范围，含 Linear 永不接入 + M4 延期项）
-3. **§6 Run 生命周期**（直接抄 Symphony 11 阶段）
-4. **§9 超时矩阵**（直接抄 Symphony 8 个默认值，字段名 `codex.*` → `codebuddy.*`）
-5. **§3 State Schema**（中等，TS interface + zod schema）
-6. **§7 工作空间管理**（中等，Node path sanitize 规则）
-7. **§5 Agent 协议**（最难，需要先做 CodeBuddy Code CLI spike 确认 session/resume 能力）
-8. **§8 Workflow 格式**（中等，对齐 Symphony YAML）
-9. **§4 Tracker 接口**（中等，CNBTracker + LocalTracker 双 backend 抽象；需先做 cnb API spike）
-10. **§2 架构分层**（组件分图，最后收束）
+1. **§1 Problem Statement / Project Positioning**（最容易，30min）
+2. **§2 Goals and Non-Goals**（最容易，明确 Non-Goals 框住范围，含 Linear 永不接入 + M4 延期项）
+3. **§7 Orchestration State Machine**（直接抄 Symphony 11 阶段）
+4. **§6 Configuration Specification**（直接抄 Symphony 超时矩阵，字段名 `codex.*` → `codebuddy.*`）
+5. **§4 Core Domain Model**（中等，TS interface + zod schema）
+6. **§9 Workspace Management and Safety**（中等，Node path sanitize 规则）
+7. **§10 Agent Runner Protocol**（最难，需要先做 CodeBuddy Code CLI spike 确认 session/resume 能力）
+8. **§5 Workflow Specification + §6 Configuration Specification**（中等，对齐 Symphony YAML）
+9. **§11 Tracker Integration Contract**（中等，CNBTracker + LocalTracker 双 backend 抽象；需先做 cnb API spike）
+10. **§3 System Overview**（组件分图，最后收束）
 
-剩余 §10/§11/§12/§13 属于工程细节，可以一边写 `typescript/` 一边补。
+剩余 §8/§12/§13/§17 属于工程细节，可以一边写 `typescript/` 一边补。
 
 ---
 
@@ -274,4 +274,4 @@ label 增删 / state 改（需 vnd accept + state+reason 成对）/ assignee）�
 
 **状态映射草案**详见该报告 §3.3。
 
-两份 spike 均已解除，`PLAN.md` §4 / §5 可进入起草阶段。
+两份 spike 均已解除，`PLAN.md` §10 / §11 可进入起草阶段。

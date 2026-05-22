@@ -26,11 +26,27 @@ describe('planDispatchCycle', () => {
     const state = createRuntimeState();
     state.running.one = {
       issue: makeIssue({ id: '1' }),
+      workspacePath: '/tmp/1',
       sessionId: null,
       startedAt: '2026-05-18T00:00:00Z',
       turnCount: 0,
       lastEvent: null,
       lastEventAt: null,
+      secondsRunning: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        creditCost: 0,
+      },
+      lastReportedTotals: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+      },
     };
 
     const plan = planDispatchCycle(
