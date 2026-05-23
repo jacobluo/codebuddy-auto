@@ -74,11 +74,12 @@ agentfirst-f1/
 
 ```bash
 # 验证基础工具链
-bash scripts/baseline.sh --no-tests    # 应输出合法 JSON
+bash scripts/baseline.sh --no-tests --include-api-hash
 
 # 进入 TypeScript 参考实现
 cd typescript
 pnpm install
+pnpm baseline:no-tests
 pnpm test
 pnpm check
 ```

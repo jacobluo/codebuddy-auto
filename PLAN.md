@@ -28,7 +28,7 @@
 |---|---|---|---|
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
 | **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
-| **M2** | ⚪ 待启动 | continuation、baseline 闭环、多 turn 相关章节细化 | Continuation（基于 CLI `--resume`）+ baseline 闭环 + multi-turn |
+| **M2** | 🟡 进行中 | continuation、baseline 闭环、多 turn 相关章节细化 | baseline 脚本已接入 `typescript` 包脚本与自动化测试；剩余重点为 multi-turn 深化与更细的 approval replay 语义 |
 | **M3** | ⚪ 待启动 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
 | **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
 
@@ -278,3 +278,4 @@
 | v0.7 | 2026-05-18 | 基于最新版 `symphony/SPEC.md` 重评项目差距：`PLAN.md` 明确标出 18 章 + Appendix A 映射、滞后章节、可执行补齐清单，并同步修正 M0 里程碑、TS 目录骨架与风险表 |
 | v0.8 | 2026-05-19 | README 收敛为项目说明文档；PLAN 将已完成的 M0 文档/骨架事项与仍打开的 M1 缺口分开表述，避免把已落地内容继续记为待办 |
 | v0.9 | 2026-05-23 | M1 运行时闭环完成：daemon status API 接入、scheduler 支持外部 refresh tick、README/PLAN 收口为 M1 已完成并把后续能力移动到 M2/M3/M4 |
+| v1.0 | 2026-05-24 | M2 起步：baseline / diff-baseline 纳入自动化测试并接入 `typescript` 包脚本，README 快速开始同步收口 |
