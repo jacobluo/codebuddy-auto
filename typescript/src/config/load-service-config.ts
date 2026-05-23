@@ -109,6 +109,10 @@ export function loadServiceConfig(
     ...DEFAULT_SERVICE_CONFIG.hooks,
     ...getObject(raw.hooks),
   };
+  const server = {
+    ...DEFAULT_SERVICE_CONFIG.server,
+    ...getObject(raw.server),
+  };
   const agent = {
     ...DEFAULT_SERVICE_CONFIG.agent,
     ...getObject(raw.agent),
@@ -119,6 +123,7 @@ export function loadServiceConfig(
   };
   const pollingOverrides = getObject(raw.polling);
   const hooksOverrides = getObject(raw.hooks);
+  const serverOverrides = getObject(raw.server);
   const agentOverrides = getObject(raw.agent);
   const codebuddyOverrides = getObject(raw.codebuddy);
 
@@ -133,6 +138,12 @@ export function loadServiceConfig(
   }
   if (typeof hooksOverrides.timeout_ms === 'number') {
     hooks.timeoutMs = hooksOverrides.timeout_ms;
+  }
+  if (typeof serverOverrides.port === 'number') {
+    server.port = serverOverrides.port;
+  }
+  if (typeof serverOverrides.host === 'string' && serverOverrides.host.length > 0) {
+    server.host = serverOverrides.host;
   }
   if (typeof agentOverrides.max_concurrent_agents === 'number') {
     agent.maxConcurrentAgents = agentOverrides.max_concurrent_agents;
@@ -195,6 +206,7 @@ export function loadServiceConfig(
     polling,
     workspace,
     hooks,
+    server,
     agent,
     codebuddy,
   });

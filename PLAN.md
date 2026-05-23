@@ -1,6 +1,6 @@
 # PLAN.md — agentfirst-f1 项目计划
 
-> **状态**：M0 已完成，当前处于 M1 实现 + PLAN 契约补齐并行阶段。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
+> **状态**：M0 / M1 已完成，当前进入 M2 准备阶段；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
 > 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
 >
 > 章节完成后把 ⚪ 改为 🟢。
@@ -27,7 +27,7 @@
 | 里程碑 | 状态 | 契约章节（PLAN） | 实现（`typescript/`） |
 |---|---|---|---|
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
-| **M1** | 🟡 进行中 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 最小骨架已落地，目标是补齐单 turn + 单并发的主流程 |
+| **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
 | **M2** | ⚪ 待启动 | continuation、baseline 闭环、多 turn 相关章节细化 | Continuation（基于 CLI `--resume`）+ baseline 闭环 + multi-turn |
 | **M3** | ⚪ 待启动 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
 | **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
@@ -230,12 +230,13 @@
 - 🟢 `scripts/baseline.sh` 的 `TESTS_DIR` / `API_SRC_DIR` 默认值已从 `python/*` 改为 `typescript/*`
 - 🟢 `typescript/test/` 已按 `src/` 主要模块镜像分层，具备基础验证矩阵雏形
 
-### 3.4 当前仍然打开的 M1 缺口
+### 3.4 M1 结项说明
 
-- 🟡 scheduler 已具备 startup cleanup、poll loop、reconciliation、continuation、retry/backoff 主干，并已补上 terminal issue workspace cleanup / beforeRemove hook 路径；baseline 脚本也已切到 Node/TypeScript 测试面，当前主要缺口收敛为 baseline 对比接线与多 issue worktree 隔离
-- 🟡 runner 已覆盖真实子进程拉起、NDJSON 事件流解析、read/turn/stall timeout、token/runtime 聚合、continuation resume，以及 approval/user-input 的主要策略面（permission mode、tool gating、add-dir、permission denial 映射），但仍缺少更细的交互式审批回放语义
-- 🟡 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径/$VAR/~/MCP 路径解析；剩余缺口主要是更正式的 workflow watch/discovery 契约
-- 🟡 logging 已形成 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface 与 issue-scoped child logger，但 HTTP status API 与更正式的 observability contract 仍未落地
+- 🟢 scheduler 已闭环 startup cleanup、poll loop、reconciliation、continuation、retry/backoff、terminal issue workspace cleanup 与 `beforeRemove` hook 路径
+- 🟢 runner 已覆盖真实子进程拉起、NDJSON 事件流解析、read/turn/stall timeout、token/runtime 聚合、continuation resume，以及 approval/user-input 的主要策略面
+- 🟢 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径 / `$VAR` / `~` / MCP 路径解析
+- 🟢 logging 已覆盖 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface、issue-scoped child logger，以及已接入 daemon 生命周期的最小 HTTP status API
+- 🔜 后续工作已移动到后续里程碑：baseline 深化与回归闭环归入 M2，多 issue worktree 并发隔离归入 M3，richer dashboard / remote worker 归入 M4
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -276,3 +277,4 @@
 | v0.6 | 2026-05-01 | Spike A 完成（CodeBuddy CLI 2.93.6 🟢 充分承接 §10）；Spike B 完成（cnb.cool REST API 🟡 承接 §11 带 3 处降级：无 batch-by-id / labels OR-only / 无 custom fields）；`scripts/spike-b-probe.sh` 固化为可回归探针 |
 | v0.7 | 2026-05-18 | 基于最新版 `symphony/SPEC.md` 重评项目差距：`PLAN.md` 明确标出 18 章 + Appendix A 映射、滞后章节、可执行补齐清单，并同步修正 M0 里程碑、TS 目录骨架与风险表 |
 | v0.8 | 2026-05-19 | README 收敛为项目说明文档；PLAN 将已完成的 M0 文档/骨架事项与仍打开的 M1 缺口分开表述，避免把已落地内容继续记为待办 |
+| v0.9 | 2026-05-23 | M1 运行时闭环完成：daemon status API 接入、scheduler 支持外部 refresh tick、README/PLAN 收口为 M1 已完成并把后续能力移动到 M2/M3/M4 |

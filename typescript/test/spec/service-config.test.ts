@@ -30,4 +30,14 @@ describe('serviceConfigSchema', () => {
       }),
     ).toThrow();
   });
+
+  it('accepts an optional status server port override', () => {
+    expect(serviceConfigSchema.parse({
+      ...DEFAULT_SERVICE_CONFIG,
+      server: {
+        host: '127.0.0.1',
+        port: 0,
+      },
+    }).server.port).toBe(0);
+  });
 });

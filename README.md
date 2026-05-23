@@ -83,7 +83,7 @@ pnpm test
 pnpm check
 ```
 
-当前 `typescript/` 目录已经有配置加载、tracker 抽象、scheduler 选择逻辑、workspace 管理、CodeBuddy 命令构造和对应测试；真正的多 turn orchestration、reconciliation 与 remote worker 仍在后续里程碑内。
+当前 `typescript/` 已完成 M1 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI turn/continue、startup cleanup、reconciliation、retry/backoff、daemon 模式以及最小 HTTP status API。后续里程碑聚焦于 baseline 对比深挖、多 issue worktree 并发隔离与 RemoteWorker / Dashboard 扩展。
 
 ## 规划说明
 

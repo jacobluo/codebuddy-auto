@@ -1,13 +1,14 @@
 import type { Logger } from 'pino';
 
 import { createRuntimeSnapshot } from '../logging/index.js';
+import type { OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
+import type { Tracker } from '../tracker/index.js';
 import { createRuntimeState } from './create-runtime-state.js';
 import { runSchedulerOnce } from './run-scheduler-once.js';
 import { runStartupCleanup } from './run-startup-cleanup.js';
-import type { ServiceConfig } from '../spec/index.js';
-import type { Tracker } from '../tracker/index.js';
 
 export interface SchedulerRuntime {
+  requestTick(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -20,6 +21,7 @@ export type SchedulerTickContextProvider =
   () => SchedulerTickContext | Promise<SchedulerTickContext>;
 
 export interface StartSchedulerDependencies {
+  state?: OrchestratorRuntimeState;
   runSchedulerOnce?: typeof runSchedulerOnce;
   runStartupCleanup?: typeof runStartupCleanup;
   createRuntimeSnapshot?: typeof createRuntimeSnapshot;
@@ -32,7 +34,7 @@ export function startScheduler(
   logger: Pick<Logger, 'info' | 'error' | 'warn'>,
   dependencies: StartSchedulerDependencies = {},
 ): SchedulerRuntime {
-  const state = createRuntimeState();
+  const state = dependencies.state ?? createRuntimeState();
   const runOnce = dependencies.runSchedulerOnce ?? runSchedulerOnce;
   const startupCleanup = dependencies.runStartupCleanup ?? runStartupCleanup;
   const buildSnapshot = dependencies.createRuntimeSnapshot ?? createRuntimeSnapshot;
@@ -79,7 +81,7 @@ export function startScheduler(
     await currentTickPromise;
   }
 
-  void (async () => {
+  const startupPromise = (async () => {
     try {
       const tickContext = await getTickContext();
       const result = await startupCleanup(tickContext.tracker, tickContext.config);
@@ -98,12 +100,17 @@ export function startScheduler(
   })();
 
   return {
+    async requestTick(): Promise<void> {
+      await startupPromise;
+      await tick();
+    },
     async stop(): Promise<void> {
       stopped = true;
       if (intervalHandle) {
         clearInterval(intervalHandle);
         intervalHandle = null;
       }
+      await startupPromise;
       if (currentTickPromise) {
         await currentTickPromise;
       }

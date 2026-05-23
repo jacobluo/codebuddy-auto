@@ -11,7 +11,9 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/src/main.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "baseline": "bash ../scripts/baseline.sh --include-api-hash",
+    "baseline:no-tests": "bash ../scripts/baseline.sh --no-tests --include-api-hash"
   },
   "dependencies": {
     "commander": "^14.0.0",

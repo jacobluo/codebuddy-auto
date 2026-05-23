@@ -25,6 +25,11 @@ export const hooksConfigSchema = z.object({
   timeoutMs: z.number().int().positive(),
 });
 
+export const serverConfigSchema = z.object({
+  port: z.number().int().min(0).optional(),
+  host: z.string(),
+});
+
 export const agentConfigSchema = z.object({
   maxConcurrentAgents: z.number().int().positive(),
   maxTurns: z.number().int().positive(),
@@ -54,6 +59,7 @@ export const serviceConfigSchema = z.object({
   polling: pollingConfigSchema,
   workspace: workspaceConfigSchema,
   hooks: hooksConfigSchema,
+  server: serverConfigSchema,
   agent: agentConfigSchema,
   codebuddy: codebuddyConfigSchema,
 });
@@ -76,6 +82,9 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
   hooks: {
     timeoutMs: 60_000,
+  },
+  server: {
+    host: '127.0.0.1',
   },
   agent: {
     maxConcurrentAgents: 10,

@@ -12,6 +12,7 @@ describe('loadServiceConfig', () => {
     expect(config.polling.intervalMs).toBe(30_000);
     expect(config.workspace.root).toBe(path.resolve('/tmp/project', '.agentfirst/workspaces'));
     expect(config.codebuddy.command).toBe('codebuddy');
+    expect(config.server.host).toBe('127.0.0.1');
   });
 
   it('resolves env-backed tracker api key and relative workspace root', () => {
@@ -21,6 +22,9 @@ tracker:
   apiKey: $CNB_TOKEN
 workspace:
   root: ./workspaces
+server:
+  port: 8080
+  host: 0.0.0.0
 polling:
   interval_ms: 15000
 agent:
@@ -46,6 +50,7 @@ You are working on {{ issue.identifier }}.
 
     expect(config.tracker.apiKey).toBe('secret-token');
     expect(config.workspace.root).toBe(path.resolve('/repo', 'workspaces'));
+    expect(config.server).toEqual({ host: '0.0.0.0', port: 8080 });
     expect(config.polling.intervalMs).toBe(15_000);
     expect(config.agent.maxTurns).toBe(8);
     expect(config.codebuddy.command).toBe('codebuddy --print');

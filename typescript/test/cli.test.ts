@@ -32,15 +32,17 @@ function createWorkflow(contents: string): string {
 
 describe('runCli', () => {
   it('returns 0 for a valid workflow in check mode', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: cnb
-  apiKey: token
-workspace:
-  root: .
----
-Prompt
-`);
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: cnb',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
 
     await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--check'])).resolves.toBe(0);
   });
@@ -60,17 +62,19 @@ Prompt
   });
 
   it('passes the workflow prompt template into the dispatch cycle', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: local
-  apiKey: token
-workspace:
-  root: .
-codebuddy:
-  command: node -e "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}))"
----
-Implement {{ issue.identifier }} with {{ issue.title }}
-`);
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      'codebuddy:',
+      '  command: node -e "console.log(JSON.stringify({type:\'result\',subtype:\'success\',is_error:false}))"',
+      '---',
+      'Implement {{ issue.identifier }} with {{ issue.title }}',
+      '',
+    ].join('\n'));
 
     if (!runDispatchCycleSpy) {
       throw new Error('runDispatchCycle spy was not initialized');
@@ -90,17 +94,20 @@ Implement {{ issue.identifier }} with {{ issue.title }}
   });
 
   it('starts the polling scheduler in daemon mode', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: local
-  apiKey: token
-workspace:
-  root: .
----
-Prompt
-`);
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+    const requestTick = vi.fn(async () => undefined);
     const stop = vi.fn(async () => undefined);
-    const startScheduler = vi.fn(() => ({ stop }));
+    const startScheduler = vi.fn(() => ({ requestTick, stop }));
     const waitForShutdownSignal = vi.fn(async () => undefined);
 
     await expect(
@@ -113,37 +120,24 @@ Prompt
     expect(startScheduler).toHaveBeenCalledTimes(1);
     expect(waitForShutdownSignal).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(requestTick).not.toHaveBeenCalled();
     expect(runDispatchCycleSpy).not.toHaveBeenCalled();
   });
 
-  it('prints a human-readable runtime status snapshot', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: local
-  apiKey: token
-workspace:
-  root: .
----
-Prompt
-`);
-    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--status'])).resolves.toBe(0);
-
-    expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('counts: running=0 retrying=0 claimed=0 completed=0'));
-    stdoutWrite.mockRestore();
-  });
-
-  it('reloads workflow/config before running when requested', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: local
-  apiKey: token
-workspace:
-  root: .
----
-Prompt
-`);
+  it('starts and stops the status server in daemon mode when server.port is configured', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      'server:',
+      '  port: 0',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
     const runtimeSource = {
       getCurrent: vi.fn(() => ({
         workflowPath,
@@ -153,6 +147,95 @@ Prompt
           polling: { intervalMs: 1000 },
           workspace: { root: '.' },
           hooks: { timeoutMs: 60000 },
+          server: { host: '127.0.0.1', port: 0 },
+          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
+        },
+        tracker: {
+          fetchCandidateIssues: async () => [],
+          fetchIssuesByStates: async () => [],
+          fetchIssueStatesByIds: async () => new Map(),
+        },
+      })),
+      reload: vi.fn(async () => ({
+        ok: true,
+        errors: [],
+        workflowPath,
+      })),
+    };
+    const requestTick = vi.fn(async () => undefined);
+    const stop = vi.fn(async () => undefined);
+    const startScheduler = vi.fn(() => ({ requestTick, stop }));
+    let resolveRefreshWait: (() => void) | null = null;
+    const startStatusServer = vi.fn(async (_config, controller) => {
+      controller.requestRefresh();
+      return {
+        address: () => 'http://127.0.0.1:4321',
+        close: vi.fn(async () => undefined),
+      };
+    });
+
+    await expect(
+      runCli(['node', 'agentfirst-f1', workflowPath, '--daemon'], {
+        createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
+        startScheduler,
+        startStatusServer,
+        waitForShutdownSignal: vi.fn(async () => {
+          await Promise.resolve();
+          await Promise.resolve();
+        }),
+      }),
+    ).resolves.toBe(0);
+
+    expect(startStatusServer).toHaveBeenCalledTimes(1);
+    expect(requestTick).toHaveBeenCalledTimes(1);
+    const statusServer = await startStatusServer.mock.results[0]?.value;
+    expect(statusServer?.close).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('prints a human-readable runtime status snapshot', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--status'])).resolves.toBe(0);
+
+    expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('counts: running=0 retrying=0 claimed=0 completed=0'));
+    stdoutWrite.mockRestore();
+  });
+
+  it('reloads workflow/config before running when requested', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+    const runtimeSource = {
+      getCurrent: vi.fn(() => ({
+        workflowPath,
+        promptTemplate: 'Prompt',
+        config: {
+          tracker: { kind: 'local', apiKey: 'token', activeStates: ['open'], terminalStates: ['closed'] },
+          polling: { intervalMs: 1000 },
+          workspace: { root: '.' },
+          hooks: { timeoutMs: 60000 },
+          server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
@@ -177,15 +260,17 @@ Prompt
   });
 
   it('reloads daemon tick context before each scheduler tick when reload mode is enabled', async () => {
-    const workflowPath = createWorkflow(`---
-tracker:
-  kind: local
-  apiKey: token
-workspace:
-  root: .
----
-Prompt
-`);
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
     const runtimeSource = {
       getCurrent: vi.fn(() => ({
         workflowPath,
@@ -195,6 +280,7 @@ Prompt
           polling: { intervalMs: 1000 },
           workspace: { root: '.' },
           hooks: { timeoutMs: 60000 },
+          server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
@@ -210,6 +296,7 @@ Prompt
         workflowPath,
       })),
     };
+    const requestTick = vi.fn(async () => undefined);
     const stop = vi.fn(async () => undefined);
     const startScheduler = vi.fn((_tracker, _config, _logger, dependencies) => {
       if (!dependencies?.getTickContext) {
@@ -217,6 +304,7 @@ Prompt
       }
 
       return {
+        requestTick,
         stop,
       };
     });
