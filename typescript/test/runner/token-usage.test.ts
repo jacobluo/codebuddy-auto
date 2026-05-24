@@ -6,11 +6,12 @@ describe('updateTokenUsage', () => {
   it('accumulates deltas from absolute totals', () => {
     const previous = createEmptyTokenUsageUpdate();
     const events: CodebuddyRunnerEvent[] = [{
-      event: 'other_message',
+      event: 'notification',
       payload: {
         raw: {
           type: 'assistant',
         },
+        message: 'working',
         credit: 12.5,
       },
     }, {
@@ -63,11 +64,12 @@ describe('updateTokenUsage', () => {
       latestCreditCost: null,
     };
     const events: CodebuddyRunnerEvent[] = [{
-      event: 'other_message',
+      event: 'notification',
       payload: {
         raw: {
           type: 'assistant',
         },
+        message: 'working',
         credit: 18,
       },
     }, {
@@ -104,11 +106,12 @@ describe('updateTokenUsage', () => {
   it('falls back safely when no completed usage event exists', () => {
     const previous = createEmptyTokenUsageUpdate();
     const events: CodebuddyRunnerEvent[] = [{
-      event: 'other_message',
+      event: 'notification',
       payload: {
         raw: {
           type: 'assistant',
         },
+        message: 'working',
       },
     }];
 

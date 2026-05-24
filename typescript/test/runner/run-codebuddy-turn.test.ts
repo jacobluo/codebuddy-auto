@@ -42,7 +42,7 @@ describe('runCodebuddyTurn', () => {
         },
       },
       {
-        event: 'other_message',
+        event: 'notification',
         payload: {
           raw: {
             message: {
@@ -50,6 +50,7 @@ describe('runCodebuddyTurn', () => {
             },
             type: 'assistant',
           },
+          message: 'working',
         },
       },
       {
@@ -102,7 +103,7 @@ describe('runCodebuddyTurn', () => {
         args: [
           '-e',
           [
-            "console.log(JSON.stringify({type:'result',subtype:'approval_required',session_id:'session-2',is_error:true,permission_denials:[{kind:'exec'}]}));",
+            "console.log(JSON.stringify({type:'result',subtype:'approval_required',result:'approval required',session_id:'session-2',is_error:true,permission_denials:[{kind:'exec'}]}));",
           ].join(''),
         ],
         cwd: workspacePath,
@@ -114,9 +115,36 @@ describe('runCodebuddyTurn', () => {
       {
         event: 'turn_input_required',
         payload: {
-          message: 'approval_required',
+          message: 'approval required',
           sessionId: 'session-2',
           permissionDenials: 1,
+        },
+      },
+    ]);
+  });
+
+  it('maps auto-approved results into approval_auto_approved events', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-auto-approved');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'result',subtype:'approval_auto_approved',result:'auto approved',session_id:'session-3',is_error:false}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.events).toEqual([
+      {
+        event: 'approval_auto_approved',
+        payload: {
+          message: 'auto approved',
+          sessionId: 'session-3',
         },
       },
     ]);

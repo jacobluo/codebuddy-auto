@@ -19,6 +19,7 @@ const rawResultEventSchema = z.object({
   subtype: z.string().optional(),
   session_id: z.string().optional(),
   is_error: z.boolean().optional(),
+  result: z.string().optional(),
   duration_ms: z.number().int().nonnegative().optional(),
   num_turns: z.number().int().nonnegative().optional(),
   usage: z.record(z.string(), z.number()).optional(),
@@ -28,6 +29,10 @@ const rawResultEventSchema = z.object({
 const rawAssistantEventSchema = z.object({
   type: z.literal('assistant'),
   message: z.object({
+    content: z.array(z.object({
+      type: z.string().optional(),
+      text: z.string().optional(),
+    }).passthrough()).optional(),
     usage: z.record(z.string(), z.number()).optional(),
     providerData: z.object({
       rawUsage: z.object({
@@ -88,6 +93,13 @@ export type CodebuddyRunnerEvent =
       };
     }
   | {
+      event: 'approval_auto_approved';
+      payload: {
+        message?: string;
+        sessionId?: string;
+      };
+    }
+  | {
       event: 'turn_timed_out';
       payload: {
         timeoutMs: number;
@@ -106,11 +118,18 @@ export type CodebuddyRunnerEvent =
       };
     }
   | {
+      event: 'notification';
+      payload: {
+        raw: Record<string, unknown>;
+        message?: string;
+        usage?: Record<string, number>;
+        credit?: number;
+      };
+    }
+  | {
       event: 'other_message';
       payload: {
         raw: Record<string, unknown>;
-        usage?: Record<string, number>;
-        credit?: number;
       };
     }
   | {
@@ -131,6 +150,24 @@ export interface RunCodebuddyTurnResult {
   events: CodebuddyRunnerEvent[];
   exitCode: number | null;
   stderr: string[];
+}
+
+function extractAssistantText(rawContent: unknown): string | undefined {
+  if (!Array.isArray(rawContent)) {
+    return undefined;
+  }
+
+  const textParts = rawContent
+    .flatMap((entry) => {
+      if (typeof entry !== 'object' || entry === null) {
+        return [];
+      }
+
+      const text = 'text' in entry ? entry.text : undefined;
+      return typeof text === 'string' && text.length > 0 ? [text] : [];
+    });
+
+  return textParts.length > 0 ? textParts.join('\n') : undefined;
 }
 
 function parseEventLine(line: string): CodebuddyRunnerEvent {
@@ -167,11 +204,21 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
   }
 
   if (event.type === 'result') {
+    if (event.subtype === 'approval_auto_approved') {
+      return {
+        event: 'approval_auto_approved',
+        payload: {
+          message: event.result ?? event.subtype,
+          sessionId: event.session_id,
+        },
+      };
+    }
+
     if ((event.permission_denials?.length ?? 0) > 0) {
       return {
         event: 'turn_input_required',
         payload: {
-          message: event.subtype,
+          message: event.result ?? event.subtype,
           sessionId: event.session_id,
           permissionDenials: event.permission_denials?.length ?? 0,
         },
@@ -182,7 +229,7 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
       return {
         event: 'turn_failed',
         payload: {
-          message: event.subtype,
+          message: event.result ?? event.subtype,
         },
       };
     }
@@ -197,12 +244,22 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
     };
   }
 
+  if (event.type === 'assistant') {
+    return {
+      event: 'notification',
+      payload: {
+        raw: event,
+        message: extractAssistantText(event.message?.content),
+        usage: event.message?.usage,
+        credit: event.message?.providerData?.rawUsage?.credit,
+      },
+    };
+  }
+
   return {
     event: 'other_message',
     payload: {
       raw: event,
-      usage: event.type === 'assistant' ? event.message?.usage : undefined,
-      credit: event.type === 'assistant' ? event.message?.providerData?.rawUsage?.credit : undefined,
     },
   };
 }

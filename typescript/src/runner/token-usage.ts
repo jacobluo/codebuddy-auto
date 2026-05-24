@@ -52,7 +52,7 @@ function extractAbsoluteTotals(events: CodebuddyRunnerEvent[]): LastReportedToke
 function extractLatestCreditCost(events: CodebuddyRunnerEvent[]): number | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if (event?.event !== 'other_message') {
+    if (event?.event !== 'notification') {
       continue;
     }
 

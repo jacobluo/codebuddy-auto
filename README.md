@@ -82,9 +82,10 @@ pnpm install
 pnpm baseline:no-tests
 pnpm test
 pnpm check
+pnpm baseline:diff /tmp/before.json /tmp/after.json
 ```
 
-当前 `typescript/` 已完成 M1 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI turn/continue、startup cleanup、reconciliation、retry/backoff、daemon 模式以及最小 HTTP status API。后续里程碑聚焦于 baseline 对比深挖、多 issue worktree 并发隔离与 RemoteWorker / Dashboard 扩展。
+当前 `typescript/` 已完成 M1 + M2 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式以及最小 HTTP status API。后续里程碑聚焦于多 issue worktree 并发隔离与 RemoteWorker / Dashboard 扩展。
 
 ## 规划说明
 

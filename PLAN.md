@@ -1,6 +1,6 @@
 # PLAN.md — agentfirst-f1 项目计划
 
-> **状态**：M0 / M1 已完成，当前进入 M2 准备阶段；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
+> **状态**：M0 / M1 / M2 已完成，当前进入 M3 准备阶段；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
 > 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
 >
 > 章节完成后把 ⚪ 改为 🟢。
@@ -28,7 +28,7 @@
 |---|---|---|---|
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
 | **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
-| **M2** | 🟡 进行中 | continuation、baseline 闭环、多 turn 相关章节细化 | baseline 脚本已接入 `typescript` 包脚本与自动化测试；剩余重点为 multi-turn 深化与更细的 approval replay 语义 |
+| **M2** | 🟢 已完成 | continuation、baseline 闭环、多 turn 相关章节细化 | continuation / multi-turn 主路径、baseline / diff-baseline 脚本闭环、approval/notification 事件映射与自动化测试已补齐 |
 | **M3** | ⚪ 待启动 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
 | **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
 
@@ -236,7 +236,7 @@
 - 🟢 runner 已覆盖真实子进程拉起、NDJSON 事件流解析、read/turn/stall timeout、token/runtime 聚合、continuation resume，以及 approval/user-input 的主要策略面
 - 🟢 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径 / `$VAR` / `~` / MCP 路径解析
 - 🟢 logging 已覆盖 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface、issue-scoped child logger，以及已接入 daemon 生命周期的最小 HTTP status API
-- 🔜 后续工作已移动到后续里程碑：baseline 深化与回归闭环归入 M2，多 issue worktree 并发隔离归入 M3，richer dashboard / remote worker 归入 M4
+- 🔜 后续工作已移动到后续里程碑：多 issue worktree 并发隔离归入 M3，richer dashboard / remote worker 归入 M4
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -279,3 +279,5 @@
 | v0.8 | 2026-05-19 | README 收敛为项目说明文档；PLAN 将已完成的 M0 文档/骨架事项与仍打开的 M1 缺口分开表述，避免把已落地内容继续记为待办 |
 | v0.9 | 2026-05-23 | M1 运行时闭环完成：daemon status API 接入、scheduler 支持外部 refresh tick、README/PLAN 收口为 M1 已完成并把后续能力移动到 M2/M3/M4 |
 | v1.0 | 2026-05-24 | M2 起步：baseline / diff-baseline 纳入自动化测试并接入 `typescript` 包脚本，README 快速开始同步收口 |
+| v1.1 | 2026-05-24 | runner 细化审批相关事件映射：新增 `notification` / `approval_auto_approved` 语义与对应测试，并补出 `baseline:diff` 包脚本 |
+| v1.2 | 2026-05-24 | M2 收口：新增 continuation cycle 行为测试，补齐 multi-turn resume / approval retry 验证，并将里程碑状态切换为 M2 已完成 |
