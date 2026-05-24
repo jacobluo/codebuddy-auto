@@ -5,8 +5,10 @@ interface SelectDispatchCandidatesInput {
   activeStates: string[];
   terminalStates: string[];
   runningIssueIds: Set<string>;
+  runningStateCounts: Map<string, number>;
   claimedIssueIds: Set<string>;
   maxConcurrentAgents: number;
+  maxConcurrentAgentsByState: Record<string, number>;
   runningCount: number;
 }
 
@@ -46,18 +48,54 @@ function compareIssues(left: Issue, right: Issue): number {
   return left.identifier.localeCompare(right.identifier);
 }
 
+function getPerStateRemainingSlots(
+  issue: Issue,
+  runningStateCounts: Map<string, number>,
+  maxConcurrentAgentsByState: Record<string, number>,
+): number {
+  const stateKey = normalizeState(issue.state);
+  const configuredLimit = maxConcurrentAgentsByState[stateKey];
+  if (configuredLimit === undefined) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.max(configuredLimit - (runningStateCounts.get(stateKey) ?? 0), 0);
+}
+
 export function selectDispatchCandidates(input: SelectDispatchCandidatesInput): Issue[] {
   const activeStates = new Set(input.activeStates.map(normalizeState));
   const terminalStates = new Set(input.terminalStates.map(normalizeState));
-  const availableSlots = Math.max(input.maxConcurrentAgents - input.runningCount, 0);
+  let availableSlots = Math.max(input.maxConcurrentAgents - input.runningCount, 0);
+  const nextRunningStateCounts = new Map(input.runningStateCounts);
 
-  return input.issues
-    .filter((issue) => hasRequiredFields(issue))
-    .filter((issue) => activeStates.has(normalizeState(issue.state)))
-    .filter((issue) => !terminalStates.has(normalizeState(issue.state)))
-    .filter((issue) => !input.runningIssueIds.has(issue.id))
-    .filter((issue) => !input.claimedIssueIds.has(issue.id))
-    .filter((issue) => !isBlocked(issue))
-    .sort(compareIssues)
-    .slice(0, availableSlots);
+  const selected: Issue[] = [];
+
+  for (const issue of input.issues
+    .filter((candidate) => hasRequiredFields(candidate))
+    .filter((candidate) => activeStates.has(normalizeState(candidate.state)))
+    .filter((candidate) => !terminalStates.has(normalizeState(candidate.state)))
+    .filter((candidate) => !input.runningIssueIds.has(candidate.id))
+    .filter((candidate) => !input.claimedIssueIds.has(candidate.id))
+    .filter((candidate) => !isBlocked(candidate))
+    .sort(compareIssues)) {
+    if (availableSlots <= 0) {
+      break;
+    }
+
+    const remainingPerState = getPerStateRemainingSlots(
+      issue,
+      nextRunningStateCounts,
+      input.maxConcurrentAgentsByState,
+    );
+    if (remainingPerState <= 0) {
+      continue;
+    }
+
+    selected.push(issue);
+    availableSlots -= 1;
+    const stateKey = normalizeState(issue.state);
+    nextRunningStateCounts.set(stateKey, (nextRunningStateCounts.get(stateKey) ?? 0) + 1);
+  }
+
+  return selected;
 }

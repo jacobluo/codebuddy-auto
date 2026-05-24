@@ -34,8 +34,10 @@ describe('selectDispatchCandidates', () => {
       activeStates: ['open'],
       terminalStates: ['closed'],
       runningIssueIds: new Set(),
+      runningStateCounts: new Map(),
       claimedIssueIds: new Set(),
       maxConcurrentAgents: 10,
+      maxConcurrentAgentsByState: {},
       runningCount: 0,
     });
 
@@ -60,8 +62,10 @@ describe('selectDispatchCandidates', () => {
       activeStates: ['open', 'todo'],
       terminalStates: ['closed'],
       runningIssueIds: new Set(['running']),
+      runningStateCounts: new Map(),
       claimedIssueIds: new Set(['claimed']),
       maxConcurrentAgents: 10,
+      maxConcurrentAgentsByState: {},
       runningCount: 0,
     });
 
@@ -80,8 +84,10 @@ describe('selectDispatchCandidates', () => {
       activeStates: ['open'],
       terminalStates: ['closed'],
       runningIssueIds: new Set(),
+      runningStateCounts: new Map(),
       claimedIssueIds: new Set(),
       maxConcurrentAgents: 3,
+      maxConcurrentAgentsByState: {},
       runningCount: 2,
     });
 
@@ -94,11 +100,35 @@ describe('selectDispatchCandidates', () => {
       activeStates: ['open'],
       terminalStates: ['closed'],
       runningIssueIds: new Set(),
+      runningStateCounts: new Map(),
       claimedIssueIds: new Set(['retrying']),
       maxConcurrentAgents: 10,
+      maxConcurrentAgentsByState: {},
       runningCount: 0,
     });
 
     expect(selected).toEqual([]);
+  });
+
+  it('respects per-state concurrency limits while still filling remaining global slots', () => {
+    const issues = [
+      makeIssue({ id: 'todo-1', identifier: 'ABC-1', state: 'todo', priority: 1 }),
+      makeIssue({ id: 'todo-2', identifier: 'ABC-2', state: 'todo', priority: 2 }),
+      makeIssue({ id: 'open-1', identifier: 'ABC-3', state: 'open', priority: 3 }),
+    ];
+
+    const selected = selectDispatchCandidates({
+      issues,
+      activeStates: ['open', 'todo'],
+      terminalStates: ['closed'],
+      runningIssueIds: new Set(),
+      runningStateCounts: new Map([['todo', 1]]),
+      claimedIssueIds: new Set(),
+      maxConcurrentAgents: 4,
+      maxConcurrentAgentsByState: { todo: 1, open: 3 },
+      runningCount: 1,
+    });
+
+    expect(selected.map((issue) => issue.id)).toEqual(['open-1']);
   });
 });

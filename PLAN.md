@@ -105,6 +105,10 @@
 以下清单按“先补契约、再写代码”的顺序组织。每项都应产出可检查的文档结果，而不是只做讨论。
 其中 `Phase 0` 与 `Phase 1` 是当前整理 `PLAN.md` 的主线，`Phase 2` 之后的内容在正式章节主线建立后推进。
 
+说明：本节勾选状态记录的是 **`PLAN.md` 正式契约章节的补写完成度**，不是 `typescript/` 运行时代码完成度。
+因此即使 M1 / M2 的实现已经闭环，下面许多任务仍保持未勾选，因为对应的 18 章正式契约正文还没有真正写入 `PLAN.md`。
+当前已完成的是“实现里程碑推进 + README/里程碑状态收口”；当前未完成的主要是“把这些实现事实上升为正式章节契约”。
+
 #### Phase 0 — 重排 PLAN 结构（必须先做）
 
 - [ ] **Task 0.1**：把 `PLAN.md` 从“差距清单主导”改写为与最新版 SPEC 对齐的 **18 章 + Appendix A 正式章节主线**。
@@ -236,7 +240,7 @@
 - 🟢 runner 已覆盖真实子进程拉起、NDJSON 事件流解析、read/turn/stall timeout、token/runtime 聚合、continuation resume，以及 approval/user-input 的主要策略面
 - 🟢 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径 / `$VAR` / `~` / MCP 路径解析
 - 🟢 logging 已覆盖 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface、issue-scoped child logger，以及已接入 daemon 生命周期的最小 HTTP status API
-- 🔜 后续工作已移动到后续里程碑：多 issue worktree 并发隔离归入 M3，richer dashboard / remote worker 归入 M4
+- 🔜 后续工作已移动到后续里程碑：git worktree 隔离与更完整的多 issue runtime 编排归入 M3，richer dashboard / remote worker 归入 M4
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -281,3 +285,4 @@
 | v1.0 | 2026-05-24 | M2 起步：baseline / diff-baseline 纳入自动化测试并接入 `typescript` 包脚本，README 快速开始同步收口 |
 | v1.1 | 2026-05-24 | runner 细化审批相关事件映射：新增 `notification` / `approval_auto_approved` 语义与对应测试，并补出 `baseline:diff` 包脚本 |
 | v1.2 | 2026-05-24 | M2 收口：新增 continuation cycle 行为测试，补齐 multi-turn resume / approval retry 验证，并将里程碑状态切换为 M2 已完成 |
+| v1.3 | 2026-05-25 | M3 预备：dispatch 选择逻辑补齐 `max_concurrent_agents_by_state` 限流实现与测试，收束为 worktree / 更完整并发运行时前的最后单机调度增量 |

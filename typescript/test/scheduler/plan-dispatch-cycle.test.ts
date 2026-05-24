@@ -80,4 +80,58 @@ describe('planDispatchCycle', () => {
 
     expect(plan.dispatchableIssues.map((issue) => issue.id)).toEqual(['1']);
   });
+
+  it('applies per-state concurrency caps from running issue state counts', () => {
+    const state = createRuntimeState();
+    state.running.openOne = {
+      issue: makeIssue({ id: 'open-0', identifier: '#open-0', state: 'open' }),
+      workspacePath: '/tmp/open-0',
+      sessionId: 'session-open',
+      startedAt: '2026-05-18T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-18T00:00:01Z',
+      secondsRunning: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        creditCost: 0,
+      },
+      lastReportedTotals: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+      },
+    };
+
+    const plan = planDispatchCycle(
+      state,
+      [
+        makeIssue({ id: 'open-1', identifier: '#open-1', state: 'open', priority: 1 }),
+        makeIssue({ id: 'todo-1', identifier: '#todo-1', state: 'todo', priority: 2 }),
+      ],
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        tracker: {
+          ...DEFAULT_SERVICE_CONFIG.tracker,
+          activeStates: ['open', 'todo'],
+        },
+        agent: {
+          ...DEFAULT_SERVICE_CONFIG.agent,
+          maxConcurrentAgents: 3,
+          maxConcurrentAgentsByState: {
+            open: 1,
+            todo: 2,
+          },
+        },
+      },
+    );
+
+    expect(plan.availableSlots).toBe(2);
+    expect(plan.dispatchableIssues.map((issue) => issue.id)).toEqual(['todo-1']);
+  });
 });
