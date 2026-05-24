@@ -66,6 +66,7 @@ function makeConfig(workspaceRoot: string): ServiceConfig {
       terminalStates: ['closed'],
     },
     workspace: {
+      ...DEFAULT_SERVICE_CONFIG.workspace,
       root: workspaceRoot,
     },
   };

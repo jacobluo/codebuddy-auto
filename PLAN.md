@@ -29,7 +29,7 @@
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
 | **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
 | **M2** | 🟢 已完成 | continuation、baseline 闭环、多 turn 相关章节细化 | continuation / multi-turn 主路径、baseline / diff-baseline 脚本闭环、approval/notification 事件映射与自动化测试已补齐 |
-| **M3** | ⚪ 待启动 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发 + per-task git worktree |
+| **M3** | 🟡 进行中 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发已完成；per-task git worktree 基础配置/生命周期已接入，安全边界细化待续 |
 | **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
 
 ---
@@ -241,6 +241,7 @@
 - 🟢 workflow / config 已覆盖 front matter 解析、workflow path precedence、strict prompt rendering、dynamic reload、last-known-good 运行时保留，以及相对路径 / `$VAR` / `~` / MCP 路径解析
 - 🟢 logging 已覆盖 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface、issue-scoped child logger，以及已接入 daemon 生命周期的最小 HTTP status API
 - 🔜 后续工作已移动到后续里程碑：git worktree 隔离与更完整的多 issue runtime 编排归入 M3，richer dashboard / remote worker 归入 M4
+- 🟡 M3 已启动首个实现增量：workspace/config 已支持 `directory | git-worktree` 模式切换、`workspace.sourceRoot` 解析、git worktree 创建/清理生命周期与对应自动化测试
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -286,3 +287,4 @@
 | v1.1 | 2026-05-24 | runner 细化审批相关事件映射：新增 `notification` / `approval_auto_approved` 语义与对应测试，并补出 `baseline:diff` 包脚本 |
 | v1.2 | 2026-05-24 | M2 收口：新增 continuation cycle 行为测试，补齐 multi-turn resume / approval retry 验证，并将里程碑状态切换为 M2 已完成 |
 | v1.3 | 2026-05-25 | M3 预备：dispatch 选择逻辑补齐 `max_concurrent_agents_by_state` 限流实现与测试，收束为 worktree / 更完整并发运行时前的最后单机调度增量 |
+| v1.4 | 2026-05-25 | M3 第一阶段：workspace lifecycle 接入 `git-worktree` 模式、`workspace.source_root` 配置解析、preflight 校验与创建/清理测试，完成 per-task worktree 基础闭环 |

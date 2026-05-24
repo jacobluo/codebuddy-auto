@@ -6,3 +6,5 @@ export {
   resolveWorkspacePath,
   sanitizeWorkspaceKey,
 } from './resolve-workspace-path.js';
+export type { WorkspaceLifecycleConfig, WorkspaceState } from './ensure-workspace.js';
+export type { RemoveWorkspaceResult } from './remove-workspace.js';

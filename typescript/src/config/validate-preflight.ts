@@ -28,6 +28,9 @@ export function validatePreflight(config: ServiceConfig): PreflightResult {
   if (!fs.existsSync(config.workspace.root)) {
     errors.push(`workspace.root does not exist: ${config.workspace.root}`);
   }
+  if (!fs.existsSync(config.workspace.sourceRoot)) {
+    errors.push(`workspace.sourceRoot does not exist: ${config.workspace.sourceRoot}`);
+  }
 
   return {
     ok: errors.length === 0,

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runCli } from '../src/cli.js';
+import { DEFAULT_SERVICE_CONFIG } from '../src/spec/index.js';
 import * as schedulerModule from '../src/scheduler/index.js';
 
 const tempDirs: string[] = [];
@@ -145,7 +146,7 @@ describe('runCli', () => {
         config: {
           tracker: { kind: 'local', apiKey: 'token', activeStates: ['open'], terminalStates: ['closed'] },
           polling: { intervalMs: 1000 },
-          workspace: { root: '.' },
+          workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1', port: 0 },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
@@ -233,7 +234,7 @@ describe('runCli', () => {
         config: {
           tracker: { kind: 'local', apiKey: 'token', activeStates: ['open'], terminalStates: ['closed'] },
           polling: { intervalMs: 1000 },
-          workspace: { root: '.' },
+          workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
@@ -278,7 +279,7 @@ describe('runCli', () => {
         config: {
           tracker: { kind: 'local', apiKey: 'token', activeStates: ['open'], terminalStates: ['closed'] },
           polling: { intervalMs: 1000 },
-          workspace: { root: '.' },
+          workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },

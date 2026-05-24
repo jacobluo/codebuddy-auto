@@ -15,6 +15,8 @@ export const pollingConfigSchema = z.object({
 
 export const workspaceConfigSchema = z.object({
   root: z.string(),
+  mode: z.enum(['directory', 'git-worktree']),
+  sourceRoot: z.string(),
 });
 
 export const hooksConfigSchema = z.object({
@@ -79,6 +81,8 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
   workspace: {
     root: '.agentfirst/workspaces',
+    mode: 'directory',
+    sourceRoot: '.',
   },
   hooks: {
     timeoutMs: 60_000,

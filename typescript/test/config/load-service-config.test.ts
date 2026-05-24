@@ -11,17 +11,21 @@ describe('loadServiceConfig', () => {
     expect(config.tracker.kind).toBe('cnb');
     expect(config.polling.intervalMs).toBe(30_000);
     expect(config.workspace.root).toBe(path.resolve('/tmp/project', '.agentfirst/workspaces'));
+    expect(config.workspace.mode).toBe('directory');
+    expect(config.workspace.sourceRoot).toBe(path.resolve('/tmp/project'));
     expect(config.codebuddy.command).toBe('codebuddy');
     expect(config.server.host).toBe('127.0.0.1');
   });
 
-  it('resolves env-backed tracker api key and relative workspace root', () => {
+  it('resolves env-backed tracker api key and workspace overrides', () => {
     const workflow = `---
 tracker:
   kind: cnb
   apiKey: $CNB_TOKEN
 workspace:
   root: ./workspaces
+  mode: git-worktree
+  source_root: ./repo-source
 server:
   port: 8080
   host: 0.0.0.0
@@ -50,6 +54,8 @@ You are working on {{ issue.identifier }}.
 
     expect(config.tracker.apiKey).toBe('secret-token');
     expect(config.workspace.root).toBe(path.resolve('/repo', 'workspaces'));
+    expect(config.workspace.mode).toBe('git-worktree');
+    expect(config.workspace.sourceRoot).toBe(path.resolve('/repo', 'repo-source'));
     expect(config.server).toEqual({ host: '0.0.0.0', port: 8080 });
     expect(config.polling.intervalMs).toBe(15_000);
     expect(config.agent.maxTurns).toBe(8);
@@ -80,5 +86,6 @@ body
     });
 
     expect(config.workspace.root).toBe('/Users/tester/agentfirst');
+    expect(config.workspace.sourceRoot).toBe('/repo');
   });
 });

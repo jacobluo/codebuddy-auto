@@ -1,11 +1,12 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ensureWorkspace } from '../../src/workspace/index.js';
 import { DEFAULT_SERVICE_CONFIG } from '../../src/spec/index.js';
+import { ensureWorkspace } from '../../src/workspace/index.js';
 
 const tempDirs: string[] = [];
 
@@ -15,15 +16,28 @@ afterEach(() => {
   }
 });
 
-function createTempRoot(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-workspace-'));
+function createTempRoot(prefix: string): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   tempDirs.push(dir);
+  return dir;
+}
+
+function createGitRepo(): string {
+  const dir = createTempRoot('agentfirst-worktree-source-');
+  fs.writeFileSync(path.join(dir, 'README.md'), 'seed\n', 'utf8');
+  execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
+  execFileSync(
+    'git',
+    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    { cwd: dir, stdio: 'ignore' },
+  );
   return dir;
 }
 
 describe('ensureWorkspace', () => {
   it('creates a workspace on first use', async () => {
-    const root = createTempRoot();
+    const root = createTempRoot('agentfirst-workspace-');
 
     const workspace = await ensureWorkspace(root, 'ABC-123');
 
@@ -32,7 +46,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('reuses an existing workspace', async () => {
-    const root = createTempRoot();
+    const root = createTempRoot('agentfirst-workspace-');
     const workspacePath = path.join(root, 'ABC-123');
     fs.mkdirSync(workspacePath);
 
@@ -42,7 +56,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('runs afterCreate hooks when a workspace is first created', async () => {
-    const root = createTempRoot();
+    const root = createTempRoot('agentfirst-workspace-');
     const markerPath = path.join(root, 'hook-created.txt');
 
     const workspace = await ensureWorkspace(root, 'ABC-123', {
@@ -57,7 +71,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('fails workspace creation when the afterCreate hook fails', async () => {
-    const root = createTempRoot();
+    const root = createTempRoot('agentfirst-workspace-');
 
     await expect(
       ensureWorkspace(root, 'ABC-123', {
@@ -67,5 +81,26 @@ describe('ensureWorkspace', () => {
         },
       }),
     ).rejects.toThrow('afterCreate hook failed for workspace creation');
+  });
+
+  it('creates and reuses git worktrees when configured', async () => {
+    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const sourceRoot = createGitRepo();
+    const config = {
+      hooks: DEFAULT_SERVICE_CONFIG.hooks,
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+        mode: 'git-worktree' as const,
+        sourceRoot,
+      },
+    };
+
+    const first = await ensureWorkspace(workspaceRoot, '#1', config);
+    const second = await ensureWorkspace(workspaceRoot, '#1', config);
+
+    expect(first.createdNow).toBe(true);
+    expect(second.createdNow).toBe(false);
+    expect(fs.existsSync(path.join(first.path, '.git'))).toBe(true);
   });
 });

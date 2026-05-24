@@ -102,7 +102,7 @@ export function loadServiceConfig(
     ...getObject(raw.polling),
   };
   const workspace = {
-    root: DEFAULT_SERVICE_CONFIG.workspace.root,
+    ...DEFAULT_SERVICE_CONFIG.workspace,
     ...getObject(raw.workspace),
   };
   const hooks = {
@@ -122,6 +122,7 @@ export function loadServiceConfig(
     ...getObject(raw.codebuddy),
   };
   const pollingOverrides = getObject(raw.polling);
+  const workspaceOverrides = getObject(raw.workspace);
   const hooksOverrides = getObject(raw.hooks);
   const serverOverrides = getObject(raw.server);
   const agentOverrides = getObject(raw.agent);
@@ -132,6 +133,15 @@ export function loadServiceConfig(
   }
   if (typeof workspace.root === 'string') {
     workspace.root = resolvePathValue(workspace.root, workflowPath, env);
+  }
+  if (typeof workspace.sourceRoot === 'string') {
+    workspace.sourceRoot = resolvePathValue(workspace.sourceRoot, workflowPath, env);
+  }
+  if (workspaceOverrides.mode === 'directory' || workspaceOverrides.mode === 'git-worktree') {
+    workspace.mode = workspaceOverrides.mode;
+  }
+  if (typeof workspaceOverrides.source_root === 'string') {
+    workspace.sourceRoot = resolvePathValue(workspaceOverrides.source_root, workflowPath, env);
   }
   if (typeof pollingOverrides.interval_ms === 'number') {
     polling.intervalMs = pollingOverrides.interval_ms;

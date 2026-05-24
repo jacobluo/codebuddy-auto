@@ -16,9 +16,10 @@ afterEach(() => {
 });
 
 describe('validatePreflight', () => {
-  it('passes when required fields are present and workspace exists', () => {
+  it('passes when required fields are present and workspace paths exist', () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-'));
-    tempDirs.push(workspaceRoot);
+    const sourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-source-'));
+    tempDirs.push(workspaceRoot, sourceRoot);
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -27,7 +28,9 @@ describe('validatePreflight', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
+        sourceRoot,
       },
     });
 
@@ -42,12 +45,15 @@ describe('validatePreflight', () => {
         apiKey: '',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: '/definitely/missing',
+        sourceRoot: '/definitely/missing-source',
       },
     });
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('tracker.apiKey is required');
     expect(result.errors).toContain('workspace.root does not exist: /definitely/missing');
+    expect(result.errors).toContain('workspace.sourceRoot does not exist: /definitely/missing-source');
   });
 });

@@ -37,6 +37,7 @@ function createConfig(workspaceRoot: string, command: string, overrides: Partial
       apiKey: 'token',
     },
     workspace: {
+      ...DEFAULT_SERVICE_CONFIG.workspace,
       root: workspaceRoot,
     },
     codebuddy: {

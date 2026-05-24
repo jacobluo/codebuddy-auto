@@ -67,6 +67,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
@@ -142,6 +143,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
@@ -214,6 +216,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
@@ -317,6 +320,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
@@ -389,6 +393,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
@@ -453,6 +458,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       hooks: {
@@ -515,6 +521,7 @@ describe('runDispatchCycle', () => {
         apiKey: 'token',
       },
       workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
       },
       codebuddy: {
