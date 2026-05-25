@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,6 +20,20 @@ afterEach(() => {
 function createWorkspaceRoot(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-startup-cleanup-'));
   tempDirs.push(dir);
+  return dir;
+}
+
+
+function createGitRepo(): string {
+  const dir = createWorkspaceRoot();
+  fs.writeFileSync(path.join(dir, 'README.md'), 'seed\n', 'utf8');
+  execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
+  execFileSync(
+    'git',
+    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    { cwd: dir, stdio: 'ignore' },
+  );
   return dir;
 }
 
@@ -96,5 +111,32 @@ describe('runStartupCleanup', () => {
     );
 
     expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+  });
+
+  it('removes git worktree workspaces for terminal issues at startup', async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const sourceRoot = createGitRepo();
+    const workspacePath = path.join(workspaceRoot, '_3');
+    execFileSync('git', ['worktree', 'add', '--detach', workspacePath, 'HEAD'], {
+      cwd: sourceRoot,
+      stdio: 'ignore',
+    });
+
+    const result = await runStartupCleanup(
+      new StubTracker([makeIssue({ id: '3', identifier: '#3' })]),
+      {
+        ...makeConfig(workspaceRoot),
+        workspace: {
+          ...DEFAULT_SERVICE_CONFIG.workspace,
+          root: workspaceRoot,
+          mode: 'git-worktree',
+          sourceRoot,
+        },
+      },
+    );
+
+    expect(result.cleanedWorkspaceIssueIds).toEqual(['3']);
+    expect(fs.existsSync(workspacePath)).toBe(false);
+    expect(execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: sourceRoot, encoding: 'utf8' })).not.toContain(workspacePath);
   });
 });

@@ -249,6 +249,7 @@
 - 🟡 M3 第六个实现增量：reload 路径已覆盖 git-worktree 非法配置的 last-known-good 保留语义，避免坏配置把 daemon 运行态打挂
 - 🟡 M3 第七个实现增量：补齐 `beforeRemove` 失败时仍继续清理 workspace/worktree 的回归测试，锁定现有宽松清理语义
 - 🟢 M3 第八个实现增量：worktree 目录已被外部删除时，仍会清理 stale metadata；实现与测试已补齐，覆盖 removal 侧自愈路径
+- 🟡 M3 第九个实现增量：startup cleanup 已补 git-worktree terminal issue 清理回归测试，覆盖 daemon 启动阶段的 worktree 收口
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -302,3 +303,4 @@
 | v1.9 | 2026-05-25 | M3 第六阶段：补齐 git-worktree 非法 reload 配置的 last-known-good 保留测试，收口动态配置安全语义 |
 | v1.10 | 2026-05-25 | M3 第七阶段：补齐 `beforeRemove` hook 失败仍继续清理的目录/worktree 回归测试，固定当前 cleanup 宽松策略 |
 | v1.11 | 2026-05-25 | M3 第八阶段：worktree 目录已缺失时仍清理 stale metadata，补齐 removal 自愈实现与回归测试 |
+| v1.12 | 2026-05-25 | M3 第九阶段：startup cleanup 增加 git-worktree terminal issue 清理测试，补齐 daemon 启动侧 worktree 收口覆盖 |
