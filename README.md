@@ -87,6 +87,8 @@ pnpm baseline:diff /tmp/before.json /tmp/after.json
 
 当前 `typescript/` 已完成 M1 + M2 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式以及最小 HTTP status API。后续里程碑聚焦于多 issue worktree 并发隔离与 RemoteWorker / Dashboard 扩展。
 
+M3 当前已补上 `git-worktree` 基础能力：`workspace.mode: git-worktree`、`workspace.source_root`、创建/清理生命周期，以及启动前对 `sourceRoot` git 仓库有效性与 `workspace.root/sourceRoot` 危险嵌套关系的校验。
+
 ## 规划说明
 
 README 只保留项目目标、定位、技术路径和快速开始，不再承载任务状态、里程碑状态或待办清单。

@@ -1,10 +1,53 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 
 import type { ServiceConfig } from '../spec/index.js';
 
 export interface PreflightResult {
   ok: boolean;
   errors: string[];
+}
+
+function isGitRepository(rootPath: string): boolean {
+  try {
+    execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: rootPath,
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSameOrNestedPath(parentPath: string, childPath: string): boolean {
+  const relativePath = path.relative(parentPath, childPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function validateGitWorktreePaths(config: ServiceConfig, errors: string[]): void {
+  const workspaceRoot = path.resolve(config.workspace.root);
+  const sourceRoot = path.resolve(config.workspace.sourceRoot);
+
+  if (!fs.existsSync(config.workspace.sourceRoot)) {
+    errors.push(`workspace.sourceRoot does not exist: ${config.workspace.sourceRoot}`);
+    return;
+  }
+  if (!isGitRepository(config.workspace.sourceRoot)) {
+    errors.push(`workspace.sourceRoot is not a git repository: ${config.workspace.sourceRoot}`);
+    return;
+  }
+  if (workspaceRoot === sourceRoot) {
+    errors.push('workspace.root must not equal workspace.sourceRoot in git-worktree mode');
+    return;
+  }
+  if (isSameOrNestedPath(sourceRoot, workspaceRoot)) {
+    errors.push('workspace.root must not be inside workspace.sourceRoot in git-worktree mode');
+  }
+  if (isSameOrNestedPath(workspaceRoot, sourceRoot)) {
+    errors.push('workspace.sourceRoot must not be inside workspace.root in git-worktree mode');
+  }
 }
 
 export function validatePreflight(config: ServiceConfig): PreflightResult {
@@ -28,8 +71,8 @@ export function validatePreflight(config: ServiceConfig): PreflightResult {
   if (!fs.existsSync(config.workspace.root)) {
     errors.push(`workspace.root does not exist: ${config.workspace.root}`);
   }
-  if (!fs.existsSync(config.workspace.sourceRoot)) {
-    errors.push(`workspace.sourceRoot does not exist: ${config.workspace.sourceRoot}`);
+  if (config.workspace.mode === 'git-worktree') {
+    validateGitWorktreePaths(config, errors);
   }
 
   return {

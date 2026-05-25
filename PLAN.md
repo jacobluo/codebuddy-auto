@@ -242,6 +242,7 @@
 - 🟢 logging 已覆盖 runtime snapshot、token/runtime/rate-limit 近似聚合、human-readable status surface、issue-scoped child logger，以及已接入 daemon 生命周期的最小 HTTP status API
 - 🔜 后续工作已移动到后续里程碑：git worktree 隔离与更完整的多 issue runtime 编排归入 M3，richer dashboard / remote worker 归入 M4
 - 🟡 M3 已启动首个实现增量：workspace/config 已支持 `directory | git-worktree` 模式切换、`workspace.sourceRoot` 解析、git worktree 创建/清理生命周期与对应自动化测试
+- 🟡 M3 第二个实现增量：preflight 已在 `git-worktree` 模式下校验 `workspace.sourceRoot` 存在且为 git 仓库，并拒绝 `workspace.root/sourceRoot` 相等或互相嵌套的危险配置
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -288,3 +289,4 @@
 | v1.2 | 2026-05-24 | M2 收口：新增 continuation cycle 行为测试，补齐 multi-turn resume / approval retry 验证，并将里程碑状态切换为 M2 已完成 |
 | v1.3 | 2026-05-25 | M3 预备：dispatch 选择逻辑补齐 `max_concurrent_agents_by_state` 限流实现与测试，收束为 worktree / 更完整并发运行时前的最后单机调度增量 |
 | v1.4 | 2026-05-25 | M3 第一阶段：workspace lifecycle 接入 `git-worktree` 模式、`workspace.source_root` 配置解析、preflight 校验与创建/清理测试，完成 per-task worktree 基础闭环 |
+| v1.5 | 2026-05-25 | M3 第二阶段：preflight 增加 `git-worktree` 模式下的 `sourceRoot` git 仓库校验，并拒绝 `workspace.root/sourceRoot` 的危险嵌套关系；同步 README 与测试覆盖安全边界 |
