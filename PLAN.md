@@ -246,6 +246,7 @@
 - 🟡 M3 第三个实现增量：workspace 创建前会主动 `git worktree prune`，修复目录被外部删除后 stale worktree 元数据导致的重建失败
 - 🟡 M3 第四个实现增量：`afterCreate` hook 失败时会自动回滚新建 workspace / worktree，避免残留半初始化目录
 - 🟡 M3 第五个实现增量：worktree 删除后会补跑 `git worktree prune`，减少 stale admin metadata 长期堆积
+- 🟡 M3 第六个实现增量：reload 路径已覆盖 git-worktree 非法配置的 last-known-good 保留语义，避免坏配置把 daemon 运行态打挂
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -296,3 +297,4 @@
 | v1.6 | 2026-05-25 | M3 第三阶段：git worktree 创建前执行 `worktree prune`，补齐 stale metadata 自愈路径与回归测试 |
 | v1.7 | 2026-05-25 | M3 第四阶段：workspace `afterCreate` 失败后自动回滚目录/worktree，补齐初始化失败清理语义与回归测试 |
 | v1.8 | 2026-05-25 | M3 第五阶段：worktree 删除后补跑 `worktree prune`，收口清理侧的 stale metadata 维护语义 |
+| v1.9 | 2026-05-25 | M3 第六阶段：补齐 git-worktree 非法 reload 配置的 last-known-good 保留测试，收口动态配置安全语义 |

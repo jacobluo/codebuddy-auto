@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -70,6 +71,54 @@ Prompt B
     expect(reload.ok).toBe(false);
     expect(reload.errors[0]).toContain('tracker.apiKey is required');
     expect(runtimeSource.getCurrent().promptTemplate).toBe('Prompt A');
+  });
+
+
+  it('keeps the last known good runtime when git-worktree reload preflight fails', async () => {
+    const workflowPath = createWorkflow(`---
+tracker:
+  kind: local
+  apiKey: token
+workspace:
+  root: .
+---
+Prompt A
+`);
+    const runtimeDir = path.dirname(workflowPath);
+    fs.mkdirSync(path.join(runtimeDir, '.agentfirst-workspaces'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeDir, 'README.md'), 'seed\n', 'utf8');
+    const previousCwd = process.cwd();
+    process.chdir(runtimeDir);
+    fs.writeFileSync(path.join(runtimeDir, '.gitignore'), '.agentfirst-workspaces\n', 'utf8');
+    execFileSync('git', ['init'], { cwd: runtimeDir, stdio: 'ignore' });
+    execFileSync('git', ['add', 'README.md', '.gitignore'], { cwd: runtimeDir, stdio: 'ignore' });
+    execFileSync(
+      'git',
+      ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+      { cwd: runtimeDir, stdio: 'ignore' },
+    );
+
+    const runtimeSource = await createWorkflowRuntimeSource(workflowPath);
+
+    fs.writeFileSync(workflowPath, `---
+tracker:
+  kind: local
+  apiKey: token
+workspace:
+  root: ./.agentfirst-workspaces
+  mode: git-worktree
+  source_root: .
+---
+Prompt B
+`, 'utf8');
+
+    const reload = await runtimeSource.reload();
+
+    expect(reload.ok).toBe(false);
+    expect(reload.errors[0]).toContain('workspace.root must not be inside workspace.sourceRoot in git-worktree mode');
+    expect(runtimeSource.getCurrent().promptTemplate).toBe('Prompt A');
+    expect(runtimeSource.getCurrent().config.workspace.mode).toBe('directory');
+    process.chdir(previousCwd);
   });
 
   it('updates the current runtime after a successful reload', async () => {
