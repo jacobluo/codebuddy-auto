@@ -153,4 +153,33 @@ describe('removeWorkspace', () => {
     });
     expect(fs.existsSync(workspacePath)).toBe(false);
   });
+
+
+  it('cleans up stale git worktree metadata when the directory is already gone', async () => {
+    const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
+    const sourceRoot = createGitRepo();
+    const workspacePath = path.join(workspaceRoot, '_3c');
+
+    execFileSync('git', ['worktree', 'add', '--detach', workspacePath, 'HEAD'], {
+      cwd: sourceRoot,
+      stdio: 'ignore',
+    });
+    fs.rmSync(workspacePath, { recursive: true, force: true });
+
+    const result = await removeWorkspace(workspaceRoot, '#3c', {
+      hooks: DEFAULT_SERVICE_CONFIG.hooks,
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+        mode: 'git-worktree',
+        sourceRoot,
+      },
+    });
+
+    expect(result).toEqual({
+      workspacePath,
+      removed: true,
+    });
+    expect(execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: sourceRoot, encoding: 'utf8' })).not.toContain(workspacePath);
+  });
 });

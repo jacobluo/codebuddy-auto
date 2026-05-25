@@ -64,6 +64,8 @@ export async function removeWorkspace(
   const workspacePath = resolveWorkspacePath(workspaceRoot, issueIdentifier);
   assertWorkspacePathWithinRoot(workspaceRoot, workspacePath);
 
+  let workspaceExists = true;
+
   try {
     const stat = await fs.stat(workspacePath);
     if (!stat.isDirectory()) {
@@ -71,17 +73,21 @@ export async function removeWorkspace(
     }
   } catch (error) {
     if (getErrorCode(error) === 'ENOENT') {
-      return {
-        workspacePath,
-        removed: false,
-      };
+      workspaceExists = false;
+    } else {
+      throw error;
     }
+  }
 
-    throw error;
+  if (!workspaceExists && (config?.workspace?.mode ?? 'directory') !== 'git-worktree') {
+    return {
+      workspacePath,
+      removed: false,
+    };
   }
 
   const beforeRemoveScript = config ? getWorkspaceHookScript(config as ServiceConfig, 'beforeRemove') : null;
-  if (beforeRemoveScript && config) {
+  if (beforeRemoveScript && config && workspaceExists) {
     await runWorkspaceHook({
       script: beforeRemoveScript,
       workspacePath,
