@@ -55,25 +55,26 @@ export async function runSchedulerOnce(
       );
       releasedIssueIds = reconciliation.releasedIssueIds;
 
-      const cleanedIssues = await Promise.all(
-        reconciliation.releasedIssues
-          .filter((issue) => issue.cleanupWorkspace)
-          .map(async (issue) => {
-            const result = await removeWorkspaceDependency(config.workspace.root, issue.identifier, config);
-            return result.removed ? issue.issueId : null;
-          }),
-      );
-      cleanedWorkspaceIssueIds = cleanedIssues.filter((issueId): issueId is string => issueId !== null);
+      for (const issue of reconciliation.releasedIssues.filter((entry) => entry.cleanupWorkspace)) {
+        try {
+          const result = await removeWorkspaceDependency(config.workspace.root, issue.identifier, config);
+          if (result.removed) {
+            cleanedWorkspaceIssueIds.push(issue.issueId);
+          }
+        } catch (error) {
+          if (reconciliationError === null) {
+            reconciliationError = error instanceof Error ? error.message : String(error);
+          }
+        }
+      }
     } catch (error) {
       reconciliationError = error instanceof Error ? error.message : String(error);
     }
   }
 
-  if (reconciliationError === null) {
-    const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
-    const continuation = await continuationRunner(state, config, logger);
-    continuedIssueIds = continuation.continuedIssueIds;
-  }
+  const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
+  const continuation = await continuationRunner(state, config, logger);
+  continuedIssueIds = continuation.continuedIssueIds;
 
   const dispatchRunner = dependencies.runDispatchCycle ?? runDispatchCycle;
   const dispatch = await dispatchRunner(state, tracker, config, undefined, logger);

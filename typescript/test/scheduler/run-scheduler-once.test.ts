@@ -170,6 +170,71 @@ describe('runSchedulerOnce', () => {
     expect(state.running['stuck-1']).toBeDefined();
   });
 
+
+  it('continues continuation retries when workspace cleanup fails during reconciliation', async () => {
+    const state = createRuntimeState();
+    state.running['done-2'] = {
+      issue: makeIssue({ id: 'done-2', identifier: '#done-2', state: 'open' }),
+      workspacePath: '/tmp/done-2',
+      sessionId: 'done-2-turn-1',
+      startedAt: '2026-05-19T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('done-2');
+    state.running['cont-2'] = {
+      issue: makeIssue({ id: 'cont-2', identifier: '#cont-2', state: 'open' }),
+      workspacePath: '/tmp/cont-2',
+      sessionId: 'cont-2-turn-1',
+      startedAt: '2026-05-19T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('cont-2');
+    state.retryAttempts['cont-2'] = {
+      issueId: 'cont-2',
+      identifier: '#cont-2',
+      mode: 'continuation',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_completed',
+    };
+
+    const tracker = new StubTracker(
+      [],
+      new Map([
+        ['done-2', { id: 'done-2', state: 'closed', labels: ['done'] }],
+        ['cont-2', { id: 'cont-2', state: 'open', labels: [] }],
+      ]),
+    );
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      removeWorkspace: async () => {
+        throw new Error('cleanup failed');
+      },
+      runContinuationCycle: async () => ({
+        continuedIssueIds: ['cont-2'],
+      }),
+      runDispatchCycle: async () => ({
+        availableSlots: 9,
+        dispatchableIssueIds: [],
+        claimedIssueIds: ['cont-2'],
+      }),
+    });
+
+    expect(result.releasedIssueIds).toEqual(['done-2']);
+    expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.reconciliationError).toBe('cleanup failed');
+    expect(result.continuedIssueIds).toEqual(['cont-2']);
+    expect(result.dispatch.dispatchableIssueIds).toEqual([]);
+    expect(state.completed.has('done-2')).toBe(true);
+    expect(state.running['cont-2']).toBeDefined();
+  });
+
   it('releases retry entries whose due time has passed so they can be dispatched again', async () => {
     const state = createRuntimeState();
     state.claimed.add('retry-1');
