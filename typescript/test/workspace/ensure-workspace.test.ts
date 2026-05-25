@@ -83,6 +83,48 @@ describe('ensureWorkspace', () => {
     ).rejects.toThrow('afterCreate hook failed for workspace creation');
   });
 
+
+  it('rolls back a directory workspace when the afterCreate hook fails', async () => {
+    const root = createTempRoot('agentfirst-workspace-');
+    const workspacePath = path.join(root, 'ABC-123');
+
+    await expect(
+      ensureWorkspace(root, 'ABC-123', {
+        hooks: {
+          ...DEFAULT_SERVICE_CONFIG.hooks,
+          afterCreate: 'exit 7',
+        },
+      }),
+    ).rejects.toThrow('afterCreate hook failed for workspace creation');
+
+    expect(fs.existsSync(workspacePath)).toBe(false);
+  });
+
+  it('rolls back a git worktree when the afterCreate hook fails', async () => {
+    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const sourceRoot = createGitRepo();
+    const workspacePath = path.join(workspaceRoot, '_rollback');
+    const config = {
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        afterCreate: 'exit 9',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+        mode: 'git-worktree' as const,
+        sourceRoot,
+      },
+    };
+
+    await expect(
+      ensureWorkspace(workspaceRoot, '#rollback', config),
+    ).rejects.toThrow('afterCreate hook failed for workspace creation');
+
+    expect(fs.existsSync(workspacePath)).toBe(false);
+    expect(execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: sourceRoot, encoding: 'utf8' })).not.toContain(workspacePath);
+  });
+
   it('creates and reuses git worktrees when configured', async () => {
     const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
     const sourceRoot = createGitRepo();

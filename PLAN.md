@@ -244,6 +244,7 @@
 - 🟡 M3 已启动首个实现增量：workspace/config 已支持 `directory | git-worktree` 模式切换、`workspace.sourceRoot` 解析、git worktree 创建/清理生命周期与对应自动化测试
 - 🟡 M3 第二个实现增量：preflight 已在 `git-worktree` 模式下校验 `workspace.sourceRoot` 存在且为 git 仓库，并拒绝 `workspace.root/sourceRoot` 相等或互相嵌套的危险配置
 - 🟡 M3 第三个实现增量：workspace 创建前会主动 `git worktree prune`，修复目录被外部删除后 stale worktree 元数据导致的重建失败
+- 🟡 M3 第四个实现增量：`afterCreate` hook 失败时会自动回滚新建 workspace / worktree，避免残留半初始化目录
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -292,3 +293,4 @@
 | v1.4 | 2026-05-25 | M3 第一阶段：workspace lifecycle 接入 `git-worktree` 模式、`workspace.source_root` 配置解析、preflight 校验与创建/清理测试，完成 per-task worktree 基础闭环 |
 | v1.5 | 2026-05-25 | M3 第二阶段：preflight 增加 `git-worktree` 模式下的 `sourceRoot` git 仓库校验，并拒绝 `workspace.root/sourceRoot` 的危险嵌套关系；同步 README 与测试覆盖安全边界 |
 | v1.6 | 2026-05-25 | M3 第三阶段：git worktree 创建前执行 `worktree prune`，补齐 stale metadata 自愈路径与回归测试 |
+| v1.7 | 2026-05-25 | M3 第四阶段：workspace `afterCreate` 失败后自动回滚目录/worktree，补齐初始化失败清理语义与回归测试 |

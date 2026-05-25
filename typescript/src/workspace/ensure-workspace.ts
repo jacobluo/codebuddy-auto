@@ -117,6 +117,24 @@ async function runAfterCreateHook(
   }
 }
 
+async function rollbackCreatedWorkspace(
+  workspacePath: string,
+  config: WorkspaceLifecycleConfig | undefined,
+): Promise<void> {
+  if ((config?.workspace?.mode ?? 'directory') === 'git-worktree') {
+    const sourceRoot = path.resolve(config?.workspace?.sourceRoot ?? path.dirname(workspacePath));
+    await runGitWorktreeCommand(
+      sourceRoot,
+      `git worktree remove --force ${JSON.stringify(workspacePath)}`,
+      config?.hooks.timeoutMs ?? 60_000,
+      'git worktree rollback failed',
+    );
+    return;
+  }
+
+  await fs.rm(workspacePath, { recursive: true, force: true });
+}
+
 export async function ensureWorkspace(
   workspaceRoot: string,
   issueIdentifier: string,
@@ -134,7 +152,12 @@ export async function ensureWorkspace(
     : await ensureWorkspaceDirectory(workspacePath);
 
   if (createdNow) {
-    await runAfterCreateHook(config, workspacePath);
+    try {
+      await runAfterCreateHook(config, workspacePath);
+    } catch (error) {
+      await rollbackCreatedWorkspace(workspacePath, config);
+      throw error;
+    }
   }
 
   return {
