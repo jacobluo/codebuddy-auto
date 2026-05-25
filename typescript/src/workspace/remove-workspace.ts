@@ -20,20 +20,40 @@ function getErrorCode(error: unknown): string | undefined {
   return typeof error.code === 'string' ? error.code : undefined;
 }
 
-async function removeGitWorktree(
+async function runGitWorktreeCommand(
   sourceRoot: string,
-  workspacePath: string,
+  script: string,
   timeoutMs: number,
+  errorMessage: string,
 ): Promise<void> {
   const hookResult = await runWorkspaceHook({
-    script: `git worktree remove --force ${JSON.stringify(workspacePath)}`,
+    script,
     workspacePath: sourceRoot,
     timeoutMs,
   });
 
   if (hookResult.timedOut || hookResult.exitCode !== 0) {
-    throw new Error('git worktree removal failed');
+    throw new Error(errorMessage);
   }
+}
+
+async function removeGitWorktree(
+  sourceRoot: string,
+  workspacePath: string,
+  timeoutMs: number,
+): Promise<void> {
+  await runGitWorktreeCommand(
+    sourceRoot,
+    `git worktree remove --force ${JSON.stringify(workspacePath)}`,
+    timeoutMs,
+    'git worktree removal failed',
+  );
+  await runGitWorktreeCommand(
+    sourceRoot,
+    'git worktree prune',
+    timeoutMs,
+    'git worktree prune failed',
+  );
 }
 
 export async function removeWorkspace(
