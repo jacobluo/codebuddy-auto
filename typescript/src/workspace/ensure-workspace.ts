@@ -25,6 +25,23 @@ function getErrorCode(error: unknown): string | undefined {
   return typeof error.code === 'string' ? error.code : undefined;
 }
 
+async function runGitWorktreeCommand(
+  sourceRoot: string,
+  script: string,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<void> {
+  const hookResult = await runWorkspaceHook({
+    script,
+    workspacePath: sourceRoot,
+    timeoutMs,
+  });
+
+  if (hookResult.timedOut || hookResult.exitCode !== 0) {
+    throw new Error(errorMessage);
+  }
+}
+
 async function ensureWorkspaceDirectory(workspacePath: string): Promise<boolean> {
   try {
     const stat = await fs.stat(workspacePath);
@@ -60,15 +77,18 @@ async function ensureGitWorktree(
   }
 
   await fs.mkdir(path.dirname(workspacePath), { recursive: true });
-  const hookResult = await runWorkspaceHook({
-    script: `git worktree add --detach ${JSON.stringify(workspacePath)} HEAD`,
-    workspacePath: sourceRoot,
+  await runGitWorktreeCommand(
+    sourceRoot,
+    'git worktree prune',
     timeoutMs,
-  });
-
-  if (hookResult.timedOut || hookResult.exitCode !== 0) {
-    throw new Error('git worktree initialization failed');
-  }
+    'git worktree prune failed',
+  );
+  await runGitWorktreeCommand(
+    sourceRoot,
+    `git worktree add --detach ${JSON.stringify(workspacePath)} HEAD`,
+    timeoutMs,
+    'git worktree initialization failed',
+  );
 
   return true;
 }

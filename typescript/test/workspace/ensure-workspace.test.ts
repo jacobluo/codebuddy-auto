@@ -103,4 +103,26 @@ describe('ensureWorkspace', () => {
     expect(second.createdNow).toBe(false);
     expect(fs.existsSync(path.join(first.path, '.git'))).toBe(true);
   });
+
+  it('recreates a git worktree after the directory is deleted out of band', async () => {
+    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const sourceRoot = createGitRepo();
+    const config = {
+      hooks: DEFAULT_SERVICE_CONFIG.hooks,
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+        mode: 'git-worktree' as const,
+        sourceRoot,
+      },
+    };
+
+    const first = await ensureWorkspace(workspaceRoot, '#2', config);
+    fs.rmSync(first.path, { recursive: true, force: true });
+
+    const recreated = await ensureWorkspace(workspaceRoot, '#2', config);
+
+    expect(recreated.createdNow).toBe(true);
+    expect(fs.existsSync(path.join(recreated.path, '.git'))).toBe(true);
+  });
 });
