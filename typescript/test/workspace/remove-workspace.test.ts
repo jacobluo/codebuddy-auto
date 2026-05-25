@@ -79,6 +79,23 @@ describe('removeWorkspace', () => {
     expect(fs.existsSync(workspacePath)).toBe(false);
   });
 
+
+  it('still removes a directory workspace when beforeRemove fails', async () => {
+    const root = createTempRoot('agentfirst-remove-workspace-');
+    const workspacePath = path.join(root, '_2b');
+    fs.mkdirSync(workspacePath, { recursive: true });
+
+    const result = await removeWorkspace(root, '#2b', {
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        beforeRemove: 'exit 9',
+      },
+    });
+
+    expect(result.removed).toBe(true);
+    expect(fs.existsSync(workspacePath)).toBe(false);
+  });
+
   it('removes git worktrees when configured', async () => {
     const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
     const sourceRoot = createGitRepo();
@@ -91,6 +108,37 @@ describe('removeWorkspace', () => {
 
     const result = await removeWorkspace(workspaceRoot, '#3', {
       hooks: DEFAULT_SERVICE_CONFIG.hooks,
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+        mode: 'git-worktree',
+        sourceRoot,
+      },
+    });
+
+    expect(result).toEqual({
+      workspacePath,
+      removed: true,
+    });
+    expect(fs.existsSync(workspacePath)).toBe(false);
+  });
+
+
+  it('still removes a git worktree when beforeRemove fails', async () => {
+    const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
+    const sourceRoot = createGitRepo();
+    const workspacePath = path.join(workspaceRoot, '_3b');
+
+    execFileSync('git', ['worktree', 'add', '--detach', workspacePath, 'HEAD'], {
+      cwd: sourceRoot,
+      stdio: 'ignore',
+    });
+
+    const result = await removeWorkspace(workspaceRoot, '#3b', {
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        beforeRemove: 'exit 7',
+      },
       workspace: {
         ...DEFAULT_SERVICE_CONFIG.workspace,
         root: workspaceRoot,
