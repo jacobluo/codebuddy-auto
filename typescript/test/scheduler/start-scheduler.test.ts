@@ -51,7 +51,7 @@ describe('startScheduler', () => {
   });
 
   it('runs startup cleanup before the first tick and continues on the configured interval', async () => {
-    const runStartupCleanup = vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: ['cleanup-1'] });
+    const runStartupCleanup = vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: ['cleanup-1'], cleanupError: null });
     const runOnce = vi.fn()
       .mockResolvedValueOnce({ releasedIssueIds: [], cleanedWorkspaceIssueIds: [], continuedIssueIds: [], dispatch: { availableSlots: 10, dispatchableIssueIds: [], claimedIssueIds: [] }, reconciliationError: null })
       .mockResolvedValueOnce({ releasedIssueIds: [], cleanedWorkspaceIssueIds: [], continuedIssueIds: [], dispatch: { availableSlots: 9, dispatchableIssueIds: ['1'], claimedIssueIds: ['1'] }, reconciliationError: null });
@@ -69,7 +69,7 @@ describe('startScheduler', () => {
     await flushSchedulerTick();
     expect(runStartupCleanup).toHaveBeenCalledTimes(1);
     expect(runOnce).toHaveBeenCalledTimes(1);
-    expect(logger.info).toHaveBeenCalledWith({ cleanedWorkspaceIssueIds: ['cleanup-1'] }, 'startup_cleanup_completed');
+    expect(logger.info).toHaveBeenCalledWith({ cleanedWorkspaceIssueIds: ['cleanup-1'], cleanupError: null }, 'startup_cleanup_completed');
 
     await vi.advanceTimersByTimeAsync(5);
     expect(runOnce).toHaveBeenCalledTimes(2);
@@ -77,8 +77,11 @@ describe('startScheduler', () => {
     await scheduler.stop();
   });
 
-  it('logs startup cleanup failures and still proceeds to ticking', async () => {
-    const runStartupCleanup = vi.fn().mockRejectedValue(new Error('cleanup failed'));
+  it('logs startup cleanup partial errors in the success payload and still proceeds to ticking', async () => {
+    const runStartupCleanup = vi.fn().mockResolvedValue({
+      cleanedWorkspaceIssueIds: [],
+      cleanupError: 'cleanup failed',
+    });
     const runOnce = vi.fn().mockResolvedValue({
       releasedIssueIds: [],
       cleanedWorkspaceIssueIds: [],
@@ -98,7 +101,35 @@ describe('startScheduler', () => {
     });
 
     await flushSchedulerTick();
-    expect(logger.warn).toHaveBeenCalledWith({ error: 'cleanup failed' }, 'startup_cleanup_failed');
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith({ cleanedWorkspaceIssueIds: [], cleanupError: 'cleanup failed' }, 'startup_cleanup_completed');
+    expect(runOnce).toHaveBeenCalledTimes(1);
+
+    await scheduler.stop();
+  });
+
+  it('warns when startup cleanup itself throws before ticking', async () => {
+    const runStartupCleanup = vi.fn().mockRejectedValue(new Error('startup unavailable'));
+    const runOnce = vi.fn().mockResolvedValue({
+      releasedIssueIds: [],
+      cleanedWorkspaceIssueIds: [],
+      continuedIssueIds: [],
+      dispatch: { availableSlots: 10, dispatchableIssueIds: [], claimedIssueIds: [] },
+      reconciliationError: null,
+    });
+    const logger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+    } as unknown as Logger;
+
+    const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
+      runStartupCleanup,
+      runSchedulerOnce: runOnce,
+    });
+
+    await flushSchedulerTick();
+    expect(logger.warn).toHaveBeenCalledWith({ error: 'startup unavailable' }, 'startup_cleanup_failed');
     expect(runOnce).toHaveBeenCalledTimes(1);
 
     await scheduler.stop();
@@ -116,7 +147,7 @@ describe('startScheduler', () => {
 
     const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
       runSchedulerOnce: runOnce,
-      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [] }),
+      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [], cleanupError: null }),
     });
 
     await flushSchedulerTick();
@@ -149,7 +180,7 @@ describe('startScheduler', () => {
 
     const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
       runSchedulerOnce: runOnce,
-      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [] }),
+      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [], cleanupError: null }),
     });
 
     await flushSchedulerTick();
@@ -192,7 +223,7 @@ describe('startScheduler', () => {
 
     const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
       runSchedulerOnce: runOnce,
-      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [] }),
+      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [], cleanupError: null }),
     });
 
     await flushSchedulerTick();
@@ -249,7 +280,7 @@ describe('startScheduler', () => {
 
     const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
       runSchedulerOnce: runOnce,
-      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [] }),
+      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [], cleanupError: null }),
       createRuntimeSnapshot,
     });
 
@@ -305,7 +336,7 @@ describe('startScheduler', () => {
     } as unknown as Logger;
 
     const scheduler = startScheduler(new NoopTracker(), makeConfig(), logger, {
-      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [] }),
+      runStartupCleanup: vi.fn().mockResolvedValue({ cleanedWorkspaceIssueIds: [], cleanupError: null }),
       runSchedulerOnce: runOnce,
       getTickContext,
     });

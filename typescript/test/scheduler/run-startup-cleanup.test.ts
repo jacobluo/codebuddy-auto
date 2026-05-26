@@ -99,6 +99,7 @@ describe('runStartupCleanup', () => {
     );
 
     expect(result.cleanedWorkspaceIssueIds).toEqual(['1']);
+    expect(result.cleanupError).toBeNull();
     expect(fs.existsSync(workspacePath)).toBe(false);
   });
 
@@ -111,6 +112,7 @@ describe('runStartupCleanup', () => {
     );
 
     expect(result.cleanedWorkspaceIssueIds).toEqual([]);
+    expect(result.cleanupError).toBeNull();
   });
 
   it('removes git worktree workspaces for terminal issues at startup', async () => {
@@ -136,7 +138,31 @@ describe('runStartupCleanup', () => {
     );
 
     expect(result.cleanedWorkspaceIssueIds).toEqual(['3']);
+    expect(result.cleanupError).toBeNull();
     expect(fs.existsSync(workspacePath)).toBe(false);
     expect(execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: sourceRoot, encoding: 'utf8' })).not.toContain(workspacePath);
+  });
+
+  it('continues startup cleanup after a workspace removal failure and reports the first error', async () => {
+    const tracker = new StubTracker([
+      makeIssue({ id: '4a', identifier: '#4a' }),
+      makeIssue({ id: '4b', identifier: '#4b' }),
+    ]);
+    const removedIdentifiers: string[] = [];
+
+    const result = await runStartupCleanup(tracker, makeConfig(createWorkspaceRoot()), {
+      removeWorkspace: async (_root, identifier) => {
+        removedIdentifiers.push(identifier);
+        if (identifier === '#4a') {
+          throw new Error('cleanup failed');
+        }
+
+        return { workspacePath: '/tmp/' + identifier.slice(1), removed: true };
+      },
+    });
+
+    expect(removedIdentifiers).toEqual(['#4a', '#4b']);
+    expect(result.cleanedWorkspaceIssueIds).toEqual(['4b']);
+    expect(result.cleanupError).toBe('cleanup failed');
   });
 });

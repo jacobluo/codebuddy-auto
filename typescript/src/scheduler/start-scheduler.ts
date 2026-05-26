@@ -85,7 +85,13 @@ export function startScheduler(
     try {
       const tickContext = await getTickContext();
       const result = await startupCleanup(tickContext.tracker, tickContext.config);
-      logger.info({ cleanedWorkspaceIssueIds: result.cleanedWorkspaceIssueIds }, 'startup_cleanup_completed');
+      logger.info(
+        {
+          cleanedWorkspaceIssueIds: result.cleanedWorkspaceIssueIds,
+          cleanupError: result.cleanupError,
+        },
+        'startup_cleanup_completed',
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn({ error: message }, 'startup_cleanup_failed');
