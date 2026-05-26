@@ -597,6 +597,119 @@ describe('runDispatchCycle', () => {
     );
   });
 
+  it('continues dispatching later issues when an earlier run attempt throws unexpectedly', async () => {
+    const workspaceRoot = createTrackerRoot();
+    const okCliPath = path.join(workspaceRoot, 'ok-after-dispatch-throw.mjs');
+    fs.writeFileSync(
+      okCliPath,
+      [
+        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-safe'}));",
+        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:4,num_turns:1,usage:{input_tokens:1,output_tokens:1}}));",
+      ].join('\n'),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.tracker', 'issue-a-crash.json'),
+      JSON.stringify({
+        id: 'a-crash',
+        identifier: '#a-crash',
+        title: 'Crash issue',
+        description: null,
+        priority: 1,
+        state: 'open',
+        branchName: null,
+        url: null,
+        labels: [],
+        blockedBy: [],
+        createdAt: '2026-05-19T00:00:00Z',
+        updatedAt: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.tracker', 'issue-b-safe.json'),
+      JSON.stringify({
+        id: 'b-safe',
+        identifier: '#b-safe',
+        title: 'Safe issue',
+        description: null,
+        priority: 2,
+        state: 'open',
+        branchName: null,
+        url: null,
+        labels: [],
+        blockedBy: [],
+        createdAt: '2026-05-19T00:00:01Z',
+        updatedAt: null,
+      }),
+    );
+
+    const logger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(function child(bindings) {
+        return {
+          info: logger.info,
+          error: logger.error,
+          child: logger.child,
+          bindings,
+        };
+      }),
+    } as unknown as RuntimeLogger;
+
+    const config = {
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        beforeRun: '[ "$(basename "$PWD")" = "_a-crash" ] && rm -rf "$PWD" || exit 0',
+      },
+      codebuddy: {
+        ...DEFAULT_SERVICE_CONFIG.codebuddy,
+        command: `node "${okCliPath}"`,
+      },
+    };
+    const tracker = createLocalTracker(config);
+    const state = createRuntimeState();
+
+    const result = await runDispatchCycle(state, tracker, config, undefined, logger);
+
+    expect(result.dispatchableIssueIds).toEqual(['a-crash', 'b-safe']);
+    expect(result.claimedIssueIds).toEqual(['a-crash', 'b-safe']);
+    expect(state.running['a-crash']).toBeUndefined();
+    expect(state.retryAttempts['a-crash']).toMatchObject({
+      issueId: 'a-crash',
+      identifier: '#a-crash',
+      mode: 'failure',
+      error: 'dispatch_failed',
+    });
+    expect(state.running['b-safe']).toMatchObject({
+      workspacePath: path.join(workspaceRoot, '_b-safe'),
+      sessionId: 'session-safe',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+    });
+    expect(state.retryAttempts['b-safe']).toMatchObject({
+      issueId: 'b-safe',
+      identifier: '#b-safe',
+      mode: 'continuation',
+      error: 'turn_completed',
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastEvent: 'dispatch_failed',
+        retryMode: 'failure',
+      }),
+      'issue_dispatch_retry_scheduled',
+    );
+  });
+
   it('increases retry backoff for repeated failures of the same issue', async () => {
     const workspaceRoot = createTrackerRoot();
     const mockCliPath = path.join(workspaceRoot, 'failing-cli-repeat.mjs');

@@ -1,6 +1,6 @@
 # PLAN.md — agentfirst-f1 项目计划
 
-> **状态**：M0 / M1 / M2 已完成，当前进入 M3 准备阶段；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
+> **状态**：M0 / M1 / M2 / M3 已完成；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
 > 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
 >
 > 章节完成后把 ⚪ 改为 🟢。
@@ -29,7 +29,7 @@
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
 | **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
 | **M2** | 🟢 已完成 | continuation、baseline 闭环、多 turn 相关章节细化 | continuation / multi-turn 主路径、baseline / diff-baseline 脚本闭环、approval/notification 事件映射与自动化测试已补齐 |
-| **M3** | 🟡 进行中 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发已完成；per-task git worktree 基础配置/生命周期已接入，安全边界细化待续 |
+| **M3** | 🟢 已完成 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发、per-task git worktree 生命周期、安全 preflight，以及 scheduler 各阶段 partial-failure 容错已完成 |
 | **M4** | ⚪ 待启动 | dashboard / remote worker extension 契约补齐 | Dashboard（SSE / WS）+ RemoteWorker（SSH）—— 按需取其一或都做 |
 
 ---
@@ -254,15 +254,24 @@
 - 🟢 M3 第十一个实现增量：同一轮 reconciliation 中即使前一个 released issue 的 cleanup 失败，后续 released issue 仍继续清理；回归测试已补齐
 - 🟢 M3 第十二个实现增量：startup cleanup 阶段单个 workspace cleanup 失败不再中断后续清理，且会通过 `cleanupError` 暴露首个错误；实现与测试已补齐
 - 🟢 M3 第十三个实现增量：dispatch 阶段单个 issue 的 workspace 初始化失败不再打断同轮后续 issue，失败项转入 retry 并记录错误日志；实现与测试已补齐
+- 🟢 M3 第十四个实现增量：continuation 阶段单个 issue 的运行异常不再打断后续 continuation，失败项转入 retry 并记录错误日志；实现与测试已补齐
+- 🟢 M3 第十五个实现增量：dispatch 阶段单个 issue 在 beforeRun / runner 主路径上的意外抛错也已收口为 issue 级 retry，不阻断同轮后续 issue；实现与测试已补齐
 
-### 3.5 下一步应直接对应的 PLAN 章节
+### 3.5 M3 结项说明
+
+- 🟢 调度并发面已收口：`max_concurrent_agents` 与 `max_concurrent_agents_by_state` 已进入 dispatch 选择逻辑并由测试锁定
+- 🟢 workspace 隔离面已收口：`git-worktree` 模式、`workspace.sourceRoot`、创建/清理/回滚、stale metadata 自愈、危险嵌套 preflight 均已补齐
+- 🟢 运行时鲁棒性已收口：startup cleanup、reconciliation、dispatch、continuation 的单项失败都已转成 issue 级 retry 或错误上报，不再阻断同轮其他 issue
+- 🟢 M3 验证面已收口：相关回归已进入 `typescript/test/`，当前全量为 34 个测试文件、153 个测试用例通过
+
+### 3.6 下一步应直接对应的 PLAN 章节
 
 - `§3 State Schema`：把当前 `spec/` 中已出现的 `Issue / RuntimeState / RetryEntry` 扩成正式实体契约
 - `§5 Workflow Specification` 与 `§6 Configuration Specification`：把现有 `loadWorkflow()` / `loadServiceConfig()` 的行为上升为正式规范
 - `§10 Agent Runner Protocol` 与 `§12 Prompt Construction`：把现有 `buildCodebuddyCommand()` 和 spike 结论汇总成可实现的 runner contract
 - `§13 Logging / Status / Observability` 与 `§17 Test Matrix`：让当前 `logging/` 与 `typescript/test/` 有明确完成标准
 
-### 3.6 技术栈选型（确认稿）
+### 3.7 技术栈选型（确认稿）
 
 详见 [`AGENTS.md` §1 技术栈（锁定）](./AGENTS.md#1-技术栈锁定) 和 [§2 编码规范（硬约束）](./AGENTS.md#2-编码规范硬约束)。
 本节不重复。
@@ -312,3 +321,4 @@
 | v1.14 | 2026-05-25 | M3 第十一阶段：同轮 reconciliation 内前序 cleanup 失败不阻断后续 released issue 清理，补齐回归测试 |
 | v1.15 | 2026-05-26 | M3 第十二阶段：startup cleanup 对单项 cleanup 失败改为继续其余清理并上报 `cleanupError`，补齐实现、日志与回归测试 |
 | v1.16 | 2026-05-26 | M3 第十三阶段：dispatch 对单个 issue 的 workspace 初始化失败改为 issue 级重试，不阻断同轮后续派发，补齐实现与回归测试 |
+| v1.17 | 2026-05-26 | M3 第十四阶段：continuation 对单个 issue 的运行异常改为 issue 级重试，不阻断同轮后续 continuation，补齐实现与回归测试 |

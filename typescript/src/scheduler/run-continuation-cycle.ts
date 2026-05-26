@@ -71,86 +71,110 @@ export async function runContinuationCycle(
       },
     });
 
-    const command = buildCodebuddyCommand({
-      config,
-      prompt,
-      sessionId,
-      resumeSessionId: runningEntry.sessionId ?? undefined,
-      workspacePath: runningEntry.workspacePath,
-    });
-    const turnResult = await runCodebuddyTurn({
-      command,
-      readTimeoutMs: config.codebuddy.readTimeoutMs,
-      turnTimeoutMs: config.codebuddy.turnTimeoutMs,
-      stallTimeoutMs: config.codebuddy.stallTimeoutMs,
-    });
-
-    const lastEvent = turnResult.events.at(-1)?.event ?? null;
-    const tokenUsageUpdate = updateTokenUsage(
-      {
-        totals: runningEntry.tokenUsage,
-        lastReportedTotals: runningEntry.lastReportedTotals,
-        latestCreditCost: null,
-      },
-      turnResult.events,
-    );
-    const turnCompleted = turnResult.events.find((event) => event.event === 'turn_completed');
-    runningEntry.sessionId = resolveSessionId(issueId, nextTurnCount, runningEntry.sessionId, turnResult.events);
-    runningEntry.turnCount = nextTurnCount;
-    runningEntry.lastEvent = lastEvent;
-    runningEntry.lastEventAt = new Date().toISOString();
-    runningEntry.secondsRunning += Math.max((turnCompleted?.payload.durationMs ?? 0) / 1000, 0);
-    runningEntry.tokenUsage = tokenUsageUpdate.totals;
-    runningEntry.lastReportedTotals = tokenUsageUpdate.lastReportedTotals;
-    delete state.retryAttempts[issueId];
-
-    if (lastEvent === 'turn_completed' && nextTurnCount < config.agent.maxTurns) {
-      state.retryAttempts[issueId] = createRetryEntry({
-        issueId,
-        identifier: runningEntry.issue.identifier,
-        previousAttempt: getPreviousAttempt(retryEntry, lastEvent),
-        reason: lastEvent,
-        nowMs: Date.now(),
-        maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
+    try {
+      const command = buildCodebuddyCommand({
+        config,
+        prompt,
+        sessionId,
+        resumeSessionId: runningEntry.sessionId ?? undefined,
+        workspacePath: runningEntry.workspacePath,
       });
-      issueLogger?.info(
+      const turnResult = await runCodebuddyTurn({
+        command,
+        readTimeoutMs: config.codebuddy.readTimeoutMs,
+        turnTimeoutMs: config.codebuddy.turnTimeoutMs,
+        stallTimeoutMs: config.codebuddy.stallTimeoutMs,
+      });
+
+      const lastEvent = turnResult.events.at(-1)?.event ?? null;
+      const tokenUsageUpdate = updateTokenUsage(
         {
-          workspacePath: runningEntry.workspacePath,
-          secondsRunning: runningEntry.secondsRunning,
-          totalTokens: runningEntry.tokenUsage.totalTokens,
-          retryMode: state.retryAttempts[issueId]?.mode,
-          retryAttempt: state.retryAttempts[issueId]?.attempt,
-          retryDueAtMs: state.retryAttempts[issueId]?.dueAtMs,
+          totals: runningEntry.tokenUsage,
+          lastReportedTotals: runningEntry.lastReportedTotals,
+          latestCreditCost: null,
         },
-        'issue_continuation_succeeded',
+        turnResult.events,
       );
-    } else if (lastEvent !== 'turn_completed') {
+      const turnCompleted = turnResult.events.find((event) => event.event === 'turn_completed');
+      runningEntry.sessionId = resolveSessionId(issueId, nextTurnCount, runningEntry.sessionId, turnResult.events);
+      runningEntry.turnCount = nextTurnCount;
+      runningEntry.lastEvent = lastEvent;
+      runningEntry.lastEventAt = new Date().toISOString();
+      runningEntry.secondsRunning += Math.max((turnCompleted?.payload.durationMs ?? 0) / 1000, 0);
+      runningEntry.tokenUsage = tokenUsageUpdate.totals;
+      runningEntry.lastReportedTotals = tokenUsageUpdate.lastReportedTotals;
+      delete state.retryAttempts[issueId];
+
+      if (lastEvent === 'turn_completed' && nextTurnCount < config.agent.maxTurns) {
+        state.retryAttempts[issueId] = createRetryEntry({
+          issueId,
+          identifier: runningEntry.issue.identifier,
+          previousAttempt: getPreviousAttempt(retryEntry, lastEvent),
+          reason: lastEvent,
+          nowMs: Date.now(),
+          maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
+        });
+        issueLogger?.info(
+          {
+            workspacePath: runningEntry.workspacePath,
+            secondsRunning: runningEntry.secondsRunning,
+            totalTokens: runningEntry.tokenUsage.totalTokens,
+            retryMode: state.retryAttempts[issueId]?.mode,
+            retryAttempt: state.retryAttempts[issueId]?.attempt,
+            retryDueAtMs: state.retryAttempts[issueId]?.dueAtMs,
+          },
+          'issue_continuation_succeeded',
+        );
+      } else if (lastEvent !== 'turn_completed') {
+        state.retryAttempts[issueId] = createRetryEntry({
+          issueId,
+          identifier: runningEntry.issue.identifier,
+          previousAttempt: getPreviousAttempt(retryEntry, lastEvent ?? 'unknown_error'),
+          reason: lastEvent ?? 'unknown_error',
+          nowMs: Date.now(),
+          maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
+        });
+        issueLogger?.error(
+          {
+            workspacePath: runningEntry.workspacePath,
+            lastEvent,
+            retryMode: state.retryAttempts[issueId]?.mode,
+            retryAttempt: state.retryAttempts[issueId]?.attempt,
+            retryDueAtMs: state.retryAttempts[issueId]?.dueAtMs,
+          },
+          'issue_continuation_retry_scheduled',
+        );
+      } else {
+        issueLogger?.info(
+          {
+            workspacePath: runningEntry.workspacePath,
+            secondsRunning: runningEntry.secondsRunning,
+            totalTokens: runningEntry.tokenUsage.totalTokens,
+          },
+          'issue_continuation_completed_max_turns',
+        );
+      }
+    } catch (error) {
+      runningEntry.lastEvent = 'continuation_failed';
+      runningEntry.lastEventAt = new Date().toISOString();
       state.retryAttempts[issueId] = createRetryEntry({
         issueId,
         identifier: runningEntry.issue.identifier,
-        previousAttempt: getPreviousAttempt(retryEntry, lastEvent ?? 'unknown_error'),
-        reason: lastEvent ?? 'unknown_error',
+        previousAttempt: getPreviousAttempt(retryEntry, 'continuation_failed'),
+        reason: 'continuation_failed',
         nowMs: Date.now(),
         maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
       });
       issueLogger?.error(
         {
           workspacePath: runningEntry.workspacePath,
-          lastEvent,
+          lastEvent: 'continuation_failed',
+          error: error instanceof Error ? error.message : String(error),
           retryMode: state.retryAttempts[issueId]?.mode,
           retryAttempt: state.retryAttempts[issueId]?.attempt,
           retryDueAtMs: state.retryAttempts[issueId]?.dueAtMs,
         },
         'issue_continuation_retry_scheduled',
-      );
-    } else {
-      issueLogger?.info(
-        {
-          workspacePath: runningEntry.workspacePath,
-          secondsRunning: runningEntry.secondsRunning,
-          totalTokens: runningEntry.tokenUsage.totalTokens,
-        },
-        'issue_continuation_completed_max_turns',
       );
     }
 

@@ -85,9 +85,9 @@ pnpm check
 pnpm baseline:diff /tmp/before.json /tmp/after.json
 ```
 
-当前 `typescript/` 已完成 M1 + M2 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式以及最小 HTTP status API。后续里程碑聚焦于多 issue worktree 并发隔离与 RemoteWorker / Dashboard 扩展。
+当前 `typescript/` 已完成 M1 + M2 + M3 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式以及最小 HTTP status API。
 
-M3 当前已补上 `git-worktree` 基础能力：`workspace.mode: git-worktree`、`workspace.source_root`、创建/清理生命周期，以及启动前对 `sourceRoot` git 仓库有效性与 `workspace.root/sourceRoot` 危险嵌套关系的校验。
+M3 已完成的重点包括：`max_concurrent_agents` 多 issue 并发调度、`workspace.mode: git-worktree` / `workspace.source_root` / worktree 创建清理回滚、危险嵌套 preflight，以及 startup cleanup / reconciliation / dispatch / continuation 各阶段的 partial-failure 容错。后续里程碑聚焦于 RemoteWorker / Dashboard 扩展。
 
 ## 规划说明
 

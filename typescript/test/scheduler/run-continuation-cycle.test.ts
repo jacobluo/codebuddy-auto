@@ -237,4 +237,132 @@ describe('runContinuationCycle', () => {
     });
     expect(state.retryAttempts['1']).toBeUndefined();
   });
+
+  it('continues later continuation retries when an earlier attempt throws unexpectedly', async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const okCliPath = path.join(workspaceRoot, 'continuation-ok-cli.mjs');
+    fs.writeFileSync(
+      okCliPath,
+      [
+        "console.log(JSON.stringify({type:'assistant',message:{usage:{input_tokens:12,output_tokens:4},providerData:{rawUsage:{credit:6}}}}));",
+        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:3000,num_turns:2,usage:{input_tokens:12,output_tokens:4}}));",
+      ].join('\n'),
+      'utf8',
+    );
+
+    const config = createConfig(workspaceRoot, `node "${okCliPath}"`);
+    const state = seedRunningState(workspaceRoot);
+    state.running['2'] = {
+      issue: {
+        id: '2',
+        identifier: '#2',
+        title: 'Second continuation issue',
+        description: null,
+        priority: null,
+        state: 'open',
+        branchName: null,
+        url: null,
+        labels: [],
+        blockedBy: [],
+        createdAt: null,
+        updatedAt: null,
+      },
+      workspacePath: path.join(workspaceRoot, '_2'),
+      sessionId: 'session-2',
+      startedAt: '2026-05-24T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-24T00:00:01Z',
+      secondsRunning: 1,
+      tokenUsage: {
+        inputTokens: 10,
+        outputTokens: 2,
+        totalTokens: 12,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        creditCost: 0,
+      },
+      lastReportedTotals: {
+        inputTokens: 10,
+        outputTokens: 2,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+      },
+    };
+    state.claimed.add('2');
+    state.retryAttempts['1'] = {
+      issueId: '1',
+      identifier: '#1',
+      mode: 'continuation',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_completed',
+    };
+    state.retryAttempts['2'] = {
+      issueId: '2',
+      identifier: '#2',
+      mode: 'continuation',
+      attempt: 1,
+      dueAtMs: Date.now() - 1,
+      error: 'turn_completed',
+    };
+    fs.mkdirSync(path.join(workspaceRoot, '_2'), { recursive: true });
+
+    const firstRunningEntry = state.running['1'];
+    if (!firstRunningEntry) {
+      throw new Error('missing running entry for issue 1');
+    }
+    firstRunningEntry.workspacePath = path.join(workspaceRoot, '_missing-1');
+
+    const logger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(function child() {
+        return {
+          info: logger.info,
+          error: logger.error,
+          child: logger.child,
+        };
+      }),
+    } as unknown as RuntimeLogger;
+
+    const result = await runContinuationCycle(state, config, logger);
+
+    expect(result.continuedIssueIds).toEqual(['1', '2']);
+    expect(state.running['1']).toMatchObject({
+      turnCount: 1,
+      lastEvent: 'continuation_failed',
+    });
+    expect(state.retryAttempts['1']).toMatchObject({
+      issueId: '1',
+      identifier: '#1',
+      mode: 'failure',
+      attempt: 1,
+      error: 'continuation_failed',
+    });
+    expect(state.running['2']).toMatchObject({
+      turnCount: 2,
+      lastEvent: 'turn_completed',
+    });
+    expect(state.retryAttempts['2']).toMatchObject({
+      issueId: '2',
+      identifier: '#2',
+      mode: 'continuation',
+      attempt: 2,
+      error: 'turn_completed',
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lastEvent: 'continuation_failed',
+        retryMode: 'failure',
+      }),
+      'issue_continuation_retry_scheduled',
+    );
+    expect(logger.error).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        issueId: '2',
+      }),
+      'issue_continuation_retry_scheduled',
+    );
+  });
 });
