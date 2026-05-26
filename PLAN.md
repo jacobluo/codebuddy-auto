@@ -253,6 +253,7 @@
 - 🟢 M3 第十个实现增量：reconciliation 阶段 workspace cleanup 失败时，continuation 仍继续执行；实现与测试已补齐
 - 🟢 M3 第十一个实现增量：同一轮 reconciliation 中即使前一个 released issue 的 cleanup 失败，后续 released issue 仍继续清理；回归测试已补齐
 - 🟢 M3 第十二个实现增量：startup cleanup 阶段单个 workspace cleanup 失败不再中断后续清理，且会通过 `cleanupError` 暴露首个错误；实现与测试已补齐
+- 🟢 M3 第十三个实现增量：dispatch 阶段单个 issue 的 workspace 初始化失败不再打断同轮后续 issue，失败项转入 retry 并记录错误日志；实现与测试已补齐
 
 ### 3.5 下一步应直接对应的 PLAN 章节
 
@@ -310,3 +311,4 @@
 | v1.13 | 2026-05-25 | M3 第十阶段：reconciliation workspace cleanup 失败时仍继续 continuation，补齐实现与回归测试 |
 | v1.14 | 2026-05-25 | M3 第十一阶段：同轮 reconciliation 内前序 cleanup 失败不阻断后续 released issue 清理，补齐回归测试 |
 | v1.15 | 2026-05-26 | M3 第十二阶段：startup cleanup 对单项 cleanup 失败改为继续其余清理并上报 `cleanupError`，补齐实现、日志与回归测试 |
+| v1.16 | 2026-05-26 | M3 第十三阶段：dispatch 对单个 issue 的 workspace 初始化失败改为 issue 级重试，不阻断同轮后续派发，补齐实现与回归测试 |

@@ -56,7 +56,32 @@ export async function runDispatchCycle(
       issueIdentifier: issue.identifier,
       turnCount: 1,
     });
-    const runAttempt = await createRunAttempt(issue, config.workspace.root, config);
+    let runAttempt;
+    try {
+      runAttempt = await createRunAttempt(issue, config.workspace.root, config);
+    } catch (error) {
+      state.claimed.add(issue.id);
+      state.retryAttempts[issue.id] = createRetryEntry({
+        issueId: issue.id,
+        identifier: issue.identifier,
+        previousAttempt: getPreviousAttempt('workspace_setup_failed', state.retryAttempts[issue.id]),
+        reason: 'workspace_setup_failed',
+        nowMs: Date.now(),
+        maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
+      });
+      issueLogger?.error(
+        {
+          reason: 'workspace_setup_failed',
+          error: error instanceof Error ? error.message : String(error),
+          retryMode: state.retryAttempts[issue.id]?.mode,
+          retryAttempt: state.retryAttempts[issue.id]?.attempt,
+          retryDueAtMs: state.retryAttempts[issue.id]?.dueAtMs,
+        },
+        'issue_dispatch_retry_scheduled',
+      );
+      continue;
+    }
+
     const sessionId = `${issue.id}-turn-1`;
     const prompt = renderPrompt(promptTemplate, {
       issue,

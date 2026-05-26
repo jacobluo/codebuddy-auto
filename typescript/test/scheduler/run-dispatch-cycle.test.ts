@@ -485,6 +485,118 @@ describe('runDispatchCycle', () => {
     });
   });
 
+  it('continues dispatching later issues when an earlier workspace setup fails', async () => {
+    const workspaceRoot = createTrackerRoot();
+    const okCliPath = path.join(workspaceRoot, 'ok-after-setup-failure.mjs');
+    fs.writeFileSync(
+      okCliPath,
+      [
+        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-late'}));",
+        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:4,num_turns:1,usage:{input_tokens:1,output_tokens:1}}));",
+      ].join('\n'),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.tracker', 'issue-a-first.json'),
+      JSON.stringify({
+        id: 'a-first',
+        identifier: '#a-first',
+        title: 'First issue',
+        description: null,
+        priority: 1,
+        state: 'open',
+        branchName: null,
+        url: null,
+        labels: [],
+        blockedBy: [],
+        createdAt: '2026-05-19T00:00:00Z',
+        updatedAt: null,
+      }),
+    );
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.tracker', 'issue-b-second.json'),
+      JSON.stringify({
+        id: 'b-second',
+        identifier: '#b-second',
+        title: 'Second issue',
+        description: null,
+        priority: 2,
+        state: 'open',
+        branchName: null,
+        url: null,
+        labels: [],
+        blockedBy: [],
+        createdAt: '2026-05-19T00:00:01Z',
+        updatedAt: null,
+      }),
+    );
+
+    const logger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(function child(bindings) {
+        return {
+          info: logger.info,
+          error: logger.error,
+          child: logger.child,
+          bindings,
+        };
+      }),
+    } as unknown as RuntimeLogger;
+
+    const config = {
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      hooks: {
+        ...DEFAULT_SERVICE_CONFIG.hooks,
+        afterCreate: '[ "$(basename "$PWD")" = "_a-first" ] && exit 9 || exit 0',
+      },
+      codebuddy: {
+        ...DEFAULT_SERVICE_CONFIG.codebuddy,
+        command: `node "${okCliPath}"`,
+      },
+    };
+    const tracker = createLocalTracker(config);
+    const state = createRuntimeState();
+
+    const result = await runDispatchCycle(state, tracker, config, undefined, logger);
+
+    expect(result.dispatchableIssueIds).toEqual(['a-first', 'b-second']);
+    expect(result.claimedIssueIds).toEqual(['a-first', 'b-second']);
+    expect(state.running['a-first']).toBeUndefined();
+    expect(state.retryAttempts['a-first']).toMatchObject({
+      issueId: 'a-first',
+      identifier: '#a-first',
+      mode: 'failure',
+      error: 'workspace_setup_failed',
+    });
+    expect(state.running['b-second']).toMatchObject({
+      workspacePath: path.join(workspaceRoot, '_b-second'),
+      sessionId: 'session-late',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+    });
+    expect(state.retryAttempts['b-second']).toMatchObject({
+      issueId: 'b-second',
+      identifier: '#b-second',
+      mode: 'continuation',
+      error: 'turn_completed',
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reason: 'workspace_setup_failed',
+      }),
+      'issue_dispatch_retry_scheduled',
+    );
+  });
+
   it('increases retry backoff for repeated failures of the same issue', async () => {
     const workspaceRoot = createTrackerRoot();
     const mockCliPath = path.join(workspaceRoot, 'failing-cli-repeat.mjs');
