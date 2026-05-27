@@ -8,9 +8,9 @@ context: |
   - Language: TypeScript + Node.js 20 LTS + pnpm
   - Agent execution: CodeBuddy Code CLI subprocess (NOT SDK in-process)
   - Primary tracker backend: cnb.cool (pluggable; TAPD / GitHub / Linear are future backends)
-  - Contract alignment: 14-chapter contract mirrors Symphony SPEC, implementation is phased (M0-M4)
-  - Naming: Symphony codex_* fields are renamed to agent_* in this project (see PLAN.md §3)
-  - Scheduler state: intentionally NOT persisted (aligned with Symphony SPEC §14.3)
+  - Contract alignment: PLAN.md now follows the full Symphony SPEC chapter mainline (`§1 ~ §18 + Appendix A`)
+  - Naming: Symphony codex_* fields are renamed to codebuddy_* in this project where applicable
+  - Scheduler state: intentionally NOT persisted (aligned with Symphony SPEC restart-recovery model)
   - Coding conventions: see AGENTS.md §1 tech stack / §2 encoding rules / §3 directory layout
 
   Every change MUST follow AGENTS.md §4:
