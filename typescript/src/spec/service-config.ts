@@ -39,6 +39,16 @@ export const agentConfigSchema = z.object({
   maxConcurrentAgentsByState: z.record(z.string(), z.number().int().positive()),
 });
 
+export const workerConfigSchema = z.object({
+  kind: z.enum(['local', 'ssh']),
+  sshCommand: z.string(),
+  sshHost: z.string().optional(),
+  sshUser: z.string().optional(),
+  sshPort: z.number().int().positive().optional(),
+  sshOptions: z.array(z.string()).optional(),
+  remoteWorkspaceRoot: z.string().optional(),
+});
+
 export const codebuddyConfigSchema = z.object({
   command: z.string(),
   permissionMode: z.string().optional(),
@@ -63,6 +73,7 @@ export const serviceConfigSchema = z.object({
   hooks: hooksConfigSchema,
   server: serverConfigSchema,
   agent: agentConfigSchema,
+  worker: workerConfigSchema,
   codebuddy: codebuddyConfigSchema,
 });
 
@@ -95,6 +106,10 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
     maxTurns: 20,
     maxRetryBackoffMs: 300_000,
     maxConcurrentAgentsByState: {},
+  },
+  worker: {
+    kind: 'local',
+    sshCommand: 'ssh',
   },
   codebuddy: {
     command: 'codebuddy',

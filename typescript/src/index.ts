@@ -5,5 +5,6 @@ export * from './runner/index.js';
 export * from './scheduler/index.js';
 export * from './spec/index.js';
 export * from './tracker/index.js';
+export * from './worker/index.js';
 export * from './workflow/index.js';
 export * from './workspace/index.js';

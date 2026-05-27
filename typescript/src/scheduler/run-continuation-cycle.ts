@@ -2,6 +2,7 @@ import { createIssueLogger, type RuntimeLogger } from '../logging/index.js';
 import type { CodebuddyRunnerEvent } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
+import { prepareWorkerCommand } from '../worker/index.js';
 import { renderPrompt } from '../workflow/index.js';
 
 import { createRetryEntry } from './create-retry-entry.js';
@@ -72,13 +73,13 @@ export async function runContinuationCycle(
     });
 
     try {
-      const command = buildCodebuddyCommand({
+      const command = prepareWorkerCommand(buildCodebuddyCommand({
         config,
         prompt,
         sessionId,
         resumeSessionId: runningEntry.sessionId ?? undefined,
         workspacePath: runningEntry.workspacePath,
-      });
+      }), config);
       const turnResult = await runCodebuddyTurn({
         command,
         readTimeoutMs: config.codebuddy.readTimeoutMs,

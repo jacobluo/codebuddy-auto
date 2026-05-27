@@ -38,7 +38,7 @@ Symphony 官方用 Elixir/OTP 实现参考版；本项目用 TypeScript / Node.j
 
 **关键策略**：
 - **契约不降维**：`PLAN.md` 按最新版 Symphony SPEC 的 **18 章 + Appendix A** 补齐语义边界
-- **实现分阶段**：M1 单机 + CNB tracker；M4 再做 Dashboard 与 SSH worker
+- **实现已覆盖 M1 ~ M4 主线**：单机调度、并发与 worktree、Dashboard、RemoteWorker（SSH）均已落地
 - **Linear 永不接入**：用 cnb.cool issue 替代
 
 ## 目录结构
@@ -46,11 +46,11 @@ Symphony 官方用 Elixir/OTP 实现参考版；本项目用 TypeScript / Node.j
 ```
 agentfirst-f1/
 ├── README.md                      ← 本文件
-├── PLAN.md                        ← 项目计划 + 语言无关契约主干（M0 起草中）
+├── PLAN.md                        ← 项目计划 + 语言无关契约主干
 ├── scripts/                       ← 通用 bash 工具
 │   ├── baseline.sh                  基线快照（JSON 出品）
 │   └── diff-baseline.sh             基线对比（回归判定）
-├── typescript/                    ← TypeScript 参考实现（M1 起动工）
+├── typescript/                    ← TypeScript 参考实现
 │   ├── src/                         源码
 │   ├── test/                        vitest 测试
 │   ├── package.json
@@ -69,6 +69,7 @@ agentfirst-f1/
 - **jq**（`baseline.sh` 需要）
 - **CodeBuddy Code CLI**（执行阶段）
 - **git**
+- **ssh**（仅 `worker.kind: ssh` 时需要）
 
 ## 快速开始
 
@@ -85,9 +86,27 @@ pnpm check
 pnpm baseline:diff /tmp/before.json /tmp/after.json
 ```
 
-当前 `typescript/` 已完成 M1 + M2 + M3 范围内的单机调度闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式以及最小 HTTP status API。
+当前 `typescript/` 已完成 M1 + M2 + M3 + M4 范围内的主线闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式、Dashboard HTML + status API，以及基于 SSH transport 的 RemoteWorker。
 
-M3 已完成的重点包括：`max_concurrent_agents` 多 issue 并发调度、`workspace.mode: git-worktree` / `workspace.source_root` / worktree 创建清理回滚、危险嵌套 preflight，以及 startup cleanup / reconciliation / dispatch / continuation 各阶段的 partial-failure 容错。后续里程碑聚焦于 RemoteWorker / Dashboard 扩展。
+M4 已完成的重点包括：
+
+- `GET /` 仪表盘页面，直接消费既有 `/api/v1/state` 与 `/api/v1/refresh`
+- `worker.kind: local | ssh` 抽象，以及 `ssh_host / ssh_user / ssh_port / ssh_options / remote_workspace_root` 配置
+- RemoteWorker 通过 SSH 在远端 workspace 执行 CodeBuddy CLI，同时保留本地 scheduler / tracker / retry / observability 主导权
+
+## 运行说明
+
+本项目当前有两条运行路径：
+
+- 本地 worker：默认 `worker.kind: local`，直接在本地 workspace 内拉起 CodeBuddy CLI
+- SSH worker：设置 `worker.kind: ssh` 后，通过 `ssh` 把同一条 CodeBuddy 命令转发到远端 workspace 执行
+
+Dashboard 由 daemon 状态服务直接提供：
+
+- `GET /`：人类可读 Dashboard
+- `GET /api/v1/state`：结构化 runtime snapshot
+- `GET /api/v1/<issue_identifier>`：单 issue 运行态
+- `POST /api/v1/refresh`：排队一次额外 scheduler tick
 
 ## 规划说明
 

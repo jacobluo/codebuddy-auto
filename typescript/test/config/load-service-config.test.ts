@@ -13,6 +13,7 @@ describe('loadServiceConfig', () => {
     expect(config.workspace.root).toBe(path.resolve('/tmp/project', '.agentfirst/workspaces'));
     expect(config.workspace.mode).toBe('directory');
     expect(config.workspace.sourceRoot).toBe(path.resolve('/tmp/project'));
+    expect(config.worker.kind).toBe('local');
     expect(config.codebuddy.command).toBe('codebuddy');
     expect(config.server.host).toBe('127.0.0.1');
   });
@@ -26,6 +27,13 @@ workspace:
   root: ./workspaces
   mode: git-worktree
   source_root: ./repo-source
+worker:
+  kind: ssh
+  ssh_host: $SSH_HOST
+  ssh_user: deploy
+  ssh_port: 2202
+  ssh_options: [-o, BatchMode=yes]
+  remote_workspace_root: ./remote-workspaces
 server:
   port: 8080
   host: 0.0.0.0
@@ -49,6 +57,7 @@ You are working on {{ issue.identifier }}.
 
     const config = loadServiceConfig(workflow, '/repo/WORKFLOW.md', {
       CNB_TOKEN: 'secret-token',
+      SSH_HOST: 'worker.internal',
       HOME: '/home/tester',
     });
 
@@ -56,6 +65,12 @@ You are working on {{ issue.identifier }}.
     expect(config.workspace.root).toBe(path.resolve('/repo', 'workspaces'));
     expect(config.workspace.mode).toBe('git-worktree');
     expect(config.workspace.sourceRoot).toBe(path.resolve('/repo', 'repo-source'));
+    expect(config.worker.kind).toBe('ssh');
+    expect(config.worker.sshHost).toBe('worker.internal');
+    expect(config.worker.sshUser).toBe('deploy');
+    expect(config.worker.sshPort).toBe(2202);
+    expect(config.worker.sshOptions).toEqual(['-o', 'BatchMode=yes']);
+    expect(config.worker.remoteWorkspaceRoot).toBe(path.resolve('/repo', 'remote-workspaces'));
     expect(config.server).toEqual({ host: '0.0.0.0', port: 8080 });
     expect(config.polling.intervalMs).toBe(15_000);
     expect(config.agent.maxTurns).toBe(8);

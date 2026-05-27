@@ -5,7 +5,9 @@ export {
   hooksConfigSchema,
   pollingConfigSchema,
   serviceConfigSchema,
+  serverConfigSchema,
   trackerConfigSchema,
+  workerConfigSchema,
   workspaceConfigSchema,
 } from './service-config.js';
 export {

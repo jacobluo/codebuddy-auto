@@ -150,6 +150,7 @@ describe('runCli', () => {
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1', port: 0 },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
         tracker: {
@@ -167,7 +168,6 @@ describe('runCli', () => {
     const requestTick = vi.fn(async () => undefined);
     const stop = vi.fn(async () => undefined);
     const startScheduler = vi.fn(() => ({ requestTick, stop }));
-    let resolveRefreshWait: (() => void) | null = null;
     const startStatusServer = vi.fn(async (_config, controller) => {
       controller.requestRefresh();
       return {
@@ -238,6 +238,7 @@ describe('runCli', () => {
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
         tracker: {
@@ -283,6 +284,7 @@ describe('runCli', () => {
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
         tracker: {

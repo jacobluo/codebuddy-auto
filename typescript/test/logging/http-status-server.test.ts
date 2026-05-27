@@ -28,7 +28,7 @@ function createState(): OrchestratorRuntimeState {
 }
 
 describe('startStatusServer', () => {
-  it('serves state and issue endpoints plus refresh trigger', async () => {
+  it('serves dashboard html plus state and issue endpoints plus refresh trigger', async () => {
     const state = createState();
     state.running['1'] = {
       issue: {
@@ -72,7 +72,7 @@ describe('startStatusServer', () => {
       state,
       config: DEFAULT_SERVICE_CONFIG,
       tracker: new NoopTracker(),
-      getSnapshotJson: () => JSON.stringify({ generatedAt: 'now', counts: { running: 1, retrying: 0, claimed: 0, completed: 0 } }),
+      getSnapshotJson: () => JSON.stringify({ generatedAt: 'now', counts: { running: 1, retrying: 0, claimed: 0, completed: 0 }, running: [], retrying: [], totals: {}, cleanedWorkspaceIssueIds: [], completedIssueIds: [] }),
       getIssueJson: (identifier) => identifier === '#1'
         ? JSON.stringify({ issueIdentifier: '#1', status: 'running', workspace: { path: '/tmp/_1' } })
         : null,
@@ -91,9 +91,15 @@ describe('startStatusServer', () => {
       throw new Error('expected bound status server address');
     }
 
+    const dashboardResponse = await fetch(address);
+    expect(dashboardResponse.status).toBe(200);
+    const dashboardHtml = await dashboardResponse.text();
+    expect(dashboardHtml).toContain('agentfirst-f1 dashboard');
+    expect(dashboardHtml).toContain('/api/v1/state');
+
     const stateResponse = await fetch(`${address}/api/v1/state`);
     expect(stateResponse.status).toBe(200);
-    expect(await stateResponse.json()).toEqual({ generatedAt: 'now', counts: { running: 1, retrying: 0, claimed: 0, completed: 0 } });
+    expect(await stateResponse.json()).toEqual({ generatedAt: 'now', counts: { running: 1, retrying: 0, claimed: 0, completed: 0 }, running: [], retrying: [], totals: {}, cleanedWorkspaceIssueIds: [], completedIssueIds: [] });
 
     const issueResponse = await fetch(`${address}/api/v1/%231`);
     expect(issueResponse.status).toBe(200);

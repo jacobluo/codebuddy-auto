@@ -50,6 +50,15 @@ function validateGitWorktreePaths(config: ServiceConfig, errors: string[]): void
   }
 }
 
+function validateSshWorker(config: ServiceConfig, errors: string[]): void {
+  if ((config.worker.sshHost ?? '').length === 0) {
+    errors.push('worker.sshHost is required for ssh worker');
+  }
+  if (config.worker.sshCommand.length === 0) {
+    errors.push('worker.sshCommand is required for ssh worker');
+  }
+}
+
 export function validatePreflight(config: ServiceConfig): PreflightResult {
   const errors: string[] = [];
 
@@ -73,6 +82,9 @@ export function validatePreflight(config: ServiceConfig): PreflightResult {
   }
   if (config.workspace.mode === 'git-worktree') {
     validateGitWorktreePaths(config, errors);
+  }
+  if (config.worker.kind === 'ssh') {
+    validateSshWorker(config, errors);
   }
 
   return {

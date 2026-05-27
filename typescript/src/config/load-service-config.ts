@@ -117,6 +117,10 @@ export function loadServiceConfig(
     ...DEFAULT_SERVICE_CONFIG.agent,
     ...getObject(raw.agent),
   };
+  const worker = {
+    ...DEFAULT_SERVICE_CONFIG.worker,
+    ...getObject(raw.worker),
+  };
   const codebuddy = {
     ...DEFAULT_SERVICE_CONFIG.codebuddy,
     ...getObject(raw.codebuddy),
@@ -126,6 +130,7 @@ export function loadServiceConfig(
   const hooksOverrides = getObject(raw.hooks);
   const serverOverrides = getObject(raw.server);
   const agentOverrides = getObject(raw.agent);
+  const workerOverrides = getObject(raw.worker);
   const codebuddyOverrides = getObject(raw.codebuddy);
 
   if (typeof tracker.apiKey === 'string') {
@@ -169,6 +174,28 @@ export function loadServiceConfig(
     agentOverrides.max_concurrent_agents_by_state !== null
   ) {
     agent.maxConcurrentAgentsByState = agentOverrides.max_concurrent_agents_by_state as Record<string, number>;
+  }
+  if (typeof workerOverrides.kind === 'string' && (workerOverrides.kind === 'local' || workerOverrides.kind === 'ssh')) {
+    worker.kind = workerOverrides.kind;
+  }
+  if (typeof workerOverrides.ssh_command === 'string') {
+    worker.sshCommand = workerOverrides.ssh_command;
+  }
+  if (typeof workerOverrides.ssh_host === 'string') {
+    worker.sshHost = resolveMaybeEnv(workerOverrides.ssh_host, env);
+  }
+  if (typeof workerOverrides.ssh_user === 'string') {
+    worker.sshUser = resolveMaybeEnv(workerOverrides.ssh_user, env);
+  }
+  if (typeof workerOverrides.ssh_port === 'number') {
+    worker.sshPort = workerOverrides.ssh_port;
+  }
+  const sshOptions = getStringArray(workerOverrides.ssh_options);
+  if (sshOptions) {
+    worker.sshOptions = sshOptions;
+  }
+  if (typeof workerOverrides.remote_workspace_root === 'string') {
+    worker.remoteWorkspaceRoot = resolvePathValue(workerOverrides.remote_workspace_root, workflowPath, env);
   }
   if (typeof codebuddyOverrides.subagent_permission_mode === 'string') {
     codebuddy.subagentPermissionMode = codebuddyOverrides.subagent_permission_mode;
@@ -218,6 +245,7 @@ export function loadServiceConfig(
     hooks,
     server,
     agent,
+    worker,
     codebuddy,
   });
 }

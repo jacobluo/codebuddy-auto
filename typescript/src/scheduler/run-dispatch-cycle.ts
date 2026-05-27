@@ -10,6 +10,7 @@ import {
   type CodebuddyRunnerEvent,
 } from '../runner/index.js';
 import type { Tracker } from '../tracker/index.js';
+import { prepareWorkerCommand } from '../worker/index.js';
 import { createRetryEntry } from './create-retry-entry.js';
 import { planDispatchCycle } from './plan-dispatch-cycle.js';
 import { renderPrompt } from '../workflow/index.js';
@@ -90,12 +91,12 @@ export async function runDispatchCycle(
           turnCount: 1,
         },
       });
-      const command = buildCodebuddyCommand({
+      const workerCommand = prepareWorkerCommand(buildCodebuddyCommand({
         config,
         prompt,
         sessionId,
         workspacePath: runAttempt.workspacePath,
-      });
+      }), config);
 
       const beforeRunScript = getWorkspaceHookScript(config, 'beforeRun');
       if (beforeRunScript) {
@@ -122,7 +123,7 @@ export async function runDispatchCycle(
       }
 
       const turnResult = await runCodebuddyTurn({
-        command,
+        command: workerCommand,
         readTimeoutMs: config.codebuddy.readTimeoutMs,
         turnTimeoutMs: config.codebuddy.turnTimeoutMs,
         stallTimeoutMs: config.codebuddy.stallTimeoutMs,

@@ -210,4 +210,27 @@ describe('validatePreflight', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('workspace.sourceRoot must not be inside workspace.root in git-worktree mode');
   });
+
+  it('rejects ssh worker mode when ssh host is missing', () => {
+    const workspaceRoot = createTempDir('agentfirst-ssh-workspace-');
+
+    const result = validatePreflight({
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      worker: {
+        ...DEFAULT_SERVICE_CONFIG.worker,
+        kind: 'ssh',
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('worker.sshHost is required for ssh worker');
+  });
 });

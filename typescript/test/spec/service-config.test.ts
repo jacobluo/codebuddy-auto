@@ -40,4 +40,19 @@ describe('serviceConfigSchema', () => {
       },
     }).server.port).toBe(0);
   });
+
+  it('accepts ssh worker settings', () => {
+    expect(serviceConfigSchema.parse({
+      ...DEFAULT_SERVICE_CONFIG,
+      worker: {
+        kind: 'ssh',
+        sshCommand: 'ssh',
+        sshHost: 'worker.example.com',
+        sshUser: 'agent',
+        sshPort: 22,
+        sshOptions: ['-o', 'BatchMode=yes'],
+        remoteWorkspaceRoot: '/srv/agentfirst/workspaces',
+      },
+    }).worker.kind).toBe('ssh');
+  });
 });
