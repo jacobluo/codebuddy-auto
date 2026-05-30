@@ -26,7 +26,8 @@ function getPathname(request: http.IncomingMessage): string {
   return url.pathname;
 }
 
-function renderDashboardHtml(): string {
+function renderDashboardHtml(config: ServiceConfig): string {
+  const repoUrl = config.tracker.projectSlug ? `https://cnb.cool/${config.tracker.projectSlug}` : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -38,7 +39,51 @@ function renderDashboardHtml(): string {
 body { margin: 0; background: radial-gradient(circle at top left, #f8d9a0, #f3efe6 45%, #d7e6de 100%); min-height: 100vh; }
 main { max-width: 1400px; margin: 0 auto; padding: 24px 20px 48px; }
 h1 { margin: 0 0 4px; font-size: 24px; }
-.subtitle { color: rgba(27,27,27,0.6); margin: 0 0 16px; font-size: 13px; }
+.subtitle { color: rgba(27,27,27,0.6); margin: 0 0 8px; font-size: 13px; }
+.config-bar { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: rgba(27,27,27,0.04); border: 1px solid rgba(27,27,27,0.08); font-size: 12px; color: rgba(27,27,27,0.7); }
+.config-bar a { color: #1b1b1b; text-decoration: none; font-weight: 600; }
+.config-bar a:hover { text-decoration: underline; }
+.config-bar .sep { color: rgba(27,27,27,0.2); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.card { border: 1px solid rgba(27,27,27,0.1); border-radius: 14px; background: rgba(255,248,235,0.85); padding: 12px; text-align: center; }
+.card strong { display: block; font-size: 22px; margin-top: 4px; }
+.card span { font-size: 11px; color: rgba(27,27,27,0.55); text-transform: uppercase; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.panel { border: 1px solid rgba(27,27,27,0.1); border-radius: 14px; background: rgba(255,248,235,0.85); padding: 16px; min-height: 400px; }
+.panel h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; }
+.issue-item { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; border: 1px solid transparent; }
+.issue-item:hover { background: rgba(27,27,27,0.04); }
+.issue-item.active { border-color: #1b1b1b; background: rgba(27,27,27,0.06); }
+.issue-item .id { font-weight: bold; }
+.issue-item .meta { font-size: 11px; color: rgba(27,27,27,0.55); margin-top: 2px; }
+.event-list { list-style: none; padding: 0; margin: 0; max-height: 500px; overflow-y: auto; }
+.event-list li { padding: 6px 0; border-bottom: 1px dashed rgba(27,27,27,0.08); font-size: 12px; display: grid; grid-template-columns: 70px 120px 1fr; gap: 8px; }
+.event-list .time { color: rgba(27,27,27,0.5); }
+.event-list .type { font-weight: 600; }
+.event-list .msg { color: rgba(27,27,27,0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.dot-running { background: #0b6b41; }
+.dot-retrying { background: #9a5a00; }
+.empty { color: rgba(27,27,27,0.4); font-style: italic; padding: 20px 0; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+button { border: 0; background: #1b1b1b; color: #fff; padding: 8px 14px; cursor: pointer; border-radius: 999px; font: inherit; font-size: 12px; }
+#conn-status { font-size: 11px; color: rgba(27,27,27,0.5); }
+</style>
+</head>
+<body>
+<main>
+<h1>agentfirst-f1 dashboard</h1>
+<p class="subtitle">Real-time agent orchestration · SSE live events</p>
+<div class="config-bar">
+  ${repoUrl ? `<span>Repo: <a href="${repoUrl}" target="_blank">${config.tracker.projectSlug}</a></span><span class="sep">|</span>` : ''}
+  <span>Tracker: ${config.tracker.kind}</span><span class="sep">|</span>
+  <span>Poll: ${config.polling.intervalMs / 1000}s</span><span class="sep">|</span>
+  <span>Concurrency: ${config.agent.maxConcurrentAgents}</span><span class="sep">|</span>
+  <span>Max turns: ${config.agent.maxTurns}</span><span class="sep">|</span>
+  <span>Worker: ${config.worker.kind}</span><span class="sep">|</span>
+  <span>Workspace: ${config.workspace.mode}</span>
+</div>
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
 .card { border: 1px solid rgba(27,27,27,0.1); border-radius: 14px; background: rgba(255,248,235,0.85); padding: 12px; text-align: center; }
 .card strong { display: block; font-size: 22px; margin-top: 4px; }
@@ -219,7 +264,7 @@ export async function startStatusServer(
     const pathname = getPathname(request);
 
     if (method === 'GET' && pathname === '/') {
-      respondHtml(response, 200, renderDashboardHtml());
+      respondHtml(response, 200, renderDashboardHtml(config));
       return;
     }
 
