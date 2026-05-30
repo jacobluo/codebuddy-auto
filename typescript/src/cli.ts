@@ -2,6 +2,7 @@ import { Command } from 'commander';
 
 import { createWorkflowRuntimeSource } from './config/index.js';
 import {
+  createEventBus,
   createLogger,
   createRuntimeSnapshot,
   createServerStateController,
@@ -168,12 +169,14 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
 
     if (options.daemon) {
       const runtimeState = createRuntimeState();
+      const eventBus = createEventBus();
       const scheduler = (dependencies.startScheduler ?? startScheduler)(
         runtime.tracker,
         runtime.config,
         logger,
         {
           state: runtimeState,
+          eventBus,
           getTickContext: async () => {
             if (options.reload) {
               const reload = await runtimeSource.reload();
@@ -207,7 +210,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
             getSnapshotJson: () => JSON.stringify(createRuntimeSnapshot(runtimeState)),
             getIssueJson: (identifier) => getIssueStatusJson(runtimeState, identifier),
           });
-          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtime.config, statusController);
+          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtime.config, statusController, eventBus);
           refreshLoop = runStatusRefreshLoop(scheduler, statusController, () => stopRefreshLoop);
           logger.info(
             {

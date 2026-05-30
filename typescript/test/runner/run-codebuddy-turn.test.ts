@@ -395,4 +395,49 @@ describe('runCodebuddyTurn', () => {
       },
     ]);
   });
+
+  it('invokes onEvent callback for each parsed event in real time', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-onevent');
+    const streamed: string[] = [];
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'s1'}));",
+            "console.log(JSON.stringify({type:'assistant',message:{content:[{type:'text',text:'hi'}]}}));",
+            "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+      onEvent: (event) => streamed.push(event.event),
+    });
+
+    expect(result.events).toHaveLength(3);
+    expect(streamed).toEqual(['session_started', 'notification', 'turn_completed']);
+  });
+
+  it('continues normally when onEvent callback throws', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-onevent-throw');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'s2'}));",
+            "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+      onEvent: () => { throw new Error('callback exploded'); },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.events).toHaveLength(2);
+    expect(result.events[1]?.event).toBe('turn_completed');
+  });
 });

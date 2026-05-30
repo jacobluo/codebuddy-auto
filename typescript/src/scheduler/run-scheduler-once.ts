@@ -1,4 +1,4 @@
-import type { RuntimeLogger } from '../logging/index.js';
+import type { RuntimeLogger, EventBus } from '../logging/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { removeWorkspace } from '../workspace/index.js';
@@ -10,6 +10,7 @@ export interface SchedulerOnceDependencies {
   runContinuationCycle?: typeof runContinuationCycle;
   runDispatchCycle?: typeof runDispatchCycle;
   removeWorkspace?: typeof removeWorkspace;
+  eventBus?: EventBus;
 }
 
 export interface SchedulerOnceResult {
@@ -73,11 +74,11 @@ export async function runSchedulerOnce(
   }
 
   const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
-  const continuation = await continuationRunner(state, config, logger, tracker);
+  const continuation = await continuationRunner(state, config, logger, tracker, dependencies.eventBus);
   continuedIssueIds = continuation.continuedIssueIds;
 
   const dispatchRunner = dependencies.runDispatchCycle ?? runDispatchCycle;
-  const dispatch = await dispatchRunner(state, tracker, config, undefined, logger);
+  const dispatch = await dispatchRunner(state, tracker, config, undefined, logger, dependencies.eventBus);
 
   return {
     releasedIssueIds,

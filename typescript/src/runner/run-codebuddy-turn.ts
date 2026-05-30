@@ -156,6 +156,7 @@ export interface RunCodebuddyTurnInput {
   readTimeoutMs?: number;
   turnTimeoutMs?: number;
   stallTimeoutMs?: number;
+  onEvent?: (event: CodebuddyRunnerEvent) => void;
 }
 
 export interface RunCodebuddyTurnResult {
@@ -361,7 +362,15 @@ export async function runCodebuddyTurn(
   stdoutReader.on('line', (line) => {
     markReadable();
     refreshStallTimer();
-    events.push(parseEventLine(line));
+    const event = parseEventLine(line);
+    events.push(event);
+    if (input.onEvent) {
+      try {
+        input.onEvent(event);
+      } catch {
+        // onEvent failure must not abort the runner
+      }
+    }
   });
 
   stderrReader.on('line', (line) => {

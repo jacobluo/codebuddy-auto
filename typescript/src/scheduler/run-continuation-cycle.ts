@@ -1,4 +1,4 @@
-import { createIssueLogger, type RuntimeLogger } from '../logging/index.js';
+import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging/index.js';
 import type { CodebuddyRunnerEvent } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
@@ -46,6 +46,7 @@ export async function runContinuationCycle(
   config: ServiceConfig,
   logger?: RuntimeLogger,
   tracker?: Tracker,
+  eventBus?: EventBus,
 ): Promise<ContinuationCycleResult> {
   const nowMs = Date.now();
   const continuedIssueIds: string[] = [];
@@ -128,6 +129,9 @@ export async function runContinuationCycle(
         readTimeoutMs: config.codebuddy.readTimeoutMs,
         turnTimeoutMs: config.codebuddy.turnTimeoutMs,
         stallTimeoutMs: config.codebuddy.stallTimeoutMs,
+        onEvent: eventBus
+          ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId, payload: evt as unknown as Record<string, unknown> }); }
+          : undefined,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

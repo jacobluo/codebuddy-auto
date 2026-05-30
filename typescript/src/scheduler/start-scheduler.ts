@@ -1,6 +1,6 @@
 import type { Logger } from 'pino';
 
-import { createRuntimeSnapshot } from '../logging/index.js';
+import { createRuntimeSnapshot, type EventBus } from '../logging/index.js';
 import type { OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { createRuntimeState } from './create-runtime-state.js';
@@ -22,6 +22,7 @@ export type SchedulerTickContextProvider =
 
 export interface StartSchedulerDependencies {
   state?: OrchestratorRuntimeState;
+  eventBus?: EventBus;
   runSchedulerOnce?: typeof runSchedulerOnce;
   runStartupCleanup?: typeof runStartupCleanup;
   createRuntimeSnapshot?: typeof createRuntimeSnapshot;
@@ -35,6 +36,7 @@ export function startScheduler(
   dependencies: StartSchedulerDependencies = {},
 ): SchedulerRuntime {
   const state = dependencies.state ?? createRuntimeState();
+  const eventBus = dependencies.eventBus;
   const runOnce = dependencies.runSchedulerOnce ?? runSchedulerOnce;
   const startupCleanup = dependencies.runStartupCleanup ?? runStartupCleanup;
   const buildSnapshot = dependencies.createRuntimeSnapshot ?? createRuntimeSnapshot;
@@ -54,7 +56,7 @@ export function startScheduler(
     currentTickPromise = (async () => {
       try {
         const tickContext = await getTickContext();
-        const result = await runOnce(state, tickContext.tracker, tickContext.config, {}, logger);
+        const result = await runOnce(state, tickContext.tracker, tickContext.config, { eventBus }, logger);
         const snapshot = buildSnapshot(state);
         snapshot.cleanedWorkspaceIssueIds = result.cleanedWorkspaceIssueIds;
         logger.info(
@@ -69,6 +71,13 @@ export function startScheduler(
           },
           'scheduler_tick_completed',
         );
+        if (eventBus) {
+          eventBus.emit({
+            type: 'state_snapshot',
+            timestamp: new Date().toISOString(),
+            payload: snapshot as unknown as Record<string, unknown>,
+          });
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error({ error: message }, 'scheduler_tick_failed');

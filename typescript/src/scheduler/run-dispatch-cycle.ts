@@ -1,5 +1,5 @@
 import { getWorkspaceHookScript, runWorkspaceHook } from '../workspace/index.js';
-import { createIssueLogger, type RuntimeLogger } from '../logging/index.js';
+import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging/index.js';
 import type { OrchestratorRuntimeState } from '../spec/index.js';
 import type { ServiceConfig } from '../spec/index.js';
 import {
@@ -52,6 +52,7 @@ export async function runDispatchCycle(
     '{{ issue.description }}',
   ].join('\n'),
   logger?: RuntimeLogger,
+  eventBus?: EventBus,
 ): Promise<DispatchCycleResult> {
   const issues = await tracker.fetchCandidateIssues();
   const dispatchPlan = planDispatchCycle(state, issues, config);
@@ -127,11 +128,23 @@ export async function runDispatchCycle(
         }
       }
 
+      if (eventBus) {
+        eventBus.emit({
+          type: 'scheduler_event',
+          timestamp: new Date().toISOString(),
+          issueId: issue.id,
+          payload: { event: 'dispatch_started', identifier: issue.identifier },
+        });
+      }
+
       const turnResult = await runCodebuddyTurn({
         command: workerCommand,
         readTimeoutMs: config.codebuddy.readTimeoutMs,
         turnTimeoutMs: config.codebuddy.turnTimeoutMs,
         stallTimeoutMs: config.codebuddy.stallTimeoutMs,
+        onEvent: eventBus
+          ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId: issue.id, payload: evt as unknown as Record<string, unknown> }); }
+          : undefined,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

@@ -1,8 +1,10 @@
+export { createEventBus } from './event-bus.js';
 export { startStatusServer } from './http-status-server.js';
 export { createIssueLogger, createLogger } from './logger.js';
 export { formatRuntimeStatus } from './format-runtime-status.js';
 export { createRuntimeSnapshot } from './runtime-snapshot.js';
 export { createServerStateController } from './server-state.js';
+export type { DashboardEvent, EventBus } from './event-bus.js';
 export type { StatusServerRuntime } from './http-status-server.js';
 export type { IssueLoggerContext, RuntimeLogger } from './logger.js';
 export type { RuntimeSnapshot } from './runtime-snapshot.js';

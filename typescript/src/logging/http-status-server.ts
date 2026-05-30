@@ -1,6 +1,7 @@
 import http from 'node:http';
 
 import type { ServiceConfig } from '../spec/index.js';
+import type { EventBus } from './event-bus.js';
 import type { ServerStateController } from './server-state.js';
 
 export interface StatusServerRuntime {
@@ -26,104 +27,186 @@ function getPathname(request: http.IncomingMessage): string {
 }
 
 function renderDashboardHtml(): string {
-  return [
-    '<!doctype html>',
-    '<html lang="en">',
-    '<head>',
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<title>agentfirst-f1 dashboard</title>',
-    '<style>',
-    ':root { color-scheme: light; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f3efe6; color: #1b1b1b; }',
-    'body { margin: 0; background: radial-gradient(circle at top left, #f8d9a0, #f3efe6 45%, #d7e6de 100%); min-height: 100vh; }',
-    'main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }',
-    'h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.02em; }',
-    'p { margin: 0; line-height: 1.5; }',
-    '.toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 20px; }',
-    'button { border: 0; background: #1b1b1b; color: #fff7ea; padding: 10px 14px; cursor: pointer; border-radius: 999px; font: inherit; }',
-    '.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }',
-    '.card, .panel { border: 1px solid rgba(27,27,27,0.12); border-radius: 18px; background: rgba(255,248,235,0.82); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(27,27,27,0.06); }',
-    '.card { padding: 16px; }',
-    '.card strong { display: block; font-size: 24px; margin-top: 6px; }',
-    '.panels { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 14px; margin-top: 16px; }',
-    '.panel { padding: 16px; min-height: 220px; }',
-    '.panel h2 { margin: 0 0 12px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; }',
-    'ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }',
-    'li { border-top: 1px dashed rgba(27,27,27,0.1); padding-top: 10px; }',
-    'li:first-child { border-top: 0; padding-top: 0; }',
-    '.muted { color: rgba(27,27,27,0.62); }',
-    '.ok { color: #0b6b41; }',
-    '.warn { color: #9a5a00; }',
-    'pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; }',
-    '@media (max-width: 860px) { .panels { grid-template-columns: 1fr; } main { padding: 24px 14px 32px; } }',
-    '</style>',
-    '</head>',
-    '<body>',
-    '<main>',
-    '<h1>agentfirst-f1 dashboard</h1>',
-    '<p class="muted">Runtime state over the existing status API. Refresh is pull-based on top of the daemon.</p>',
-    '<div class="toolbar">',
-    '<button id="refresh">queue refresh</button>',
-    '<span id="refresh-state" class="muted">idle</span>',
-    '<span id="generated-at" class="muted">loading...</span>',
-    '</div>',
-    '<section class="grid" id="counts"></section>',
-    '<section class="panels">',
-    '<div class="panel"><h2>Running</h2><ul id="running"></ul></div>',
-    '<div class="panel"><h2>Retrying</h2><ul id="retrying"></ul></div>',
-    '<div class="panel"><h2>Totals</h2><pre id="totals"></pre></div>',
-    '</section>',
-    '<script type="module">',
-    'const counts = document.querySelector("#counts");',
-    'const running = document.querySelector("#running");',
-    'const retrying = document.querySelector("#retrying");',
-    'const totals = document.querySelector("#totals");',
-    'const generatedAt = document.querySelector("#generated-at");',
-    'const refreshButton = document.querySelector("#refresh");',
-    'const refreshState = document.querySelector("#refresh-state");',
-    'function renderCounts(snapshot) {',
-    '  const entries = [["running", snapshot.counts.running], ["retrying", snapshot.counts.retrying], ["claimed", snapshot.counts.claimed], ["completed", snapshot.counts.completed]];',
-    '  counts.innerHTML = entries.map(([label, value]) => `<article class="card"><span class="muted">${label}</span><strong>${value}</strong></article>`).join("");',
-    '}',
-    'function renderRunning(snapshot) {',
-    '  if (snapshot.running.length === 0) { running.innerHTML = `<li class="muted">no running issues</li>`; return; }',
-    '  running.innerHTML = snapshot.running.map((entry) => `<li><div><strong>${entry.identifier}</strong> <span class="muted">turn ${entry.turnCount}</span></div><div class="muted">${entry.title}</div><div class="ok">${entry.lastEvent ?? "-"}</div><div class="muted">session ${entry.sessionId ?? "-"} · ${entry.secondsRunning}s · ${entry.tokenUsage.totalTokens} tok</div></li>`).join("");',
-    '}',
-    'function renderRetrying(snapshot) {',
-    '  if (snapshot.retrying.length === 0) { retrying.innerHTML = `<li class="muted">no retry backlog</li>`; return; }',
-    '  retrying.innerHTML = snapshot.retrying.map((entry) => `<li><div><strong>${entry.identifier}</strong> <span class="warn">${entry.mode}</span></div><div class="muted">attempt ${entry.attempt} · due ${entry.dueAtMs}</div><div class="muted">${entry.error ?? "-"}</div></li>`).join("");',
-    '}',
-    'function renderTotals(snapshot) {',
-    '  totals.textContent = JSON.stringify(snapshot.totals, null, 2);',
-    '}',
-    'async function loadState() {',
-    '  const response = await fetch("/api/v1/state", { cache: "no-store" });',
-    '  const snapshot = await response.json();',
-    '  generatedAt.textContent = `generated ${snapshot.generatedAt}`;',
-    '  renderCounts(snapshot);',
-    '  renderRunning(snapshot);',
-    '  renderRetrying(snapshot);',
-    '  renderTotals(snapshot);',
-    '}',
-    'refreshButton.addEventListener("click", async () => {',
-    '  refreshState.textContent = "queueing refresh...";',
-    '  const response = await fetch("/api/v1/refresh", { method: "POST" });',
-    '  const body = await response.json();',
-    '  refreshState.textContent = body.queued ? `queued at ${body.requestedAt}` : `already queued at ${body.requestedAt}`;',
-    '  setTimeout(() => { void loadState(); }, 200);',
-    '});',
-    'void loadState();',
-    'setInterval(() => { void loadState(); }, 5000);',
-    '</script>',
-    '</main>',
-    '</body>',
-    '</html>',
-  ].join('');
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentfirst-f1 dashboard</title>
+<style>
+:root { color-scheme: light; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f3efe6; color: #1b1b1b; }
+body { margin: 0; background: radial-gradient(circle at top left, #f8d9a0, #f3efe6 45%, #d7e6de 100%); min-height: 100vh; }
+main { max-width: 1400px; margin: 0 auto; padding: 24px 20px 48px; }
+h1 { margin: 0 0 4px; font-size: 24px; }
+.subtitle { color: rgba(27,27,27,0.6); margin: 0 0 16px; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.card { border: 1px solid rgba(27,27,27,0.1); border-radius: 14px; background: rgba(255,248,235,0.85); padding: 12px; text-align: center; }
+.card strong { display: block; font-size: 22px; margin-top: 4px; }
+.card span { font-size: 11px; color: rgba(27,27,27,0.55); text-transform: uppercase; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.panel { border: 1px solid rgba(27,27,27,0.1); border-radius: 14px; background: rgba(255,248,235,0.85); padding: 16px; min-height: 400px; }
+.panel h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; }
+.issue-item { padding: 10px; border-radius: 8px; cursor: pointer; margin-bottom: 6px; border: 1px solid transparent; }
+.issue-item:hover { background: rgba(27,27,27,0.04); }
+.issue-item.active { border-color: #1b1b1b; background: rgba(27,27,27,0.06); }
+.issue-item .id { font-weight: bold; }
+.issue-item .meta { font-size: 11px; color: rgba(27,27,27,0.55); margin-top: 2px; }
+.event-list { list-style: none; padding: 0; margin: 0; max-height: 500px; overflow-y: auto; }
+.event-list li { padding: 6px 0; border-bottom: 1px dashed rgba(27,27,27,0.08); font-size: 12px; display: grid; grid-template-columns: 70px 120px 1fr; gap: 8px; }
+.event-list .time { color: rgba(27,27,27,0.5); }
+.event-list .type { font-weight: 600; }
+.event-list .msg { color: rgba(27,27,27,0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.dot-running { background: #0b6b41; }
+.dot-retrying { background: #9a5a00; }
+.empty { color: rgba(27,27,27,0.4); font-style: italic; padding: 20px 0; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+button { border: 0; background: #1b1b1b; color: #fff; padding: 8px 14px; cursor: pointer; border-radius: 999px; font: inherit; font-size: 12px; }
+#conn-status { font-size: 11px; color: rgba(27,27,27,0.5); }
+</style>
+</head>
+<body>
+<main>
+<h1>agentfirst-f1 dashboard</h1>
+<p class="subtitle">Real-time agent orchestration · SSE live events</p>
+<div class="toolbar">
+  <button id="refresh-btn">trigger refresh</button>
+  <span id="conn-status">connecting...</span>
+</div>
+<section class="grid" id="counts"></section>
+<section class="layout">
+  <div class="panel" id="issue-panel">
+    <h2>Issues</h2>
+    <div id="issue-list"><p class="empty">waiting for data...</p></div>
+  </div>
+  <div class="panel" id="detail-panel">
+    <h2>Live Events <span id="detail-issue" style="font-weight:normal;font-size:12px;"></span></h2>
+    <ul class="event-list" id="event-list"></ul>
+    <p class="empty" id="detail-empty">select an issue to see live events</p>
+  </div>
+</section>
+</main>
+<script type="module">
+const countEl = document.getElementById('counts');
+const issueListEl = document.getElementById('issue-list');
+const eventListEl = document.getElementById('event-list');
+const detailEmpty = document.getElementById('detail-empty');
+const detailIssue = document.getElementById('detail-issue');
+const connStatus = document.getElementById('conn-status');
+const refreshBtn = document.getElementById('refresh-btn');
+
+let selectedIssueId = null;
+let issueEventSource = null;
+let latestState = null;
+const issueEvents = new Map(); // issueId -> event[]
+
+// Global SSE for state updates
+const globalEs = new EventSource('/api/v1/events');
+globalEs.onopen = () => { connStatus.textContent = 'connected (SSE)'; };
+globalEs.onerror = () => { connStatus.textContent = 'reconnecting...'; };
+
+globalEs.addEventListener('state_snapshot', (e) => {
+  latestState = JSON.parse(e.data);
+  renderState(latestState);
+});
+
+globalEs.addEventListener('scheduler_event', (e) => {
+  const data = JSON.parse(e.data);
+  if (data.issueId) { appendIssueEvent(data.issueId, data); }
+});
+
+globalEs.addEventListener('issue_event', (e) => {
+  const data = JSON.parse(e.data);
+  if (data.issueId) { appendIssueEvent(data.issueId, data); }
+});
+
+function appendIssueEvent(issueId, data) {
+  if (!issueEvents.has(issueId)) issueEvents.set(issueId, []);
+  const list = issueEvents.get(issueId);
+  list.push(data);
+  if (list.length > 200) list.splice(0, list.length - 200);
+  if (issueId === selectedIssueId) renderEvents();
+}
+
+function renderState(state) {
+  if (!state) return;
+  const c = state.counts || {};
+  countEl.innerHTML = ['running','retrying','claimed','completed'].map(k =>
+    '<article class="card"><span>' + k + '</span><strong>' + (c[k]||0) + '</strong></article>'
+  ).join('');
+
+  let html = '';
+  for (const r of (state.running||[])) {
+    const active = r.issueId === selectedIssueId ? ' active' : '';
+    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '">' +
+      '<div class="id"><span class="status-dot dot-running"></span>' + r.identifier + '</div>' +
+      '<div class="meta">turn ' + r.turnCount + ' · ' + Math.round(r.secondsRunning) + 's · ' + (r.lastEvent||'') + '</div></div>';
+  }
+  for (const r of (state.retrying||[])) {
+    const active = r.issueId === selectedIssueId ? ' active' : '';
+    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '">' +
+      '<div class="id"><span class="status-dot dot-retrying"></span>' + r.identifier + '</div>' +
+      '<div class="meta">' + r.mode + ' attempt ' + r.attempt + '</div></div>';
+  }
+  issueListEl.innerHTML = html || '<p class="empty">no active issues</p>';
+  issueListEl.querySelectorAll('.issue-item').forEach(el => {
+    el.addEventListener('click', () => selectIssue(el.dataset.id));
+  });
+}
+
+function selectIssue(issueId) {
+  selectedIssueId = issueId;
+  detailIssue.textContent = '— ' + issueId;
+  detailEmpty.style.display = 'none';
+  eventListEl.style.display = '';
+  renderEvents();
+  if (latestState) renderState(latestState);
+
+  // Subscribe to per-issue SSE
+  if (issueEventSource) issueEventSource.close();
+  issueEventSource = new EventSource('/api/v1/events?issueId=' + encodeURIComponent(issueId));
+  issueEventSource.addEventListener('issue_event', (e) => {
+    const data = JSON.parse(e.data);
+    appendIssueEvent(issueId, data);
+  });
+  issueEventSource.addEventListener('scheduler_event', (e) => {
+    const data = JSON.parse(e.data);
+    appendIssueEvent(issueId, data);
+  });
+}
+
+function renderEvents() {
+  const events = issueEvents.get(selectedIssueId) || [];
+  if (events.length === 0) {
+    eventListEl.innerHTML = '<li><span class="msg">waiting for events...</span></li>';
+    return;
+  }
+  eventListEl.innerHTML = events.slice(-100).map(ev => {
+    const t = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+    const type = ev.event || ev.payload?.event || ev.type || '';
+    const msg = ev.payload?.message || ev.payload?.event || JSON.stringify(ev.payload).slice(0, 120);
+    return '<li><span class="time">' + t + '</span><span class="type">' + type + '</span><span class="msg">' + msg + '</span></li>';
+  }).join('');
+  eventListEl.scrollTop = eventListEl.scrollHeight;
+}
+
+refreshBtn.addEventListener('click', async () => {
+  await fetch('/api/v1/refresh', { method: 'POST' });
+});
+
+// Initial load
+eventListEl.style.display = 'none';
+</script>
+</main>
+</body>
+</html>`;
 }
 
 export async function startStatusServer(
   config: ServiceConfig,
   controller: ServerStateController,
+  eventBus?: EventBus,
 ): Promise<StatusServerRuntime> {
   const host = config.server.host;
   const port = config.server.port;
@@ -152,6 +235,55 @@ export async function startStatusServer(
         requestedAt: refresh.requestedAt,
         operations: ['poll', 'reconcile'],
       }));
+      return;
+    }
+
+    if (method === 'GET' && pathname === '/api/v1/events') {
+      if (!eventBus) {
+        respondJson(response, 503, JSON.stringify({ error: { code: 'event_bus_unavailable', message: 'EventBus not configured' } }));
+        return;
+      }
+
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const filterIssueId = url.searchParams.get('issueId') ?? undefined;
+      const lastEventId = request.headers['last-event-id'];
+      const lastId = typeof lastEventId === 'string' ? Number.parseInt(lastEventId, 10) : 0;
+
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+
+      // Replay history for reconnection
+      if (lastId > 0) {
+        const history = eventBus.history(filterIssueId);
+        for (const evt of history) {
+          if (evt.id > lastId) {
+            response.write(`id: ${evt.id}\nevent: ${evt.type}\ndata: ${JSON.stringify({ issueId: evt.issueId, event: evt.payload?.['event'], payload: evt.payload, timestamp: evt.timestamp })}\n\n`);
+          }
+        }
+      } else {
+        // Send initial state snapshot
+        response.write(`event: state_snapshot\ndata: ${controller.getSnapshot()}\n\n`);
+      }
+
+      const unsubscribe = eventBus.subscribe((evt) => {
+        if (filterIssueId && evt.issueId !== filterIssueId) {
+          return;
+        }
+        response.write(`id: ${evt.id}\nevent: ${evt.type}\ndata: ${JSON.stringify({ issueId: evt.issueId, event: evt.payload?.['event'], payload: evt.payload, timestamp: evt.timestamp })}\n\n`);
+      });
+
+      const keepaliveHandle = setInterval(() => {
+        response.write(':keepalive\n\n');
+      }, 15000);
+
+      request.on('close', () => {
+        unsubscribe();
+        clearInterval(keepaliveHandle);
+      });
       return;
     }
 
