@@ -85,7 +85,8 @@ Symphony 建议目标代码库已采用 [Harness Engineering](https://openai.com
 - **Node.js ≥ 20 LTS**
 - **pnpm ≥ 9**
 - **jq**（`baseline.sh` 需要）
-- **CodeBuddy Code CLI**（执行阶段）
+- **CodeBuddy API Key**（`CODEBUDDY_API_KEY` 环境变量，SDK 认证用）
+- **CodeBuddy Code CLI**（仅 `worker.kind: ssh` 时需要，本地 worker 使用 SDK）
 - **git**
 - **ssh**（仅 `worker.kind: ssh` 时需要）
 

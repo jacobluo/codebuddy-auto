@@ -139,12 +139,17 @@ export async function runDispatchCycle(
 
       const turnResult = await runCodebuddyTurn({
         command: workerCommand,
+        prompt,
+        workspacePath: runAttempt.workspacePath,
+        config,
+        issueId: issue.id,
         readTimeoutMs: config.codebuddy.readTimeoutMs,
         turnTimeoutMs: config.codebuddy.turnTimeoutMs,
         stallTimeoutMs: config.codebuddy.stallTimeoutMs,
         onEvent: eventBus
           ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId: issue.id, payload: evt as unknown as Record<string, unknown> }); }
           : undefined,
+        eventBus,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

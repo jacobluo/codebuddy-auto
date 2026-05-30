@@ -126,12 +126,18 @@ export async function runContinuationCycle(
       }), config);
       const turnResult = await runCodebuddyTurn({
         command,
+        prompt,
+        workspacePath: runningEntry.workspacePath,
+        config,
+        issueId,
+        resumeSessionId: runningEntry.sessionId ?? undefined,
         readTimeoutMs: config.codebuddy.readTimeoutMs,
         turnTimeoutMs: config.codebuddy.turnTimeoutMs,
         stallTimeoutMs: config.codebuddy.stallTimeoutMs,
         onEvent: eventBus
           ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId, payload: evt as unknown as Record<string, unknown> }); }
           : undefined,
+        eventBus,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

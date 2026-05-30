@@ -18,7 +18,8 @@
 | 测试 | **vitest** | 不用 jest / mocha |
 | Schema 校验 | **zod** | 运行时校验 + 类型推导一体 |
 | YAML 解析 | **`yaml`** | workflow front matter |
-| 子进程 | **原生 `child_process.spawn` + `readline`** | 不引 execa |
+| Agent SDK | **`@tencent-ai/agent-sdk`** | in-process agent 执行（local worker）；CLI subprocess 保留为 SSH fallback |
+| 子进程 | **原生 `child_process.spawn` + `readline`** | SSH worker fallback；不引 execa |
 | git 操作 | **直接起 `git` 子进程** | 不引 simple-git |
 | 日志 | **pino** | 结构化 JSON，低开销 |
 | CLI 入口 | **commander** | 生态广、类型好 |
