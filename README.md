@@ -62,6 +62,24 @@ agentfirst-f1/
         └── cnb-issue-api.md               ← M0 spike：cnb.cool API 能力
 ```
 
+## 目标仓库要求（Harness Engineering）
+
+Symphony 建议目标代码库已采用 [Harness Engineering](https://openai.com/index/harness-engineering/) 体系。这意味着被 agent 处理的仓库本身需要满足以下条件，agent 才能可靠地完成工作：
+
+| 条件 | 说明 | 为什么需要 |
+|---|---|---|
+| **CI Pipeline** | 仓库配有自动化构建/测试流水线 | Agent 提交的代码能被 CI 自动验证，不依赖人工判断对错 |
+| **测试覆盖** | 核心功能有单元/集成测试 | Agent 改完代码可以跑测试自验，也是 PR 门禁的基础 |
+| **Lint / 格式化规则** | ESLint、Prettier 或等价工具已配置 | Agent 能通过 lint 发现规范问题，避免提交不合规代码 |
+| **PR 门禁** | 分支保护 + CI 必须通过才能合入 | 即使 agent 代码有问题，也不会直接污染主分支 |
+| **明确的项目结构** | README / AGENTS.md 描述了仓库约定 | Agent 能理解"在哪改、怎么改、怎么验证" |
+
+**如果目标仓库没有这些基础设施**，agent 的行为将高度依赖 prompt 引导，且无法自动验证正确性。此时建议：
+
+1. 至少配置一个可运行的测试命令（如 `npm test`）
+2. 在 WORKFLOW.md 的 prompt 中明确写出验证步骤
+3. 让 agent 提 PR 而非直接 push master，由人工审核
+
 ## 前置依赖
 
 - **Node.js ≥ 20 LTS**
