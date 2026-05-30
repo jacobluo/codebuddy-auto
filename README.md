@@ -86,6 +86,39 @@ pnpm check
 pnpm baseline:diff /tmp/before.json /tmp/after.json
 ```
 
+本地试运行推荐先准备两份本地文件：
+
+```bash
+cd typescript
+cp .env.example .env
+cp WORKFLOW.example.md WORKFLOW.md
+```
+
+然后在 `.env` 中填写：
+
+- `CODEBUDDY_API_KEY`：CodeBuddy Code CLI 使用的 API key
+- `CNB_TOKEN`：cnb.cool API token
+
+再把 `WORKFLOW.md` 里的 `projectSlug`、仓库 clone 地址、prompt 内容改成你的实际项目配置。
+
+启动方式：
+
+```bash
+cd typescript
+set -a
+source .env
+set +a
+pnpm build
+node dist/src/main.js WORKFLOW.md --daemon
+```
+
+联调时可直接访问：
+
+- `http://127.0.0.1:4317/` 查看 Dashboard
+- `http://127.0.0.1:4317/api/v1/state` 查看 runtime snapshot
+
+要让调度器实际捞取 CNB issue，需要目标 issue 处于 open 状态，并带有 `agent-ready` 标签。
+
 当前 `typescript/` 已完成 M1 + M2 + M3 + M4 范围内的主线闭环：workflow/config 加载与 reload、CNB/Local tracker、workspace 创建与清理、CodeBuddy CLI 首轮与 continuation turn、startup cleanup、reconciliation、retry/backoff、baseline / diff-baseline 回归脚本、daemon 模式、Dashboard HTML + status API，以及基于 SSH transport 的 RemoteWorker。
 
 M4 已完成的重点包括：

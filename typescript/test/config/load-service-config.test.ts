@@ -43,6 +43,7 @@ agent:
   max_turns: 8
 codebuddy:
   command: codebuddy --print
+  permission_mode: acceptEdits
   subagent_permission_mode: plan
   tools: [mcp__cnb_api__comment]
   allowed_tools: [Read]
@@ -75,6 +76,7 @@ You are working on {{ issue.identifier }}.
     expect(config.polling.intervalMs).toBe(15_000);
     expect(config.agent.maxTurns).toBe(8);
     expect(config.codebuddy.command).toBe('codebuddy --print');
+    expect(config.codebuddy.permissionMode).toBe('acceptEdits');
     expect(config.codebuddy.subagentPermissionMode).toBe('plan');
     expect(config.codebuddy.tools).toEqual(['mcp__cnb_api__comment']);
     expect(config.codebuddy.allowedTools).toEqual(['Read']);
@@ -86,6 +88,27 @@ You are working on {{ issue.identifier }}.
     expect(config.codebuddy.mcpConfig).toBe(path.resolve('/repo', '.codebuddy/mcp.json'));
     expect(config.codebuddy.mcpStrict).toBe(false);
     expect(config.codebuddy.dangerouslySkipPermissions).toBe(true);
+  });
+
+  it('loads hook scripts from front matter', () => {
+    const workflow = `---
+hooks:
+  before_run: echo before
+  after_run: echo after
+  before_remove: echo remove
+  after_create: echo create
+  timeout_ms: 12345
+---
+body
+`;
+
+    const config = loadServiceConfig(workflow, '/repo/WORKFLOW.md', {});
+
+    expect(config.hooks.afterCreate).toBe('echo create');
+    expect(config.hooks.beforeRun).toBe('echo before');
+    expect(config.hooks.afterRun).toBe('echo after');
+    expect(config.hooks.beforeRemove).toBe('echo remove');
+    expect(config.hooks.timeoutMs).toBe(12_345);
   });
 
   it('expands home-prefixed workspace roots', () => {

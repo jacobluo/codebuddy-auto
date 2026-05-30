@@ -22,6 +22,8 @@ coverage/
 # local task 产物（LocalTracker 用）
 tasks/
 logs/
+typescript/.agentfirst/
+typescript/WORKFLOW.md
 
 # spike / probe 原始数据（含账号响应，本地保留）
 tmp/

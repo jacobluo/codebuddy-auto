@@ -95,6 +95,105 @@ describe('runCodebuddyTurn', () => {
     });
   });
 
+  it('strips terminal control sequences before parsing NDJSON lines', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-control-sequences');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "process.stdout.write('\\u001b]0;title\\u0007' + JSON.stringify({type:'assistant',message:{content:[{type:'text',text:'OK'}]}}) + '\\n');",
+            "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+    });
+
+    expect(result.events).toEqual([
+      {
+        event: 'notification',
+        payload: {
+          raw: {
+            message: {
+              content: [{ text: 'OK', type: 'text' }],
+            },
+            type: 'assistant',
+          },
+          message: 'OK',
+        },
+      },
+      {
+        event: 'turn_completed',
+        payload: {},
+      },
+    ]);
+  });
+
+  it('ignores non-init system events and user tool-result events in stream-json output', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-non-terminal-events');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-4'}));",
+            "console.log(JSON.stringify({type:'system',subtype:'status',status:null}));",
+            "console.log(JSON.stringify({type:'user',message:{content:[{type:'tool_result',tool_use_id:'1',content:[{type:'text',text:'ok'}]}]}}));",
+            "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:20,num_turns:1,usage:{input_tokens:2,output_tokens:1}}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+    });
+
+    expect(result.events).toEqual([
+      {
+        event: 'session_started',
+        payload: {
+          sessionId: 'session-4',
+          model: undefined,
+          permissionMode: undefined,
+          tools: undefined,
+        },
+      },
+      {
+        event: 'other_message',
+        payload: {
+          raw: { type: 'system', subtype: 'status', status: null },
+        },
+      },
+      {
+        event: 'other_message',
+        payload: {
+          raw: {
+            type: 'user',
+            message: {
+              content: [{
+                type: 'tool_result',
+                tool_use_id: '1',
+                content: [{ type: 'text', text: 'ok' }],
+              }],
+            },
+          },
+        },
+      },
+      {
+        event: 'turn_completed',
+        payload: {
+          durationMs: 20,
+          numTurns: 1,
+          usage: {
+            input_tokens: 2,
+            output_tokens: 1,
+          },
+        },
+      },
+    ]);
+  });
+
   it('maps permission denials into turn_input_required events', async () => {
     const workspacePath = ensureWorkspaceDir('agentfirst-runner-approval');
     const result = await runCodebuddyTurn({

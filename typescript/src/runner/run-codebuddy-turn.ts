@@ -12,7 +12,12 @@ const rawSystemInitEventSchema = z.object({
   model: z.string().optional(),
   permissionMode: z.string().optional(),
   tools: z.array(z.string()).optional(),
-});
+}).passthrough();
+
+const rawSystemEventSchema = z.object({
+  type: z.literal('system'),
+  subtype: z.string(),
+}).passthrough();
 
 const rawResultEventSchema = z.object({
   type: z.literal('result'),
@@ -22,7 +27,7 @@ const rawResultEventSchema = z.object({
   result: z.string().optional(),
   duration_ms: z.number().int().nonnegative().optional(),
   num_turns: z.number().int().nonnegative().optional(),
-  usage: z.record(z.string(), z.number()).optional(),
+  usage: z.record(z.string(), z.unknown()).optional(),
   permission_denials: z.array(z.unknown()).optional(),
 });
 
@@ -33,7 +38,7 @@ const rawAssistantEventSchema = z.object({
       type: z.string().optional(),
       text: z.string().optional(),
     }).passthrough()).optional(),
-    usage: z.record(z.string(), z.number()).optional(),
+    usage: z.record(z.string(), z.unknown()).optional(),
     providerData: z.object({
       rawUsage: z.object({
         credit: z.number().optional(),
@@ -46,15 +51,21 @@ const rawMessageEventSchema = z.object({
   type: z.literal('message'),
 }).passthrough();
 
+const rawUserEventSchema = z.object({
+  type: z.literal('user'),
+}).passthrough();
+
 const rawSnapshotEventSchema = z.object({
   type: z.literal('file-history-snapshot'),
 }).passthrough();
 
 const rawEventSchema = z.union([
   rawSystemInitEventSchema,
+  rawSystemEventSchema,
   rawResultEventSchema,
   rawAssistantEventSchema,
   rawMessageEventSchema,
+  rawUserEventSchema,
   rawSnapshotEventSchema,
 ]);
 
@@ -152,6 +163,19 @@ export interface RunCodebuddyTurnResult {
   stderr: string[];
 }
 
+function normalizeUsageRecord(rawUsage: Record<string, unknown> | undefined): Record<string, number> | undefined {
+  if (!rawUsage) {
+    return undefined;
+  }
+
+  const entries = Object.entries(rawUsage).filter((entry): entry is [string, number] => {
+    const value = entry[1];
+    return typeof value === 'number' && Number.isFinite(value);
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function extractAssistantText(rawContent: unknown): string | undefined {
   if (!Array.isArray(rawContent)) {
     return undefined;
@@ -170,15 +194,23 @@ function extractAssistantText(rawContent: unknown): string | undefined {
   return textParts.length > 0 ? textParts.join('\n') : undefined;
 }
 
+function stripTerminalControlSequences(line: string): string {
+  return line
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+    .replace(/^[\x00-\x1f]+/, '');
+}
+
 function parseEventLine(line: string): CodebuddyRunnerEvent {
+  const sanitizedLine = stripTerminalControlSequences(line);
   let parsed: unknown;
 
   try {
-    parsed = JSON.parse(line);
+    parsed = JSON.parse(sanitizedLine);
   } catch {
     return {
       event: 'malformed',
-      payload: { line },
+      payload: { line: sanitizedLine },
     };
   }
 
@@ -186,19 +218,29 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
   if (!rawEvent.success) {
     return {
       event: 'malformed',
-      payload: { line },
+      payload: { line: sanitizedLine },
     };
   }
 
   const event = rawEvent.data;
-  if (event.type === 'system' && event.subtype === 'init') {
+  if (event.type === 'system') {
+    if (event.subtype === 'init') {
+      const initEvent = rawSystemInitEventSchema.parse(event);
+      return {
+        event: 'session_started',
+        payload: {
+          sessionId: initEvent.session_id,
+          model: initEvent.model,
+          permissionMode: initEvent.permissionMode,
+          tools: initEvent.tools,
+        },
+      };
+    }
+
     return {
-      event: 'session_started',
+      event: 'other_message',
       payload: {
-        sessionId: event.session_id,
-        model: event.model,
-        permissionMode: event.permissionMode,
-        tools: event.tools,
+        raw: event,
       },
     };
   }
@@ -239,7 +281,7 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
       payload: {
         durationMs: event.duration_ms,
         numTurns: event.num_turns,
-        usage: event.usage,
+        usage: normalizeUsageRecord(event.usage),
       },
     };
   }
@@ -250,7 +292,7 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
       payload: {
         raw: event,
         message: extractAssistantText(event.message?.content),
-        usage: event.message?.usage,
+        usage: normalizeUsageRecord(event.message?.usage),
         credit: event.message?.providerData?.rawUsage?.credit,
       },
     };

@@ -62,9 +62,18 @@ export class CnbTracker implements Tracker {
       `/${this.repo}/-/issues?labels=${encodeURIComponent(this.candidateLabel)}&state=open&page_size=100`,
     );
 
-    return issues
+    const candidates = issues
       .map((issue) => normalizeCnbIssue(issue as Record<string, unknown>))
       .filter((issue) => !issue.labels.includes(this.excludeLabel));
+
+    return Promise.all(
+      candidates.map(async (issue) => {
+        const detailedIssue = await this.getJson<Record<string, unknown>>(
+          `/${this.repo}/-/issues/${encodeURIComponent(issue.id)}`,
+        );
+        return normalizeCnbIssue(detailedIssue);
+      }),
+    );
   }
 
   async fetchIssuesByStates(states: string[]): Promise<Issue[]> {

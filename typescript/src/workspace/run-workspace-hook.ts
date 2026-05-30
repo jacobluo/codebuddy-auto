@@ -16,7 +16,7 @@ export interface WorkspaceHookResult {
 }
 
 export async function runWorkspaceHook(input: RunWorkspaceHookInput): Promise<WorkspaceHookResult> {
-  const child = spawn('sh', ['-lc', input.script], {
+  const child = spawn('/bin/sh', ['-lc', input.script], {
     cwd: input.workspacePath,
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -151,6 +151,18 @@ export function loadServiceConfig(
   if (typeof pollingOverrides.interval_ms === 'number') {
     polling.intervalMs = pollingOverrides.interval_ms;
   }
+  if (typeof hooksOverrides.after_create === 'string') {
+    hooks.afterCreate = hooksOverrides.after_create;
+  }
+  if (typeof hooksOverrides.before_run === 'string') {
+    hooks.beforeRun = hooksOverrides.before_run;
+  }
+  if (typeof hooksOverrides.after_run === 'string') {
+    hooks.afterRun = hooksOverrides.after_run;
+  }
+  if (typeof hooksOverrides.before_remove === 'string') {
+    hooks.beforeRemove = hooksOverrides.before_remove;
+  }
   if (typeof hooksOverrides.timeout_ms === 'number') {
     hooks.timeoutMs = hooksOverrides.timeout_ms;
   }
@@ -196,6 +208,9 @@ export function loadServiceConfig(
   }
   if (typeof workerOverrides.remote_workspace_root === 'string') {
     worker.remoteWorkspaceRoot = resolvePathValue(workerOverrides.remote_workspace_root, workflowPath, env);
+  }
+  if (typeof codebuddyOverrides.permission_mode === 'string') {
+    codebuddy.permissionMode = codebuddyOverrides.permission_mode;
   }
   if (typeof codebuddyOverrides.subagent_permission_mode === 'string') {
     codebuddy.subagentPermissionMode = codebuddyOverrides.subagent_permission_mode;

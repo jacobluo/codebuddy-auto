@@ -16,7 +16,6 @@ beforeEach(async () => {
           {
             number: '1',
             title: 'ready',
-            body: 'body',
             state: 'open',
             priority: 'P1',
             labels: [{ name: 'agent-ready' }],
@@ -24,12 +23,41 @@ beforeEach(async () => {
           {
             number: '2',
             title: 'skip',
-            body: 'body',
             state: 'open',
             priority: 'P2',
             labels: [{ name: 'agent-ready' }, { name: 'skip-agent' }],
           },
         ]),
+      );
+      return;
+    }
+
+    if (request.url === '/repo/demo/-/issues/1') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          number: '1',
+          title: 'ready',
+          body: 'hydrated body',
+          state: 'open',
+          priority: 'P1',
+          labels: [{ name: 'agent-ready' }],
+        }),
+      );
+      return;
+    }
+
+    if (request.url === '/repo/demo/-/issues/2') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          number: '2',
+          title: 'skip',
+          body: 'skip body',
+          state: 'open',
+          priority: 'P2',
+          labels: [{ name: 'agent-ready' }, { name: 'skip-agent' }],
+        }),
       );
       return;
     }
@@ -103,6 +131,7 @@ describe('CnbTracker', () => {
     const issues = await tracker.fetchCandidateIssues();
 
     expect(issues.map((issue) => issue.id)).toEqual(['1']);
+    expect(issues[0]?.description).toBe('hydrated body');
   });
 
   it('fetches issues by state and state snapshots by id', async () => {
