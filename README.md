@@ -99,7 +99,7 @@ cp WORKFLOW.example.md WORKFLOW.md
 - `CODEBUDDY_API_KEY`：CodeBuddy Code CLI 使用的 API key
 - `CNB_TOKEN`：cnb.cool API token
 
-再把 `WORKFLOW.md` 里的 `projectSlug`、仓库 clone 地址、prompt 内容改成你的实际项目配置。
+再把 `WORKFLOW.md` 里的 `projectSlug`、仓库 clone 地址、prompt 内容改成你的实际项目配置。实践上至少要把 `{{ issue.description }}` 放进 prompt，否则 agent 经常只能看到标题，无法拿到 issue 正文。
 
 启动方式：
 

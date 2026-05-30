@@ -45,7 +45,12 @@ export async function runDispatchCycle(
   state: OrchestratorRuntimeState,
   tracker: Tracker,
   config: ServiceConfig,
-  promptTemplate = 'You are working on {{ issue.identifier }}: {{ issue.title }}',
+  promptTemplate = [
+    'You are working on {{ issue.identifier }}: {{ issue.title }}.',
+    '',
+    'Issue details:',
+    '{{ issue.description }}',
+  ].join('\n'),
   logger?: RuntimeLogger,
 ): Promise<DispatchCycleResult> {
   const issues = await tracker.fetchCandidateIssues();

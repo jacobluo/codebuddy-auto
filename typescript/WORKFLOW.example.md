@@ -39,7 +39,10 @@ codebuddy:
 
 You are working on {{ issue.identifier }}: {{ issue.title }}.
 
-Repository: {{ issue.identifier }}
+Issue details:
+{{ issue.description }}
+
+Repository: your-org/your-repo
 Tracker: cnb.cool
 
 Goals:
@@ -51,4 +54,3 @@ Constraints:
 - Work only inside the assigned workspace.
 - Do not change unrelated files.
 - If the issue is blocked or ambiguous, explain the blocker clearly in your final response.
-

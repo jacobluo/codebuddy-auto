@@ -13,6 +13,8 @@ export interface ContinuationCycleResult {
 
 const CONTINUATION_PROMPT_TEMPLATE = [
   'Continue working on {{ issue.identifier }}: {{ issue.title }}.',
+  'Issue details:',
+  '{{ issue.description }}',
   'This is continuation turn {{ attempt.turnCount }}.',
 ].join(' ');
 

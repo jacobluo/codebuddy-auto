@@ -38,4 +38,16 @@ describe('renderPrompt', () => {
       }),
     ).toThrow('unknown template variable: issue.unknown');
   });
+
+  it('renders null values as empty strings', () => {
+    expect(
+      renderPrompt('Details: {{ issue.description }}', {
+        issue: {
+          ...makeIssue(),
+          description: null,
+        },
+        attempt: { turnCount: 1 },
+      }),
+    ).toBe('Details: ');
+  });
 });
