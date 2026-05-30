@@ -42,4 +42,4 @@
 
 - [x] 7.1 更新 AGENTS.md 技术栈
 - [x] 7.2 更新 README.md 前置依赖说明
-- [ ] 7.3 端到端手动验证（下次 session）
+- [x] 7.3 端到端手动验证（SDK 模式 20 轮 continuation 成功，774K tok / 133s vs CLI 24M / 1013s）
