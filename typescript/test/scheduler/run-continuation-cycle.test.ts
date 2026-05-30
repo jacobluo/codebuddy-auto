@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RuntimeLogger } from '../../src/logging/index.js';
 import { createRuntimeState, runContinuationCycle } from '../../src/scheduler/index.js';
 import { DEFAULT_SERVICE_CONFIG, type ServiceConfig } from '../../src/spec/index.js';
+import type { Tracker } from '../../src/tracker/index.js';
 
 const tempDirs: string[] = [];
 
@@ -364,5 +365,32 @@ describe('runContinuationCycle', () => {
       }),
       'issue_continuation_retry_scheduled',
     );
+  });
+
+  it('releases an issue before continuation when tracker reports it is no longer active', async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const config = createConfig(workspaceRoot, 'node -e "process.exit(0)"');
+    const state = seedRunningState(workspaceRoot);
+
+    const tracker: Tracker = {
+      fetchCandidateIssues: async () => [],
+      fetchIssuesByStates: async () => [],
+      fetchIssueStatesByIds: async (ids) => {
+        const map = new Map<string, { id: string; state: string; labels: string[] }>();
+        for (const id of ids) {
+          map.set(id, { id, state: 'closed', labels: [] });
+        }
+        return map;
+      },
+    };
+
+    const result = await runContinuationCycle(state, config, undefined, tracker);
+
+    expect(result.releasedIssueIds).toEqual(['1']);
+    expect(result.continuedIssueIds).toEqual([]);
+    expect(state.running['1']).toBeUndefined();
+    expect(state.retryAttempts['1']).toBeUndefined();
+    expect(state.claimed.has('1')).toBe(false);
+    expect(state.completed.has('1')).toBe(true);
   });
 });

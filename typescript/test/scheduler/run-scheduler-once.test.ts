@@ -218,6 +218,7 @@ describe('runSchedulerOnce', () => {
       },
       runContinuationCycle: async () => ({
         continuedIssueIds: ['cont-2'],
+        releasedIssueIds: [],
       }),
       runDispatchCycle: async () => ({
         availableSlots: 9,
@@ -440,6 +441,7 @@ describe('runSchedulerOnce', () => {
 
     const runContinuationCycle = async () => ({
       continuedIssueIds: ['cont-1'],
+      releasedIssueIds: [],
     });
 
     const result = await runSchedulerOnce(state, tracker, makeConfig(), {

@@ -73,7 +73,7 @@ export async function runSchedulerOnce(
   }
 
   const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
-  const continuation = await continuationRunner(state, config, logger);
+  const continuation = await continuationRunner(state, config, logger, tracker);
   continuedIssueIds = continuation.continuedIssueIds;
 
   const dispatchRunner = dependencies.runDispatchCycle ?? runDispatchCycle;

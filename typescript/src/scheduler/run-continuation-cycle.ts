@@ -2,6 +2,7 @@ import { createIssueLogger, type RuntimeLogger } from '../logging/index.js';
 import type { CodebuddyRunnerEvent } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
+import type { Tracker } from '../tracker/index.js';
 import { prepareWorkerCommand } from '../worker/index.js';
 import { renderPrompt } from '../workflow/index.js';
 
@@ -9,6 +10,7 @@ import { createRetryEntry } from './create-retry-entry.js';
 
 export interface ContinuationCycleResult {
   continuedIssueIds: string[];
+  releasedIssueIds: string[];
 }
 
 const CONTINUATION_PROMPT_TEMPLATE = [
@@ -43,9 +45,11 @@ export async function runContinuationCycle(
   state: OrchestratorRuntimeState,
   config: ServiceConfig,
   logger?: RuntimeLogger,
+  tracker?: Tracker,
 ): Promise<ContinuationCycleResult> {
   const nowMs = Date.now();
   const continuedIssueIds: string[] = [];
+  const releasedIssueIds: string[] = [];
 
   for (const [issueId, retryEntry] of Object.entries(state.retryAttempts)) {
     if (retryEntry.dueAtMs > nowMs) {
@@ -57,6 +61,43 @@ export async function runContinuationCycle(
       delete state.retryAttempts[issueId];
       state.claimed.delete(issueId);
       continue;
+    }
+
+    if (tracker) {
+      try {
+        const stateSnapshot = await tracker.fetchIssueStatesByIds([issueId]);
+        const issueState = stateSnapshot.get(issueId);
+        const isActive = issueState
+          ? config.tracker.activeStates.some((s) => s.toLowerCase() === issueState.state.toLowerCase())
+          : false;
+        const isTerminal = issueState
+          ? config.tracker.terminalStates.some((s) => s.toLowerCase() === issueState.state.toLowerCase())
+          : false;
+
+        if (!isActive || isTerminal) {
+          delete state.running[issueId];
+          delete state.retryAttempts[issueId];
+          state.claimed.delete(issueId);
+          state.completed.add(issueId);
+          releasedIssueIds.push(issueId);
+          const releaseLogger = createIssueLogger(logger, {
+            issueId,
+            issueIdentifier: runningEntry.issue.identifier,
+            sessionId: runningEntry.sessionId,
+            turnCount: runningEntry.turnCount,
+          });
+          releaseLogger?.info(
+            {
+              trackerState: issueState?.state ?? 'unknown',
+              reason: 'issue_no_longer_active',
+            },
+            'issue_released_before_continuation',
+          );
+          continue;
+        }
+      } catch {
+        // Tracker fetch failure: proceed with continuation (try again next tick)
+      }
     }
 
     const nextTurnCount = runningEntry.turnCount + 1;
@@ -186,5 +227,6 @@ export async function runContinuationCycle(
 
   return {
     continuedIssueIds,
+    releasedIssueIds,
   };
 }

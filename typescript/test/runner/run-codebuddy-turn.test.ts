@@ -331,6 +331,45 @@ describe('runCodebuddyTurn', () => {
     ]);
   });
 
+  it('maps max-turns-exceeded result as turn_completed for continuation', async () => {
+    const workspacePath = ensureWorkspaceDir('agentfirst-runner-max-turns');
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-mt'}));",
+            "console.log(JSON.stringify({type:'result',subtype:'error_during_execution',is_error:true,duration_ms:170000,num_turns:54,usage:{input_tokens:1000,output_tokens:500},permission_denials:[],errors:['Max turns (20) exceeded']}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.events[0]).toEqual({
+      event: 'session_started',
+      payload: {
+        sessionId: 'session-mt',
+        model: undefined,
+        permissionMode: undefined,
+        tools: undefined,
+      },
+    });
+    expect(result.events[1]).toEqual({
+      event: 'turn_completed',
+      payload: {
+        durationMs: 170000,
+        numTurns: 54,
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 500,
+        },
+      },
+    });
+  });
+
   it('kills the subprocess when no output is received before the read timeout', async () => {
     const workspacePath = ensureWorkspaceDir('agentfirst-runner-read-timeout');
     const result = await runCodebuddyTurn({

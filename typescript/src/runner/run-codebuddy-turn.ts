@@ -29,6 +29,7 @@ const rawResultEventSchema = z.object({
   num_turns: z.number().int().nonnegative().optional(),
   usage: z.record(z.string(), z.unknown()).optional(),
   permission_denials: z.array(z.unknown()).optional(),
+  errors: z.array(z.string()).optional(),
 });
 
 const rawAssistantEventSchema = z.object({
@@ -268,6 +269,18 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
     }
 
     if (event.is_error === true) {
+      const isMaxTurnsExceeded = event.errors?.some((e) => /max turns/i.test(e)) ?? false;
+      if (isMaxTurnsExceeded) {
+        return {
+          event: 'turn_completed',
+          payload: {
+            durationMs: event.duration_ms,
+            numTurns: event.num_turns,
+            usage: normalizeUsageRecord(event.usage),
+          },
+        };
+      }
+
       return {
         event: 'turn_failed',
         payload: {
