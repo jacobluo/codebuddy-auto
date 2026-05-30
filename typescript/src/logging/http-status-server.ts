@@ -118,15 +118,22 @@ button { border: 0; background: #1b1b1b; color: #fff; padding: 8px 14px; cursor:
 <div class="toolbar">
   <button id="refresh-btn">trigger refresh</button>
   <span id="conn-status">connecting...</span>
+  <span id="uptime" style="margin-left:auto;font-size:11px;color:rgba(27,27,27,0.5);">uptime: --</span>
+  <span id="last-tick" style="font-size:11px;color:rgba(27,27,27,0.5);">last tick: --</span>
 </div>
 <section class="grid" id="counts"></section>
 <section class="layout">
   <div class="panel" id="issue-panel">
     <h2>Issues</h2>
     <div id="issue-list"><p class="empty">waiting for data...</p></div>
+    <div id="completed-section" style="margin-top:16px;display:none;">
+      <h2 style="font-size:12px;text-transform:uppercase;color:rgba(27,27,27,0.5);">Completed</h2>
+      <div id="completed-list"></div>
+    </div>
   </div>
   <div class="panel" id="detail-panel">
     <h2>Live Events <span id="detail-issue" style="font-weight:normal;font-size:12px;"></span></h2>
+    <div id="detail-meta" style="font-size:11px;color:rgba(27,27,27,0.55);margin-bottom:10px;display:none;"></div>
     <ul class="event-list" id="event-list"></ul>
     <p class="empty" id="detail-empty">select an issue to see live events</p>
   </div>
@@ -138,32 +145,45 @@ const issueListEl = document.getElementById('issue-list');
 const eventListEl = document.getElementById('event-list');
 const detailEmpty = document.getElementById('detail-empty');
 const detailIssue = document.getElementById('detail-issue');
+const detailMeta = document.getElementById('detail-meta');
 const connStatus = document.getElementById('conn-status');
 const refreshBtn = document.getElementById('refresh-btn');
+const uptimeEl = document.getElementById('uptime');
+const lastTickEl = document.getElementById('last-tick');
+const completedSection = document.getElementById('completed-section');
+const completedList = document.getElementById('completed-list');
 
+const startedAt = Date.now();
 let selectedIssueId = null;
 let issueEventSource = null;
 let latestState = null;
-const issueEvents = new Map(); // issueId -> event[]
+const issueEvents = new Map();
+const repoSlug = '${config.tracker.projectSlug || ''}';
 
-// Global SSE for state updates
+setInterval(() => {
+  const secs = Math.floor((Date.now() - startedAt) / 1000);
+  const h = Math.floor(secs / 3600); const m = Math.floor((secs % 3600) / 60); const s = secs % 60;
+  uptimeEl.textContent = 'uptime: ' + (h ? h+'h ':'') + m+'m ' + s+'s';
+}, 1000);
+
 const globalEs = new EventSource('/api/v1/events');
 globalEs.onopen = () => { connStatus.textContent = 'connected (SSE)'; };
 globalEs.onerror = () => { connStatus.textContent = 'reconnecting...'; };
 
 globalEs.addEventListener('state_snapshot', (e) => {
   latestState = JSON.parse(e.data);
+  lastTickEl.textContent = 'last tick: ' + new Date(latestState.generatedAt || Date.now()).toLocaleTimeString();
   renderState(latestState);
 });
 
 globalEs.addEventListener('scheduler_event', (e) => {
   const data = JSON.parse(e.data);
-  if (data.issueId) { appendIssueEvent(data.issueId, data); }
+  if (data.issueId) appendIssueEvent(data.issueId, data);
 });
 
 globalEs.addEventListener('issue_event', (e) => {
   const data = JSON.parse(e.data);
-  if (data.issueId) { appendIssueEvent(data.issueId, data); }
+  if (data.issueId) appendIssueEvent(data.issueId, data);
 });
 
 function appendIssueEvent(issueId, data) {
@@ -174,50 +194,69 @@ function appendIssueEvent(issueId, data) {
   if (issueId === selectedIssueId) renderEvents();
 }
 
+function issueLink(identifier, issueId) {
+  if (!repoSlug) return identifier;
+  return '<a href="https://cnb.cool/' + repoSlug + '/-/issues/' + issueId + '" target="_blank" style="color:inherit;text-decoration:underline dotted;">' + identifier + '</a>';
+}
+
 function renderState(state) {
   if (!state) return;
   const c = state.counts || {};
+  const t = state.totals || {};
   countEl.innerHTML = ['running','retrying','claimed','completed'].map(k =>
     '<article class="card"><span>' + k + '</span><strong>' + (c[k]||0) + '</strong></article>'
-  ).join('');
+  ).join('') +
+  '<article class="card"><span>tokens</span><strong>' + formatNum(t.totalTokens||0) + '</strong></article>' +
+  '<article class="card"><span>runtime</span><strong>' + formatSecs(t.secondsRunning||0) + '</strong></article>';
 
   let html = '';
   for (const r of (state.running||[])) {
     const active = r.issueId === selectedIssueId ? ' active' : '';
-    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '">' +
-      '<div class="id"><span class="status-dot dot-running"></span>' + r.identifier + '</div>' +
-      '<div class="meta">turn ' + r.turnCount + ' · ' + Math.round(r.secondsRunning) + 's · ' + (r.lastEvent||'') + '</div></div>';
+    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '" data-workspace="' + (r.workspacePath||'') + '" data-identifier="' + r.identifier + '">' +
+      '<div class="id"><span class="status-dot dot-running"></span>' + issueLink(r.identifier, r.issueId) + ' <span style="font-weight:normal;font-size:11px;color:rgba(27,27,27,0.4);">' + (r.title||'') + '</span></div>' +
+      '<div class="meta">turn ' + r.turnCount + '/' + ${config.agent.maxTurns} + ' · ' + Math.round(r.secondsRunning) + 's · ' + (r.lastEvent||'') + ' · ' + formatNum(r.tokenUsage?.totalTokens||0) + ' tok</div></div>';
   }
   for (const r of (state.retrying||[])) {
     const active = r.issueId === selectedIssueId ? ' active' : '';
-    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '">' +
-      '<div class="id"><span class="status-dot dot-retrying"></span>' + r.identifier + '</div>' +
-      '<div class="meta">' + r.mode + ' attempt ' + r.attempt + '</div></div>';
+    html += '<div class="issue-item' + active + '" data-id="' + r.issueId + '" data-identifier="' + r.identifier + '">' +
+      '<div class="id"><span class="status-dot dot-retrying"></span>' + issueLink(r.identifier, r.issueId) + '</div>' +
+      '<div class="meta">' + r.mode + ' attempt ' + r.attempt + ' · due ' + new Date(r.dueAtMs).toLocaleTimeString() + '</div></div>';
   }
   issueListEl.innerHTML = html || '<p class="empty">no active issues</p>';
   issueListEl.querySelectorAll('.issue-item').forEach(el => {
-    el.addEventListener('click', () => selectIssue(el.dataset.id));
+    el.addEventListener('click', () => selectIssue(el.dataset.id, el.dataset.workspace, el.dataset.identifier));
   });
+
+  // Completed issues
+  const completed = state.completedIssueIds || [];
+  if (completed.length > 0) {
+    completedSection.style.display = '';
+    completedList.innerHTML = completed.map(id => '<div style="font-size:12px;padding:3px 0;color:rgba(27,27,27,0.5);">✓ #' + id + '</div>').join('');
+  } else {
+    completedSection.style.display = 'none';
+  }
 }
 
-function selectIssue(issueId) {
+function selectIssue(issueId, workspace, identifier) {
   selectedIssueId = issueId;
-  detailIssue.textContent = '— ' + issueId;
+  detailIssue.textContent = '— ' + (identifier || issueId);
   detailEmpty.style.display = 'none';
   eventListEl.style.display = '';
+  detailMeta.style.display = '';
+  let metaHtml = '';
+  if (repoSlug) metaHtml += '<a href="https://cnb.cool/' + repoSlug + '/-/issues/' + issueId + '" target="_blank">View issue on cnb.cool</a>';
+  if (workspace) metaHtml += (metaHtml ? ' · ' : '') + 'Workspace: <code>' + workspace + '</code>';
+  detailMeta.innerHTML = metaHtml;
   renderEvents();
   if (latestState) renderState(latestState);
 
-  // Subscribe to per-issue SSE
   if (issueEventSource) issueEventSource.close();
   issueEventSource = new EventSource('/api/v1/events?issueId=' + encodeURIComponent(issueId));
   issueEventSource.addEventListener('issue_event', (e) => {
-    const data = JSON.parse(e.data);
-    appendIssueEvent(issueId, data);
+    appendIssueEvent(issueId, JSON.parse(e.data));
   });
   issueEventSource.addEventListener('scheduler_event', (e) => {
-    const data = JSON.parse(e.data);
-    appendIssueEvent(issueId, data);
+    appendIssueEvent(issueId, JSON.parse(e.data));
   });
 }
 
@@ -236,11 +275,13 @@ function renderEvents() {
   eventListEl.scrollTop = eventListEl.scrollHeight;
 }
 
+function formatNum(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n); }
+function formatSecs(s) { const m = Math.floor(s/60); return m > 0 ? m+'m ' + Math.round(s%60)+'s' : Math.round(s)+'s'; }
+
 refreshBtn.addEventListener('click', async () => {
   await fetch('/api/v1/refresh', { method: 'POST' });
 });
 
-// Initial load
 eventListEl.style.display = 'none';
 </script>
 </main>

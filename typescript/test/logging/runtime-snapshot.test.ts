@@ -91,6 +91,7 @@ describe('createRuntimeSnapshot', () => {
           lastEvent: 'turn_completed',
           lastEventAt: '2026-05-20T00:01:00Z',
           secondsRunning: 3,
+          workspacePath: '/tmp/1',
           tokenUsage: {
             inputTokens: 10,
             outputTokens: 4,

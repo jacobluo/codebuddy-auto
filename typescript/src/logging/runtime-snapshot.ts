@@ -27,6 +27,7 @@ export interface RuntimeSnapshot {
     lastEvent: string | null;
     lastEventAt: string | null;
     secondsRunning: number;
+    workspacePath: string;
     tokenUsage: {
       inputTokens: number;
       outputTokens: number;
@@ -61,6 +62,7 @@ export function createRuntimeSnapshot(
       lastEvent: entry.lastEvent,
       lastEventAt: entry.lastEventAt,
       secondsRunning: entry.secondsRunning,
+      workspacePath: entry.workspacePath,
       tokenUsage: entry.tokenUsage,
     }))
     .sort((left, right) => left.identifier.localeCompare(right.identifier));
