@@ -11,6 +11,23 @@
 
 完整任务规划、里程碑与待办以 [`PLAN.md`](./PLAN.md) 为准。
 
+## 与 Symphony 官方实现的关系
+
+| 维度 | Symphony 官方 | codebuddy-auto |
+|---|---|---|
+| 定位 | 规范 + 参考实现 | 另一个语言的参考实现 |
+| 语言 | Elixir / OTP | **TypeScript / Node.js 20 LTS** |
+| Agent 执行 | codex app-server（stdio 子进程） | **CodeBuddy Agent SDK（in-process）**；SSH 时 fallback 到 CLI |
+| 调度模型 | BEAM supervisor tree | Node 子进程 + 心跳 + 崩溃重启 |
+| Tracker | Linear | **cnb.cool git issue**（主）+ 本地目录（fallback） |
+| 对标契约 | `symphony/SPEC.md` | 本仓库 `PLAN.md`（契约完整对齐 + 实现分阶段） |
+
+关键策略：
+
+- **契约不降维**：`PLAN.md` 按最新版 Symphony SPEC 的 18 章 + Appendix A 补齐语义边界
+- **实现已覆盖 M1 ~ M4 主线**：单机调度、并发与 worktree、Dashboard、RemoteWorker（SSH）均已落地
+- **Linear 永不接入**：用 cnb.cool issue 替代
+
 ## 目录结构
 
 ```
@@ -89,9 +106,23 @@ tracker:
   finish_label: agent-finish
 ```
 
-## 目标仓库要求
+## 目标仓库要求（Harness Engineering）
 
-Symphony 假设目标仓库已采用 [Harness Engineering](https://openai.com/index/harness-engineering/)：CI、测试覆盖、lint、PR 门禁、清晰的 AGENTS.md。缺少时建议至少配置一个可运行的测试命令、在 prompt 中写明验证步骤、并强制走 PR 而非直推主干。
+Symphony 假设目标仓库已采用 [Harness Engineering](https://openai.com/index/harness-engineering/) 体系，agent 才能稳定地完成工作：
+
+| 条件 | 说明 | 为什么需要 |
+|---|---|---|
+| **CI Pipeline** | 仓库配有自动化构建/测试流水线 | Agent 提交的代码能被 CI 自动验证，不依赖人工判断对错 |
+| **测试覆盖** | 核心功能有单元 / 集成测试 | Agent 改完代码可以跑测试自验，也是 PR 门禁的基础 |
+| **Lint / 格式化规则** | ESLint、Prettier 或等价工具已配置 | Agent 通过 lint 发现规范问题，避免提交不合规代码 |
+| **PR 门禁** | 分支保护 + CI 必须通过才能合入 | 即使 agent 代码有问题，也不会直接污染主分支 |
+| **明确的项目结构** | README / AGENTS.md 描述了仓库约定 | Agent 能理解"在哪改、怎么改、怎么验证" |
+
+**如果目标仓库缺少这些基础设施**，agent 行为将高度依赖 prompt 引导，且无法自动验证正确性。建议至少：
+
+1. 配置一个可运行的测试命令（如 `pnpm test`）
+2. 在 WORKFLOW.md 的 prompt 中明确写出验证步骤
+3. 让 agent 提 PR 而非直接 push master，由人工审核
 
 ## License
 
