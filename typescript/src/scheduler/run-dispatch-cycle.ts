@@ -8,6 +8,7 @@ import {
   runCodebuddyTurn,
   updateTokenUsage,
   type CodebuddyRunnerEvent,
+  type SdkSessionStore,
 } from '../runner/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { prepareWorkerCommand } from '../worker/index.js';
@@ -53,6 +54,7 @@ export async function runDispatchCycle(
   ].join('\n'),
   logger?: RuntimeLogger,
   eventBus?: EventBus,
+  sessionStore?: SdkSessionStore,
 ): Promise<DispatchCycleResult> {
   const issues = await tracker.fetchCandidateIssues();
   const dispatchPlan = planDispatchCycle(state, issues, config);
@@ -205,6 +207,13 @@ export async function runDispatchCycle(
         lastReportedTotals: tokenUsageUpdate.lastReportedTotals,
       };
       state.claimed.add(issue.id);
+      // Task 3.2: register the SDK session for this issue. We use create()
+      // here because dispatch is the issue's first turn; subsequent turns
+      // come through runContinuationCycle which calls recordTurn().
+      if (sessionStore && config.worker.kind === 'local') {
+        sessionStore.destroy(issue.id); // defensive: clear any stale entry from a prior run
+        sessionStore.create(issue.id, resolvedSessionId);
+      }
       state.retryAttempts[issue.id] = createRetryEntry({
         issueId: issue.id,
         identifier: issue.identifier,

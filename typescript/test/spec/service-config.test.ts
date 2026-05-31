@@ -55,4 +55,29 @@ describe('serviceConfigSchema', () => {
       },
     }).worker.kind).toBe('ssh');
   });
+
+  it('accepts SDK-only model and settingSources fields', () => {
+    const parsed = serviceConfigSchema.parse({
+      ...DEFAULT_SERVICE_CONFIG,
+      codebuddy: {
+        ...DEFAULT_SERVICE_CONFIG.codebuddy,
+        model: 'codebuddy-sonnet',
+        settingSources: ['user', 'project'],
+      },
+    });
+    expect(parsed.codebuddy.model).toBe('codebuddy-sonnet');
+    expect(parsed.codebuddy.settingSources).toEqual(['user', 'project']);
+  });
+
+  it('rejects non-string entries in settingSources', () => {
+    expect(() =>
+      serviceConfigSchema.parse({
+        ...DEFAULT_SERVICE_CONFIG,
+        codebuddy: {
+          ...DEFAULT_SERVICE_CONFIG.codebuddy,
+          settingSources: ['user', 1],
+        },
+      }),
+    ).toThrow();
+  });
 });

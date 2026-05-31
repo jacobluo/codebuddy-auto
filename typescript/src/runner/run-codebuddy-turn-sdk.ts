@@ -42,12 +42,24 @@ function mapSdkMessage(msg: Message): CodebuddyRunnerEvent | null {
       text = texts.length > 0 ? texts.join('\n') : undefined;
     }
 
+    // Parity with CLI runner: surface the per-turn credit cost from
+    // `message.providerData.rawUsage.credit` so token-usage accounting picks
+    // it up. Without this, SDK-mode runs lose credit tracking.
+    let credit: number | undefined;
+    const providerData = message?.['providerData'] as Record<string, unknown> | undefined;
+    const rawUsage = providerData?.['rawUsage'] as Record<string, unknown> | undefined;
+    const creditValue = rawUsage?.['credit'];
+    if (typeof creditValue === 'number' && Number.isFinite(creditValue) && creditValue >= 0) {
+      credit = creditValue;
+    }
+
     return {
       event: 'notification',
       payload: {
         raw: raw,
         message: text,
         usage,
+        credit,
       },
     };
   }
@@ -97,6 +109,14 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
     maxTurns: input.config.agent.maxTurns,
     permissionMode: input.config.codebuddy.permissionMode ?? 'bypassPermissions',
   };
+
+  if (input.config.codebuddy.model && input.config.codebuddy.model.length > 0) {
+    options.model = input.config.codebuddy.model;
+  }
+
+  if (input.config.codebuddy.settingSources && input.config.codebuddy.settingSources.length > 0) {
+    options.settingSources = input.config.codebuddy.settingSources;
+  }
 
   if (input.resumeSessionId) {
     options.resume = input.resumeSessionId;

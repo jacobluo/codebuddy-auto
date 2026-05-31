@@ -74,8 +74,11 @@ export function validatePreflight(config: ServiceConfig): PreflightResult {
   if (config.tracker.kind === 'cnb' && (config.tracker.projectSlug ?? '').length === 0) {
     errors.push('tracker.projectSlug is required for cnb tracker');
   }
-  if (config.codebuddy.command.length === 0) {
-    errors.push('codebuddy.command is required');
+  // codebuddy.command is CLI-only — only the SSH worker (which uses CLI subprocess
+  // fallback) actually shells out to it. Local worker uses the SDK in-process and
+  // ignores this field.
+  if (config.worker.kind === 'ssh' && config.codebuddy.command.length === 0) {
+    errors.push('codebuddy.command is required for ssh worker (CLI fallback)');
   }
   if (!fs.existsSync(config.workspace.root)) {
     errors.push(`workspace.root does not exist: ${config.workspace.root}`);

@@ -8,11 +8,67 @@ import type { RuntimeLogger } from '../../src/logging/index.js';
 import { createRuntimeState, createLocalTracker, runDispatchCycle } from '../../src/scheduler/index.js';
 import { DEFAULT_SERVICE_CONFIG } from '../../src/spec/index.js';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SDK module mock
+//
+// `runDispatchCycle` routes to the SDK runner when `worker.kind === 'local'`.
+// We mock `@tencent-ai/agent-sdk` so tests don't try to spawn a real CodeBuddy
+// CLI. Each test pushes a queue of SDK messages onto `messageQueues`; the
+// mock replays them in order. Use `'hang'` as a queue value to make the SDK
+// hang until the runner aborts via its turnTimeoutMs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface QueryCall {
+  prompt: string;
+  options: Record<string, unknown>;
+}
+
+const queryCalls: QueryCall[] = [];
+const messageQueues: Array<unknown[] | 'hang'> = [];
+
+vi.mock('@tencent-ai/agent-sdk', async () => {
+  const fsModule = await import('node:fs');
+  return {
+    query: ({ prompt, options }: { prompt: string; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      const cwd = options.cwd;
+      if (typeof cwd === 'string' && !fsModule.existsSync(cwd)) {
+        return (async function* () {
+          throw new Error(`workspace not found: ${cwd}`);
+        })();
+      }
+      const queue = messageQueues.shift();
+      if (queue === 'hang') {
+        const ac = options.abortController as AbortController | undefined;
+        return (async function* () {
+          // Wait for the runner's wall-clock timeout to fire abortController.abort().
+          await new Promise<void>((_, reject) => {
+            if (ac?.signal.aborted) {
+              reject(new Error('aborted'));
+              return;
+            }
+            ac?.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+          });
+        })();
+      }
+      const messages = queue ?? [];
+      return (async function* () {
+        for (const msg of messages) {
+          await Promise.resolve();
+          yield msg;
+        }
+      })();
+    },
+  };
+});
+
 const tempDirs: string[] = [];
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-05-19T00:00:00Z'));
+  queryCalls.length = 0;
+  messageQueues.length = 0;
 });
 
 afterEach(() => {
@@ -30,18 +86,55 @@ function createTrackerRoot(): string {
   return workspaceRoot;
 }
 
+// SDK queue helper for a "successful turn" with optional usage / session id.
+function successQueue(opts: {
+  sessionId?: string;
+  durationMs?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  credit?: number;
+}): unknown[] {
+  const messages: unknown[] = [
+    {
+      type: 'system',
+      session_id: opts.sessionId ?? 'session-1',
+    },
+  ];
+  if (opts.credit !== undefined) {
+    messages.push({
+      type: 'assistant',
+      message: {
+        usage: { input_tokens: opts.inputTokens ?? 0, output_tokens: opts.outputTokens ?? 0 },
+        providerData: { rawUsage: { credit: opts.credit } },
+      },
+    });
+  }
+  messages.push({
+    type: 'result',
+    is_error: false,
+    duration_ms: opts.durationMs ?? 1,
+    num_turns: 1,
+    usage: { input_tokens: opts.inputTokens ?? 1, output_tokens: opts.outputTokens ?? 1 },
+  });
+  return messages;
+}
+
+// SDK queue helper for a turn that errors out.
+function failureQueue(): unknown[] {
+  return [
+    {
+      type: 'result',
+      is_error: true,
+      subtype: 'execution_error',
+      result: 'agent execution failed',
+    },
+  ];
+}
+
 describe('runDispatchCycle', () => {
   it('returns dispatchable issues from the local tracker', async () => {
     const workspaceRoot = createTrackerRoot();
-    const mockCliPath = path.join(workspaceRoot, 'noop-cli.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-1'}));",
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:1,num_turns:1,usage:{input_tokens:1,output_tokens:1}}));",
-      ].join('\n'),
-      'utf8',
-    );
+    messageQueues.push(successQueue({ sessionId: 'session-1', inputTokens: 1, outputTokens: 1 }));
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-1.json'),
       JSON.stringify({
@@ -72,7 +165,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const state = createRuntimeState();
@@ -104,20 +197,7 @@ describe('runDispatchCycle', () => {
 
   it('runs a single mock CodeBuddy turn and records the rendered prompt', async () => {
     const workspaceRoot = createTrackerRoot();
-    const promptPath = path.join(workspaceRoot, 'captured-prompt.txt');
-    const mockCliPath = path.join(workspaceRoot, 'mock-cli.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "import fs from 'node:fs';",
-        'const capturePath = process.argv[2];',
-        'const prompt = process.argv[process.argv.length - 1];',
-        "fs.writeFileSync(capturePath, prompt, 'utf8');",
-        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-1'}));",
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:5,num_turns:1,usage:{input_tokens:3,output_tokens:2}}));",
-      ].join('\n'),
-      'utf8',
-    );
+    messageQueues.push(successQueue({ sessionId: 'session-1', durationMs: 5, inputTokens: 3, outputTokens: 2 }));
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-2.json'),
       JSON.stringify({
@@ -148,7 +228,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}" "${promptPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const state = createRuntimeState();
@@ -177,20 +257,15 @@ describe('runDispatchCycle', () => {
       dueAtMs: 1_000 + Date.parse('2026-05-19T00:00:00Z'),
       error: 'turn_completed',
     });
-    expect(fs.readFileSync(promptPath, 'utf8')).toBe('Implement #2: Second issue');
+    // Equivalent of the old "captured prompt" check — assert the SDK was
+    // invoked with the rendered prompt.
+    expect(queryCalls).toHaveLength(1);
+    expect(queryCalls[0]!.prompt).toBe('Implement #2: Second issue');
   });
 
   it('does not keep the issue in running state when the first turn fails', async () => {
     const workspaceRoot = createTrackerRoot();
-    const mockCliPath = path.join(workspaceRoot, 'failing-cli.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "process.stderr.write('failed\\n');",
-        'process.exit(9);',
-      ].join('\n'),
-      'utf8',
-    );
+    messageQueues.push(failureQueue());
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-3.json'),
       JSON.stringify({
@@ -221,7 +296,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const state = createRuntimeState();
@@ -245,25 +320,15 @@ describe('runDispatchCycle', () => {
 
   it('emits issue-scoped logs for successful and failed dispatch attempts', async () => {
     const workspaceRoot = createTrackerRoot();
-    const okCliPath = path.join(workspaceRoot, 'ok-cli.mjs');
-    const failCliPath = path.join(workspaceRoot, 'fail-cli.mjs');
-    fs.writeFileSync(
-      okCliPath,
-      [
-        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-ok'}));",
-        "console.log(JSON.stringify({type:'assistant',message:{usage:{input_tokens:2,output_tokens:1},providerData:{rawUsage:{credit:3.5}}}}));",
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:12,num_turns:1,usage:{input_tokens:2,output_tokens:1}}));",
-      ].join('\n'),
-      'utf8',
-    );
-    fs.writeFileSync(
-      failCliPath,
-      [
-        "process.stderr.write('failed\\n');",
-        'process.exit(9);',
-      ].join('\n'),
-      'utf8',
-    );
+    // Both issues are dispatched per cycle, so we push four queues:
+    //   cycle 1 (state): success for ok, success for fail
+    //   cycle 2 (failState): failure for ok, failure for fail
+    // The test only asserts on `_ok` logs, but every SDK call needs a queue
+    // entry so we don't return zero events (which would surface as null).
+    messageQueues.push(successQueue({ sessionId: 'session-ok', durationMs: 12, inputTokens: 2, outputTokens: 1, credit: 3.5 }));
+    messageQueues.push(successQueue({ sessionId: 'session-ok2', durationMs: 12, inputTokens: 2, outputTokens: 1 }));
+    messageQueues.push(failureQueue());
+    messageQueues.push(failureQueue());
 
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-ok.json'),
@@ -325,7 +390,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${okCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
 
@@ -343,7 +408,6 @@ describe('runDispatchCycle', () => {
       'issue_dispatch_succeeded',
     );
 
-    config.codebuddy.command = `node "${failCliPath}"`;
     const failState = createRuntimeState();
     await runDispatchCycle(failState, tracker, config, undefined, logger);
 
@@ -360,14 +424,9 @@ describe('runDispatchCycle', () => {
   it('does not keep the issue in running state when the turn times out', async () => {
     vi.useRealTimers();
     const workspaceRoot = createTrackerRoot();
-    const mockCliPath = path.join(workspaceRoot, 'slow-cli.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "setTimeout(() => console.log(JSON.stringify({type:'result',subtype:'success',is_error:false})), 1000);",
-      ].join('\n'),
-      'utf8',
-    );
+    // 'hang' makes the SDK mock wait until the runner's turnTimeoutMs aborts
+    // it, which causes the runner to emit `turn_timed_out`.
+    messageQueues.push('hang');
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-4.json'),
       JSON.stringify({
@@ -398,7 +457,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}"`,
+        command: 'unused-cli-command',
         turnTimeoutMs: 50,
       },
     };
@@ -425,14 +484,7 @@ describe('runDispatchCycle', () => {
 
   it('queues a retry when the beforeRun hook fails', async () => {
     const workspaceRoot = createTrackerRoot();
-    const mockCliPath = path.join(workspaceRoot, 'noop-cli.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}));",
-      ].join('\n'),
-      'utf8',
-    );
+    // beforeRun fails before SDK is invoked → no queue push needed.
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-hook.json'),
       JSON.stringify({
@@ -467,7 +519,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const state = createRuntimeState();
@@ -483,19 +535,16 @@ describe('runDispatchCycle', () => {
       mode: 'failure',
       error: 'before_run_failed',
     });
+    // SDK was never invoked
+    expect(queryCalls).toEqual([]);
   });
 
   it('continues dispatching later issues when an earlier workspace setup fails', async () => {
     const workspaceRoot = createTrackerRoot();
-    const okCliPath = path.join(workspaceRoot, 'ok-after-setup-failure.mjs');
-    fs.writeFileSync(
-      okCliPath,
-      [
-        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-late'}));",
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:4,num_turns:1,usage:{input_tokens:1,output_tokens:1}}));",
-      ].join('\n'),
-      'utf8',
-    );
+    // a-first's afterCreate hook fails → SDK never called for it.
+    // b-second's afterCreate succeeds → SDK called once.
+    messageQueues.push(successQueue({ sessionId: 'session-late', durationMs: 4 }));
+
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-a-first.json'),
       JSON.stringify({
@@ -560,7 +609,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${okCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const tracker = createLocalTracker(config);
@@ -599,15 +648,18 @@ describe('runDispatchCycle', () => {
 
   it('continues dispatching later issues when an earlier run attempt throws unexpectedly', async () => {
     const workspaceRoot = createTrackerRoot();
-    const okCliPath = path.join(workspaceRoot, 'ok-after-dispatch-throw.mjs');
-    fs.writeFileSync(
-      okCliPath,
-      [
-        "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'session-safe'}));",
-        "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,duration_ms:4,num_turns:1,usage:{input_tokens:1,output_tokens:1}}));",
-      ].join('\n'),
-      'utf8',
-    );
+    // a-crash's beforeRun deletes its own workspace → SDK is invoked with a
+    // non-existent cwd, which the mock rejects → runner emits turn_failed.
+    // b-safe runs normally → SDK yields a successful turn.
+    //
+    // NOTE on semantics change vs CLI mode: with CLI subprocess, a missing
+    // cwd caused `spawn` to reject and the dispatch cycle's outer try/catch
+    // marked it `dispatch_failed`. The SDK runner catches the same condition
+    // internally and reports `turn_failed` instead — same retry mode (failure),
+    // different reason string. The test verifies both flows still let later
+    // issues dispatch.
+    messageQueues.push(successQueue({ sessionId: 'session-safe', durationMs: 4 }));
+
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-a-crash.json'),
       JSON.stringify({
@@ -672,7 +724,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${okCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const tracker = createLocalTracker(config);
@@ -687,7 +739,7 @@ describe('runDispatchCycle', () => {
       issueId: 'a-crash',
       identifier: '#a-crash',
       mode: 'failure',
-      error: 'dispatch_failed',
+      error: 'turn_failed',
     });
     expect(state.running['b-safe']).toMatchObject({
       workspacePath: path.join(workspaceRoot, '_b-safe'),
@@ -703,7 +755,7 @@ describe('runDispatchCycle', () => {
     });
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        lastEvent: 'dispatch_failed',
+        lastEvent: 'turn_failed',
         retryMode: 'failure',
       }),
       'issue_dispatch_retry_scheduled',
@@ -712,15 +764,10 @@ describe('runDispatchCycle', () => {
 
   it('increases retry backoff for repeated failures of the same issue', async () => {
     const workspaceRoot = createTrackerRoot();
-    const mockCliPath = path.join(workspaceRoot, 'failing-cli-repeat.mjs');
-    fs.writeFileSync(
-      mockCliPath,
-      [
-        "process.stderr.write('failed\\n');",
-        'process.exit(9);',
-      ].join('\n'),
-      'utf8',
-    );
+    // Two consecutive failures.
+    messageQueues.push(failureQueue());
+    messageQueues.push(failureQueue());
+
     fs.writeFileSync(
       path.join(workspaceRoot, '.tracker', 'issue-5.json'),
       JSON.stringify({
@@ -751,7 +798,7 @@ describe('runDispatchCycle', () => {
       },
       codebuddy: {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
-        command: `node "${mockCliPath}"`,
+        command: 'unused-cli-command',
       },
     };
     const state = createRuntimeState();
@@ -772,3 +819,4 @@ describe('runDispatchCycle', () => {
     });
   });
 });
+

@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 
 import { createRuntimeSnapshot, type EventBus } from '../logging/index.js';
+import { createSdkSessionStore, type SdkSessionStore } from '../runner/index.js';
 import type { OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { createRuntimeState } from './create-runtime-state.js';
@@ -23,6 +24,7 @@ export type SchedulerTickContextProvider =
 export interface StartSchedulerDependencies {
   state?: OrchestratorRuntimeState;
   eventBus?: EventBus;
+  sessionStore?: SdkSessionStore;
   runSchedulerOnce?: typeof runSchedulerOnce;
   runStartupCleanup?: typeof runStartupCleanup;
   createRuntimeSnapshot?: typeof createRuntimeSnapshot;
@@ -37,6 +39,9 @@ export function startScheduler(
 ): SchedulerRuntime {
   const state = dependencies.state ?? createRuntimeState();
   const eventBus = dependencies.eventBus;
+  // Per-process SDK session store. Lives for the life of the scheduler so
+  // entries created in dispatch survive across continuation ticks.
+  const sessionStore = dependencies.sessionStore ?? createSdkSessionStore();
   const runOnce = dependencies.runSchedulerOnce ?? runSchedulerOnce;
   const startupCleanup = dependencies.runStartupCleanup ?? runStartupCleanup;
   const buildSnapshot = dependencies.createRuntimeSnapshot ?? createRuntimeSnapshot;
@@ -56,7 +61,7 @@ export function startScheduler(
     currentTickPromise = (async () => {
       try {
         const tickContext = await getTickContext();
-        const result = await runOnce(state, tickContext.tracker, tickContext.config, { eventBus }, logger);
+        const result = await runOnce(state, tickContext.tracker, tickContext.config, { eventBus, sessionStore }, logger);
         const snapshot = buildSnapshot(state);
         snapshot.cleanedWorkspaceIssueIds = result.cleanedWorkspaceIssueIds;
         logger.info(
@@ -129,6 +134,9 @@ export function startScheduler(
       if (currentTickPromise) {
         await currentTickPromise;
       }
+      // Drop any remaining SDK session entries on shutdown so test runs and
+      // restarts don't leak entries to the next process.
+      sessionStore.clear();
     },
   };
 }

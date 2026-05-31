@@ -136,6 +136,16 @@ export function loadServiceConfig(
   if (typeof tracker.apiKey === 'string') {
     tracker.apiKey = resolveMaybeEnv(tracker.apiKey, env);
   }
+  const trackerOverrides = getObject(raw.tracker);
+  if (typeof trackerOverrides.candidate_label === 'string') {
+    tracker.candidateLabel = trackerOverrides.candidate_label;
+  }
+  if (typeof trackerOverrides.exclude_label === 'string') {
+    tracker.excludeLabel = trackerOverrides.exclude_label;
+  }
+  if (typeof trackerOverrides.finish_label === 'string') {
+    tracker.finishLabel = trackerOverrides.finish_label;
+  }
   if (typeof workspace.root === 'string') {
     workspace.root = resolvePathValue(workspace.root, workflowPath, env);
   }
@@ -211,6 +221,13 @@ export function loadServiceConfig(
   }
   if (typeof codebuddyOverrides.permission_mode === 'string') {
     codebuddy.permissionMode = codebuddyOverrides.permission_mode;
+  }
+  if (typeof codebuddyOverrides.model === 'string' && codebuddyOverrides.model.length > 0) {
+    codebuddy.model = codebuddyOverrides.model;
+  }
+  const settingSources = getStringArray(codebuddyOverrides.setting_sources);
+  if (settingSources) {
+    codebuddy.settingSources = settingSources;
   }
   if (typeof codebuddyOverrides.subagent_permission_mode === 'string') {
     codebuddy.subagentPermissionMode = codebuddyOverrides.subagent_permission_mode;

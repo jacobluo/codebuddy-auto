@@ -233,4 +233,55 @@ describe('validatePreflight', () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('worker.sshHost is required for ssh worker');
   });
+
+  it('does not require codebuddy.command for local worker (SDK mode)', () => {
+    const workspaceRoot = createTempDir('agentfirst-local-cmdless-');
+
+    const result = validatePreflight({
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      codebuddy: {
+        ...DEFAULT_SERVICE_CONFIG.codebuddy,
+        command: '',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.errors).not.toContain('codebuddy.command is required for ssh worker (CLI fallback)');
+  });
+
+  it('requires codebuddy.command when ssh worker is selected', () => {
+    const workspaceRoot = createTempDir('agentfirst-ssh-cmdless-');
+
+    const result = validatePreflight({
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      worker: {
+        ...DEFAULT_SERVICE_CONFIG.worker,
+        kind: 'ssh',
+        sshHost: 'worker.example.com',
+      },
+      codebuddy: {
+        ...DEFAULT_SERVICE_CONFIG.codebuddy,
+        command: '',
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('codebuddy.command is required for ssh worker (CLI fallback)');
+  });
 });

@@ -1,5 +1,5 @@
 import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging/index.js';
-import type { CodebuddyRunnerEvent } from '../runner/index.js';
+import type { CodebuddyRunnerEvent, SdkSessionStore } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
@@ -47,6 +47,7 @@ export async function runContinuationCycle(
   logger?: RuntimeLogger,
   tracker?: Tracker,
   eventBus?: EventBus,
+  sessionStore?: SdkSessionStore,
 ): Promise<ContinuationCycleResult> {
   const nowMs = Date.now();
   const continuedIssueIds: string[] = [];
@@ -74,12 +75,18 @@ export async function runContinuationCycle(
         const isTerminal = issueState
           ? config.tracker.terminalStates.some((s) => s.toLowerCase() === issueState.state.toLowerCase())
           : false;
+        const finishLabel = config.tracker.finishLabel ?? tracker.getFinishLabel?.();
+        const hasFinishLabel = finishLabel && issueState
+          ? issueState.labels.some((l) => l.toLowerCase() === finishLabel.toLowerCase())
+          : false;
 
-        if (!isActive || isTerminal) {
+        if (!isActive || isTerminal || hasFinishLabel) {
           delete state.running[issueId];
           delete state.retryAttempts[issueId];
           state.claimed.delete(issueId);
           state.completed.add(issueId);
+          // Task 3.4: drop the SDK session when the issue is no longer active.
+          sessionStore?.destroy(issueId);
           releasedIssueIds.push(issueId);
           const releaseLogger = createIssueLogger(logger, {
             issueId,
@@ -90,7 +97,8 @@ export async function runContinuationCycle(
           releaseLogger?.info(
             {
               trackerState: issueState?.state ?? 'unknown',
-              reason: 'issue_no_longer_active',
+              hasFinishLabel,
+              reason: hasFinishLabel ? 'agent_finished' : 'issue_no_longer_active',
             },
             'issue_released_before_continuation',
           );
@@ -157,6 +165,12 @@ export async function runContinuationCycle(
       runningEntry.secondsRunning += Math.max((turnCompleted?.payload.durationMs ?? 0) / 1000, 0);
       runningEntry.tokenUsage = tokenUsageUpdate.totals;
       runningEntry.lastReportedTotals = tokenUsageUpdate.lastReportedTotals;
+      // Task 3.3: refresh session metadata after each successful turn so the
+      // store mirrors runningEntry.sessionId. recordTurn() is also defensive
+      // when the entry is missing (creates a fresh one).
+      if (sessionStore && config.worker.kind === 'local' && runningEntry.sessionId) {
+        sessionStore.recordTurn(issueId, runningEntry.sessionId);
+      }
       delete state.retryAttempts[issueId];
 
       if (lastEvent === 'turn_completed' && nextTurnCount < config.agent.maxTurns) {
@@ -199,6 +213,39 @@ export async function runContinuationCycle(
           'issue_continuation_retry_scheduled',
         );
       } else {
+        // Max turns reached — release the issue from running state
+        delete state.running[issueId];
+        delete state.retryAttempts[issueId];
+        state.claimed.delete(issueId);
+        state.completed.add(issueId);
+        // Task 3.4: drop the SDK session when maxTurns is hit.
+        sessionStore?.destroy(issueId);
+
+        // Add finish label as safety net (preserves human review window)
+        const finishLabel = config.tracker.finishLabel ?? tracker?.getFinishLabel?.() ?? 'agent-finish';
+        if (tracker?.addLabel) {
+          try {
+            await tracker.addLabel(issueId, finishLabel);
+            issueLogger?.info(
+              {
+                workspacePath: runningEntry.workspacePath,
+                secondsRunning: runningEntry.secondsRunning,
+                totalTokens: runningEntry.tokenUsage.totalTokens,
+                finishLabel,
+              },
+              'issue_labeled_finish_at_max_turns',
+            );
+          } catch (labelError) {
+            issueLogger?.error(
+              {
+                workspacePath: runningEntry.workspacePath,
+                error: labelError instanceof Error ? labelError.message : String(labelError),
+              },
+              'issue_label_failed_at_max_turns',
+            );
+          }
+        }
+
         issueLogger?.info(
           {
             workspacePath: runningEntry.workspacePath,

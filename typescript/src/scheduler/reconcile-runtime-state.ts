@@ -1,3 +1,4 @@
+import type { SdkSessionStore } from '../runner/index.js';
 import type { Issue, OrchestratorRuntimeState } from '../spec/index.js';
 
 export interface ReleasedIssueRuntime {
@@ -20,6 +21,7 @@ export function reconcileRuntimeState(
   state: OrchestratorRuntimeState,
   trackerStates: Map<string, Pick<Issue, 'id' | 'state' | 'labels'>>,
   terminalStates: string[],
+  sessionStore?: SdkSessionStore,
 ): ReconcileRuntimeStateResult {
   const terminalStateSet = new Set(terminalStates.map(normalizeState));
   const releasedIssueIds: string[] = [];
@@ -37,6 +39,9 @@ export function reconcileRuntimeState(
     delete state.retryAttempts[issueId];
     state.claimed.delete(issueId);
     state.completed.add(issueId);
+    // Task 5.3: drop the per-issue SDK session entry when the scheduler
+    // releases the issue (terminal state or tracker no longer reports it).
+    sessionStore?.destroy(issueId);
     releasedIssueIds.push(issueId);
     releasedIssues.push({
       issueId,

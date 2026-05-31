@@ -126,4 +126,19 @@ body
     expect(config.workspace.root).toBe('/Users/tester/agentfirst');
     expect(config.workspace.sourceRoot).toBe('/repo');
   });
+
+  it('loads SDK-only codebuddy.model and codebuddy.setting_sources', () => {
+    const workflow = `---
+codebuddy:
+  model: codebuddy-sonnet
+  setting_sources: [user, project]
+---
+body
+`;
+
+    const config = loadServiceConfig(workflow, '/repo/WORKFLOW.md', {});
+
+    expect(config.codebuddy.model).toBe('codebuddy-sonnet');
+    expect(config.codebuddy.settingSources).toEqual(['user', 'project']);
+  });
 });
