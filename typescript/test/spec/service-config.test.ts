@@ -51,7 +51,7 @@ describe('serviceConfigSchema', () => {
         sshUser: 'agent',
         sshPort: 22,
         sshOptions: ['-o', 'BatchMode=yes'],
-        remoteWorkspaceRoot: '/srv/agentfirst/workspaces',
+        remoteWorkspaceRoot: '/srv/codebuddy-auto/workspaces',
       },
     }).worker.kind).toBe('ssh');
   });

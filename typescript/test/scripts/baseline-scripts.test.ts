@@ -14,7 +14,7 @@ const diffBaselineScript = path.join(repoRoot, 'scripts', 'diff-baseline.sh');
 const tempDirs: string[] = [];
 
 function createTempDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-baseline-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-baseline-'));
   tempDirs.push(dir);
   return dir;
 }

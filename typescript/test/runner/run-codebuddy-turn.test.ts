@@ -14,7 +14,7 @@ function ensureWorkspaceDir(name: string): string {
 
 describe('runCodebuddyTurn', () => {
   it('maps CodeBuddy NDJSON output into structured runner events', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-success');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-success');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -68,7 +68,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('emits malformed events for invalid json lines without aborting the turn', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-malformed');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-malformed');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -96,7 +96,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('strips terminal control sequences before parsing NDJSON lines', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-control-sequences');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-control-sequences');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -132,7 +132,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('ignores non-init system events and user tool-result events in stream-json output', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-non-terminal-events');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-non-terminal-events');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -195,7 +195,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('maps permission denials into turn_input_required events', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-approval');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-approval');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -223,7 +223,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('maps auto-approved results into approval_auto_approved events', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-auto-approved');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-auto-approved');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -250,7 +250,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('emits turn_failed when the subprocess exits non-zero before any result event', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-failure');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-failure');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -279,7 +279,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('kills the subprocess when the turn timeout is exceeded', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-timeout');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-timeout');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -304,7 +304,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('kills the subprocess when the output stream stalls for too long', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-stall');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-stall');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -332,7 +332,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('maps max-turns-exceeded result as turn_completed for continuation', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-max-turns');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-max-turns');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -371,7 +371,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('kills the subprocess when no output is received before the read timeout', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-read-timeout');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-read-timeout');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',
@@ -397,7 +397,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('invokes onEvent callback for each parsed event in real time', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-onevent');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-onevent');
     const streamed: string[] = [];
     const result = await runCodebuddyTurn({
       command: {
@@ -420,7 +420,7 @@ describe('runCodebuddyTurn', () => {
   });
 
   it('continues normally when onEvent callback throws', async () => {
-    const workspacePath = ensureWorkspaceDir('agentfirst-runner-onevent-throw');
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-onevent-throw');
     const result = await runCodebuddyTurn({
       command: {
         command: 'node',

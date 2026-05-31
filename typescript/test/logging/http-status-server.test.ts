@@ -94,7 +94,7 @@ describe('startStatusServer', () => {
     const dashboardResponse = await fetch(address);
     expect(dashboardResponse.status).toBe(200);
     const dashboardHtml = await dashboardResponse.text();
-    expect(dashboardHtml).toContain('agentfirst-f1 dashboard');
+    expect(dashboardHtml).toContain('codebuddy-auto dashboard');
     expect(dashboardHtml).toContain('/api/v1/events');
 
     const stateResponse = await fetch(`${address}/api/v1/state`);

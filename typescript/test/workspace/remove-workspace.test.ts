@@ -23,13 +23,13 @@ function createTempRoot(prefix: string): string {
 }
 
 function createGitRepo(): string {
-  const dir = createTempRoot('agentfirst-remove-worktree-source-');
+  const dir = createTempRoot('codebuddy-auto-remove-worktree-source-');
   fs.writeFileSync(path.join(dir, 'README.md'), 'seed\n', 'utf8');
   execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
   execFileSync(
     'git',
-    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
     { cwd: dir, stdio: 'ignore' },
   );
   return dir;
@@ -37,7 +37,7 @@ function createGitRepo(): string {
 
 describe('removeWorkspace', () => {
   it('removes an existing workspace directory', async () => {
-    const root = createTempRoot('agentfirst-remove-workspace-');
+    const root = createTempRoot('codebuddy-auto-remove-workspace-');
     const workspacePath = path.join(root, '_1');
     fs.mkdirSync(workspacePath, { recursive: true });
 
@@ -51,7 +51,7 @@ describe('removeWorkspace', () => {
   });
 
   it('returns removed=false when the workspace is already absent', async () => {
-    const root = createTempRoot('agentfirst-remove-workspace-');
+    const root = createTempRoot('codebuddy-auto-remove-workspace-');
 
     const result = await removeWorkspace(root, '#missing');
 
@@ -62,7 +62,7 @@ describe('removeWorkspace', () => {
   });
 
   it('runs beforeRemove hooks before deleting the workspace', async () => {
-    const root = createTempRoot('agentfirst-remove-workspace-');
+    const root = createTempRoot('codebuddy-auto-remove-workspace-');
     const workspacePath = path.join(root, '_2');
     const markerPath = path.join(root, 'before-remove.txt');
     fs.mkdirSync(workspacePath, { recursive: true });
@@ -81,7 +81,7 @@ describe('removeWorkspace', () => {
 
 
   it('still removes a directory workspace when beforeRemove fails', async () => {
-    const root = createTempRoot('agentfirst-remove-workspace-');
+    const root = createTempRoot('codebuddy-auto-remove-workspace-');
     const workspacePath = path.join(root, '_2b');
     fs.mkdirSync(workspacePath, { recursive: true });
 
@@ -97,7 +97,7 @@ describe('removeWorkspace', () => {
   });
 
   it('removes git worktrees when configured', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-remove-worktree-root-');
     const sourceRoot = createGitRepo();
     const workspacePath = path.join(workspaceRoot, '_3');
 
@@ -125,7 +125,7 @@ describe('removeWorkspace', () => {
 
 
   it('still removes a git worktree when beforeRemove fails', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-remove-worktree-root-');
     const sourceRoot = createGitRepo();
     const workspacePath = path.join(workspaceRoot, '_3b');
 
@@ -156,7 +156,7 @@ describe('removeWorkspace', () => {
 
 
   it('cleans up stale git worktree metadata when the directory is already gone', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-remove-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-remove-worktree-root-');
     const sourceRoot = createGitRepo();
     const workspacePath = path.join(workspaceRoot, '_3c');
 

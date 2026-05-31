@@ -120,7 +120,7 @@ async function stopStatusServer(
 export async function runCli(argv: string[], dependencies: RunCliDependencies = {}): Promise<number> {
   const program = new Command();
   program
-    .name('agentfirst-f1')
+    .name('codebuddy-auto')
     .argument('[workflowPath]', 'path to WORKFLOW.md', 'WORKFLOW.md')
     .option('--check', 'load workflow and config, then exit')
     .option('--status', 'print a human-readable runtime status snapshot and exit')

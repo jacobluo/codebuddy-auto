@@ -5,7 +5,7 @@
 [OpenAI Symphony](https://github.com/openai/symphony) 调度规范的 TypeScript 参考实现。Symphony 官方用 Elixir/OTP，本项目面向希望在 Node.js 生态部署类 Symphony 调度器的团队。
 
 - 编排层：TypeScript / Node.js 20 LTS
-- Agent 执行：[CodeBuddy Agent SDK](https://www.codebuddy.cn/docs/cli/sdk-typescript)（in-process），SSH 场景 fallback 到 CodeBuddy Code CLI
+- Agent 执行：[CodeBuddy Agent SDK](https://www.codebuddy.cn/docs/cli/sdk-typescript)（in-process）
 - Issue tracker：cnb.cool git issue
 - 契约对齐：`PLAN.md` 按最新 Symphony SPEC 18 章 + Appendix A 落地，Linear 永不接入
 
@@ -17,7 +17,7 @@
 |---|---|---|
 | 定位 | 规范 + 参考实现 | 另一个语言的参考实现 |
 | 语言 | Elixir / OTP | **TypeScript / Node.js 20 LTS** |
-| Agent 执行 | codex app-server（stdio 子进程） | **CodeBuddy Agent SDK（in-process）**；SSH 时 fallback 到 CLI |
+| Agent 执行 | codex app-server（stdio 子进程） | **CodeBuddy Agent SDK（in-process）** |
 | 调度模型 | BEAM supervisor tree | Node 子进程 + 心跳 + 崩溃重启 |
 | Tracker | Linear | **cnb.cool git issue**（主）+ 本地目录（fallback） |
 | 对标契约 | `symphony/SPEC.md` | 本仓库 `PLAN.md`（契约完整对齐 + 实现分阶段） |
@@ -25,7 +25,7 @@
 关键策略：
 
 - **契约不降维**：`PLAN.md` 按最新版 Symphony SPEC 的 18 章 + Appendix A 补齐语义边界
-- **实现已覆盖 M1 ~ M4 主线**：单机调度、并发与 worktree、Dashboard、RemoteWorker（SSH）均已落地
+- **实现已覆盖 M1 ~ M4 主线**：单机调度、并发与 worktree、Dashboard、Live SSE 事件流均已落地
 - **Linear 永不接入**：用 cnb.cool issue 替代
 
 ## 目录结构
@@ -35,18 +35,17 @@ codebuddy-auto/
 ├── PLAN.md                ← 项目计划 + 语言无关契约主干
 ├── scripts/               ← baseline.sh / diff-baseline.sh
 ├── typescript/            ← TypeScript 参考实现（src/test/package.json）
-└── docs/references/       ← Symphony / CodeBuddy CLI / cnb issue API 解读
+└── docs/references/       ← Symphony / cnb issue API 解读
 ```
 
 ## 前置依赖
 
 - Node.js ≥ 20 LTS、pnpm ≥ 9、git、jq
-- CodeBuddy Code CLI（仅 `worker.kind: ssh` 时需要）
 - cnb CLI：`curl -fsSL https://cnb.cool/cnb/skills/cnb-skill/-/git/raw/main/install.sh | sh`
 
 | 环境变量 | 必须 | 说明 |
 |---|---|---|
-| `CODEBUDDY_API_KEY` | ✓ | CodeBuddy SDK / CLI 认证 |
+| `CODEBUDDY_API_KEY` | ✓ | CodeBuddy Agent SDK 认证 |
 | `CNB_TOKEN` | ✓ | cnb.cool API token（tracker + cnb CLI） |
 | `CNB_USERNAME` / `CNB_PASSWORD` | ✓ | cnb.cool git 认证（hooks 中 clone/push） |
 | `CNB_API_ENDPOINT` | 可选 | 默认 `https://api.cnb.cool` |
@@ -73,13 +72,6 @@ Dashboard：
 - `GET /` — 实时 SSE 驱动的 HTML
 - `GET /api/v1/state` / `events` / `<issue>` — 结构化 snapshot / SSE / 单 issue
 - `POST /api/v1/refresh` — 排队一次额外 tick
-
-## 运行模式
-
-| `worker.kind` | 执行层 | 说明 |
-|---|---|---|
-| `local`（默认） | `@tencent-ai/agent-sdk` in-process | 相比 CLI 30× token 减少、7.5× 提速 |
-| `ssh` | SSH 转发 CodeBuddy CLI | 远端 workspace 执行；本地保留 scheduler / tracker / retry / observability |
 
 ## Issue 生命周期
 

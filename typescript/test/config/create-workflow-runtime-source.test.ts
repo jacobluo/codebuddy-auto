@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 function createWorkflow(contents: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-runtime-source-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-runtime-source-'));
   tempDirs.push(dir);
   const workflowPath = path.join(dir, 'WORKFLOW.md');
   fs.writeFileSync(workflowPath, contents, 'utf8');
@@ -85,16 +85,16 @@ workspace:
 Prompt A
 `);
     const runtimeDir = path.dirname(workflowPath);
-    fs.mkdirSync(path.join(runtimeDir, '.agentfirst-workspaces'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeDir, '.codebuddy-auto-workspaces'), { recursive: true });
     fs.writeFileSync(path.join(runtimeDir, 'README.md'), 'seed\n', 'utf8');
     const previousCwd = process.cwd();
     process.chdir(runtimeDir);
-    fs.writeFileSync(path.join(runtimeDir, '.gitignore'), '.agentfirst-workspaces\n', 'utf8');
+    fs.writeFileSync(path.join(runtimeDir, '.gitignore'), '.codebuddy-auto-workspaces\n', 'utf8');
     execFileSync('git', ['init'], { cwd: runtimeDir, stdio: 'ignore' });
     execFileSync('git', ['add', 'README.md', '.gitignore'], { cwd: runtimeDir, stdio: 'ignore' });
     execFileSync(
       'git',
-      ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+      ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
       { cwd: runtimeDir, stdio: 'ignore' },
     );
 
@@ -105,7 +105,7 @@ tracker:
   kind: local
   apiKey: token
 workspace:
-  root: ./.agentfirst-workspaces
+  root: ./.codebuddy-auto-workspaces
   mode: git-worktree
   source_root: .
 ---
@@ -180,7 +180,7 @@ Prompt
   });
 
   it('loads the default WORKFLOW.md from the current working directory', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-runtime-source-default-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-runtime-source-default-'));
     tempDirs.push(dir);
     const workflowPath = path.join(dir, 'WORKFLOW.md');
     fs.writeFileSync(workflowPath, `---

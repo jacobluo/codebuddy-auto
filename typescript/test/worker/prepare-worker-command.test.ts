@@ -20,13 +20,13 @@ describe('prepareWorkerCommand', () => {
     const command = {
       command: 'codebuddy',
       args: ['--print', '--output-format', 'stream-json', 'prompt'],
-      cwd: path.resolve('/repo/.agentfirst/workspaces/ISSUE-1'),
+      cwd: path.resolve('/repo/.codebuddy-auto/workspaces/ISSUE-1'),
     };
     const prepared = prepareWorkerCommand(command, {
       ...DEFAULT_SERVICE_CONFIG,
       workspace: {
         ...DEFAULT_SERVICE_CONFIG.workspace,
-        root: path.resolve('/repo/.agentfirst/workspaces'),
+        root: path.resolve('/repo/.codebuddy-auto/workspaces'),
       },
       worker: {
         kind: 'ssh',
@@ -35,7 +35,7 @@ describe('prepareWorkerCommand', () => {
         sshUser: 'agent',
         sshPort: 2222,
         sshOptions: ['-o', 'StrictHostKeyChecking=no'],
-        remoteWorkspaceRoot: '/srv/agentfirst/workspaces',
+        remoteWorkspaceRoot: '/srv/codebuddy-auto/workspaces',
       },
     });
 
@@ -44,7 +44,7 @@ describe('prepareWorkerCommand', () => {
     expect(prepared.args).toContain('-p');
     expect(prepared.args).toContain('2222');
     expect(prepared.args).toContain('agent@worker.example.com');
-    expect(prepared.args.at(-1)).toContain("cd '/srv/agentfirst/workspaces/ISSUE-1'");
+    expect(prepared.args.at(-1)).toContain("cd '/srv/codebuddy-auto/workspaces/ISSUE-1'");
     expect(prepared.args.at(-1)).toContain("exec 'codebuddy' '--print' '--output-format' 'stream-json' 'prompt'");
   });
 });

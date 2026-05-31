@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 function createTempRoot(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-hook-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-hook-'));
   tempDirs.push(dir);
   return dir;
 }

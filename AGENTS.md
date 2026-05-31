@@ -1,7 +1,7 @@
-# agentfirst-f1 项目规约
+# codebuddy-auto 项目规约
 
 本项目是 [OpenAI Symphony](https://github.com/openai/symphony) 调度规范的 **TypeScript 参考实现**。
-本文件是给所有 agent（人类开发者、Claude Code、CodeBuddy Code CLI）看的"项目专属"规约。
+本文件是给所有 agent（人类开发者、Claude Code、CodeBuddy Code SDK）看的"项目专属"规约。
 
 **通用 LLM 行为规则**（think before coding / simplicity first / surgical changes / goal-driven execution）
 由项目级 rule [`.codebuddy/rules/karpathy-guidelines.mdc`](./.codebuddy/rules/karpathy-guidelines.mdc) 提供，本文件不重复。
@@ -18,8 +18,8 @@
 | 测试 | **vitest** | 不用 jest / mocha |
 | Schema 校验 | **zod** | 运行时校验 + 类型推导一体 |
 | YAML 解析 | **`yaml`** | workflow front matter |
-| Agent SDK | **`@tencent-ai/agent-sdk`** | in-process agent 执行（local worker）；CLI subprocess 保留为 SSH fallback |
-| 子进程 | **原生 `child_process.spawn` + `readline`** | SSH worker fallback；不引 execa |
+| Agent SDK | **`@tencent-ai/agent-sdk`** | in-process agent 执行（local worker） |
+| 子进程 | **原生 `child_process.spawn` + `readline`** | hooks / git / 远端 worker；不引 execa |
 | git 操作 | **直接起 `git` 子进程** | 不引 simple-git |
 | 日志 | **pino** | 结构化 JSON，低开销 |
 | CLI 入口 | **commander** | 生态广、类型好 |
@@ -50,7 +50,7 @@
 ## 3. 目录结构约定
 
 ```
-agentfirst-f1/
+codebuddy-auto/
 ├── AGENTS.md                ← 本文件（规约）
 ├── PLAN.md                  ← 项目计划 + 契约主干
 ├── README.md
@@ -63,7 +63,7 @@ agentfirst-f1/
     ├── src/
     │   ├── spec/            ← 类型 + zod schema（对应 PLAN §3 State Schema）
     │   ├── tracker/         ← Tracker 接口 + CNBTracker + LocalTracker（对应 §4）
-    │   ├── runner/          ← CodeBuddy Code CLI 子进程封装（对应 §5）
+    │   ├── runner/          ← CodeBuddy Agent SDK in-process 封装（对应 §5）
     │   ├── scheduler/       ← poll loop + dispatch（对应 §2）
     │   ├── workspace/       ← per-task 目录 + 三不变量（对应 §7）
     │   ├── workflow/        ← WORKFLOW.md 加载与模板渲染（对应 §8）

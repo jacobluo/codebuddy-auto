@@ -25,7 +25,7 @@
 #
 # 副作用（需要你审）：
 #   - 会向 codebuddy 发送 2-3 轮极短对话（每轮 10 token 级 prompt）
-#   - 会在 /tmp/agentfirst-spike-a-<timestamp>/ 创建临时工作目录，跑完不自动删（留痕用）
+#   - 会在 /tmp/codebuddy-auto-spike-a-<timestamp>/ 创建临时工作目录，跑完不自动删（留痕用）
 #   - 不向任何仓库写入，不向 cnb.cool 发请求
 #
 # 退出码：
@@ -229,7 +229,7 @@ probe 16 "grep sandbox|approval|policy" bash -c "codebuddy code --help 2>&1 | gr
 probe 17 "grep cwd|working-dir|directory" bash -c "codebuddy code --help 2>&1 | grep -iE 'cwd|working.?dir|directory|workspace'"
 
 # 17b: 实际尝试 --cwd 到临时目录
-TMPWS="/tmp/agentfirst-spike-a-$(date +%s)"
+TMPWS="/tmp/codebuddy-auto-spike-a-$(date +%s)"
 mkdir -p "$TMPWS"
 log ""
 log "--- PROBE 17b: run codebuddy in $TMPWS via --cwd if supported ---"

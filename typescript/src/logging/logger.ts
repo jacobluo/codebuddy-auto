@@ -35,7 +35,7 @@ export function createIssueLogger(
 
 export function createLogger() {
   return pino({
-    name: 'agentfirst-f1',
+    name: 'codebuddy-auto',
     level: process.env.LOG_LEVEL ?? 'info',
   });
 }

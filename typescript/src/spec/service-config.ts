@@ -112,7 +112,7 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
     intervalMs: 30_000,
   },
   workspace: {
-    root: '.agentfirst/workspaces',
+    root: '.codebuddy-auto/workspaces',
     mode: 'directory',
     sourceRoot: '.',
   },

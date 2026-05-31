@@ -72,7 +72,7 @@ afterEach(() => {
 });
 
 function createWorkspaceRoot(): string {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-continuation-'));
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-continuation-'));
   tempDirs.push(workspaceRoot);
   return workspaceRoot;
 }

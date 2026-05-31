@@ -29,7 +29,7 @@ function createGitRepo(prefix: string): string {
   execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
   execFileSync(
     'git',
-    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
     { cwd: dir, stdio: 'ignore' },
   );
   return dir;
@@ -37,7 +37,7 @@ function createGitRepo(prefix: string): string {
 
 describe('validatePreflight', () => {
   it('passes when required fields are present for directory workspace mode', () => {
-    const workspaceRoot = createTempDir('agentfirst-');
+    const workspaceRoot = createTempDir('codebuddy-auto-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -55,8 +55,8 @@ describe('validatePreflight', () => {
   });
 
   it('passes when git-worktree mode points at an external git repository', () => {
-    const workspaceRoot = createTempDir('agentfirst-workspaces-');
-    const sourceRoot = createGitRepo('agentfirst-source-');
+    const workspaceRoot = createTempDir('codebuddy-auto-workspaces-');
+    const sourceRoot = createGitRepo('codebuddy-auto-source-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -94,7 +94,7 @@ describe('validatePreflight', () => {
   });
 
   it('rejects git-worktree mode when sourceRoot is missing', () => {
-    const workspaceRoot = createTempDir('agentfirst-workspaces-');
+    const workspaceRoot = createTempDir('codebuddy-auto-workspaces-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -115,8 +115,8 @@ describe('validatePreflight', () => {
   });
 
   it('rejects git-worktree mode when sourceRoot is not a git repository', () => {
-    const workspaceRoot = createTempDir('agentfirst-workspaces-');
-    const sourceRoot = createTempDir('agentfirst-not-git-');
+    const workspaceRoot = createTempDir('codebuddy-auto-workspaces-');
+    const sourceRoot = createTempDir('codebuddy-auto-not-git-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -137,7 +137,7 @@ describe('validatePreflight', () => {
   });
 
   it('rejects git-worktree mode when workspace.root equals sourceRoot', () => {
-    const sourceRoot = createGitRepo('agentfirst-same-root-');
+    const sourceRoot = createGitRepo('codebuddy-auto-same-root-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -158,8 +158,8 @@ describe('validatePreflight', () => {
   });
 
   it('rejects git-worktree mode when workspace.root is inside sourceRoot', () => {
-    const sourceRoot = createGitRepo('agentfirst-nested-source-');
-    const workspaceRoot = path.join(sourceRoot, '.agentfirst-workspaces');
+    const sourceRoot = createGitRepo('codebuddy-auto-nested-source-');
+    const workspaceRoot = path.join(sourceRoot, '.codebuddy-auto-workspaces');
     fs.mkdirSync(workspaceRoot, { recursive: true });
 
     const result = validatePreflight({
@@ -181,7 +181,7 @@ describe('validatePreflight', () => {
   });
 
   it('rejects git-worktree mode when sourceRoot is inside workspace.root', () => {
-    const workspaceRoot = createTempDir('agentfirst-parent-workspaces-');
+    const workspaceRoot = createTempDir('codebuddy-auto-parent-workspaces-');
     const sourceRoot = path.join(workspaceRoot, 'repo-source');
     fs.mkdirSync(sourceRoot, { recursive: true });
     fs.writeFileSync(path.join(sourceRoot, 'README.md'), 'seed\n', 'utf8');
@@ -189,7 +189,7 @@ describe('validatePreflight', () => {
     execFileSync('git', ['add', 'README.md'], { cwd: sourceRoot, stdio: 'ignore' });
     execFileSync(
       'git',
-      ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+      ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
       { cwd: sourceRoot, stdio: 'ignore' },
     );
 
@@ -212,7 +212,7 @@ describe('validatePreflight', () => {
   });
 
   it('rejects ssh worker mode when ssh host is missing', () => {
-    const workspaceRoot = createTempDir('agentfirst-ssh-workspace-');
+    const workspaceRoot = createTempDir('codebuddy-auto-ssh-workspace-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -235,7 +235,7 @@ describe('validatePreflight', () => {
   });
 
   it('does not require codebuddy.command for local worker (SDK mode)', () => {
-    const workspaceRoot = createTempDir('agentfirst-local-cmdless-');
+    const workspaceRoot = createTempDir('codebuddy-auto-local-cmdless-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,
@@ -258,7 +258,7 @@ describe('validatePreflight', () => {
   });
 
   it('requires codebuddy.command when ssh worker is selected', () => {
-    const workspaceRoot = createTempDir('agentfirst-ssh-cmdless-');
+    const workspaceRoot = createTempDir('codebuddy-auto-ssh-cmdless-');
 
     const result = validatePreflight({
       ...DEFAULT_SERVICE_CONFIG,

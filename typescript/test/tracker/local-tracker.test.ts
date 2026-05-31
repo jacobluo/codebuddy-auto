@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function createIssueDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-local-tracker-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-local-tracker-'));
   tempDirs.push(dir);
   return dir;
 }

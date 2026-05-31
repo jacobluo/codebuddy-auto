@@ -10,7 +10,7 @@ describe('loadServiceConfig', () => {
 
     expect(config.tracker.kind).toBe('cnb');
     expect(config.polling.intervalMs).toBe(30_000);
-    expect(config.workspace.root).toBe(path.resolve('/tmp/project', '.agentfirst/workspaces'));
+    expect(config.workspace.root).toBe(path.resolve('/tmp/project', '.codebuddy-auto/workspaces'));
     expect(config.workspace.mode).toBe('directory');
     expect(config.workspace.sourceRoot).toBe(path.resolve('/tmp/project'));
     expect(config.worker.kind).toBe('local');
@@ -114,7 +114,7 @@ body
   it('expands home-prefixed workspace roots', () => {
     const workflow = `---
 workspace:
-  root: ~/agentfirst
+  root: ~/codebuddy-auto
 ---
 body
 `;
@@ -123,7 +123,7 @@ body
       HOME: '/Users/tester',
     });
 
-    expect(config.workspace.root).toBe('/Users/tester/agentfirst');
+    expect(config.workspace.root).toBe('/Users/tester/codebuddy-auto');
     expect(config.workspace.sourceRoot).toBe('/repo');
   });
 

@@ -35,7 +35,7 @@ PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:${PATH:-}"
 export PATH
 
 OUT="tmp/spike-b-raw-output.txt"
-REPO="relaxorg/agentfirst-f1"
+REPO="relaxorg/codebuddy-auto"
 TOKEN=""
 KEEP_FIXTURES=1  # 默认保留测试 issue；便于回归运行
 

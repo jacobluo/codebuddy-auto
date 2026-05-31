@@ -279,7 +279,7 @@ const child = spawn('codebuddy', args, {
   "uuid": "a08deffe-bb82-42b7-879c-66032806f4ad",
   "session_id": "a08deffe-bb82-42b7-879c-66032806f4ad",
   "apiKeySource": "copilot.tencent.com",
-  "cwd": "/Users/robiluo/aicoding/agentfirst-f1",
+  "cwd": "/Users/robiluo/aicoding/codebuddy-auto",
   "tools": ["mcp__...", "...众多内置工具..."],
   "mcp_servers": [ { "name":"...", "status":"connected" }, ... ],
   "model": "claude-opus-4.7-1m",

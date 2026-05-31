@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 function createWorkflow(contents: string): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-cli-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-cli-'));
   tempDirs.push(dir);
   const workflowPath = path.join(dir, 'WORKFLOW.md');
   fs.writeFileSync(workflowPath, contents);
@@ -45,17 +45,17 @@ describe('runCli', () => {
       '',
     ].join('\n'));
 
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--check'])).resolves.toBe(0);
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--check'])).resolves.toBe(0);
   });
 
   it('returns 1 when the workflow is missing', async () => {
-    await expect(runCli(['node', 'agentfirst-f1', '/missing/WORKFLOW.md', '--check'])).resolves.toBe(1);
+    await expect(runCli(['node', 'codebuddy-auto', '/missing/WORKFLOW.md', '--check'])).resolves.toBe(1);
   });
 
   it('rejects incompatible check and daemon flags before loading the workflow', async () => {
     const createWorkflowRuntimeSource = vi.fn();
 
-    await expect(runCli(['node', 'agentfirst-f1', 'WORKFLOW.md', '--check', '--daemon'], {
+    await expect(runCli(['node', 'codebuddy-auto', 'WORKFLOW.md', '--check', '--daemon'], {
       createWorkflowRuntimeSource,
     })).resolves.toBe(1);
 
@@ -87,7 +87,7 @@ describe('runCli', () => {
       claimedIssueIds: [],
     });
 
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath])).resolves.toBe(0);
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath])).resolves.toBe(0);
 
     expect(runDispatchCycleSpy).toHaveBeenCalledTimes(1);
     const promptTemplate = (runDispatchCycleSpy.mock.calls[0] as unknown[] | undefined)?.[3];
@@ -112,7 +112,7 @@ describe('runCli', () => {
     const waitForShutdownSignal = vi.fn(async () => undefined);
 
     await expect(
-      runCli(['node', 'agentfirst-f1', workflowPath, '--daemon'], {
+      runCli(['node', 'codebuddy-auto', workflowPath, '--daemon'], {
         startScheduler,
         waitForShutdownSignal,
       }),
@@ -177,7 +177,7 @@ describe('runCli', () => {
     });
 
     await expect(
-      runCli(['node', 'agentfirst-f1', workflowPath, '--daemon'], {
+      runCli(['node', 'codebuddy-auto', workflowPath, '--daemon'], {
         createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
         startScheduler,
         startStatusServer,
@@ -209,7 +209,7 @@ describe('runCli', () => {
     ].join('\n'));
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--status'])).resolves.toBe(0);
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--status'])).resolves.toBe(0);
 
     expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('counts: running=0 retrying=0 claimed=0 completed=0'));
     stdoutWrite.mockRestore();
@@ -254,7 +254,7 @@ describe('runCli', () => {
       })),
     };
 
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--check', '--reload'], {
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--check', '--reload'], {
       createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
     })).resolves.toBe(0);
 
@@ -312,7 +312,7 @@ describe('runCli', () => {
       };
     });
 
-    await expect(runCli(['node', 'agentfirst-f1', workflowPath, '--daemon', '--reload'], {
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--daemon', '--reload'], {
       createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
       startScheduler,
       waitForShutdownSignal: vi.fn(async () => undefined),

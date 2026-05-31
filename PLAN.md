@@ -1,6 +1,6 @@
-# PLAN.md — agentfirst-f1 项目计划
+# PLAN.md 项目计划
 
-> **状态**：M0 / M1 / M2 / M3 已完成；PLAN 正在继续补齐正式契约章节。本文件是 agentfirst-f1 的**项目计划 + 契约主干**，
+> **状态**：M0 / M1 / M2 / M3 已完成；PLAN 正在继续补齐正式契约章节。本文件是 codebuddy-auto 的**项目计划 + 契约主干**，
 > 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
 >
 > 章节完成后把 ⚪ 改为 🟢。
@@ -43,7 +43,7 @@
 
 | 章节 | 状态 | 范围 |
 |---|---|---|
-| `§1` Problem Statement / Project Positioning | 🟢 | 定义 agentfirst-f1 解决的问题、与 Symphony 的对位关系、handoff 边界 |
+| `§1` Problem Statement / Project Positioning | 🟢 | 定义 codebuddy-auto 解决的问题、与 Symphony 的对位关系、handoff 边界 |
 | `§2` System Overview | 🟢 | 组件分层、依赖方向、外部依赖、运行时边界 |
 | `§3` State Schema | 🟢 | `Issue / WorkflowDefinition / Workspace / RunAttempt / RetryEntry / RuntimeState` |
 | `§4` Tracker Integration Contract | 🟢 | `CNBTracker / LocalTracker` 抽象、归一化、错误面、读写边界 |
@@ -67,7 +67,7 @@
 
 **状态**：🟢 已起草
 
-- `agentfirst-f1` 的目标不是复刻 Symphony 的具体后端实现，而是在本地 Node.js 环境中提供一套与其调度语义对齐的参考实现。
+- `codebuddy-auto` 的目标不是复刻 Symphony 的具体后端实现，而是在本地 Node.js 环境中提供一套与其调度语义对齐的参考实现。
 - 本项目要解决的问题固定为：持续读取 tracker issue、为每个 issue 创建隔离工作目录、驱动 CodeBuddy CLI 执行多轮 coding turn、维护 retry / reconciliation / cleanup，并对外暴露最小运行态观察面。
 - 与上游 Symphony 的等价替换关系固定为：`Linear -> cnb.cool`、`Codex app-server -> CodeBuddy Code CLI`、`Elixir/OTP orchestration -> Node subprocess orchestration`。
 - 本项目的 handoff 边界固定在“把一个 issue 从可派发状态推进到 workflow 所定义的 handoff state”。handoff state 可以是 tracker 的终态，也可以是“等待人工 review / 等待外部合入”等中间态，不强制等于 `Done`。

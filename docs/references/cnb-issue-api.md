@@ -5,7 +5,7 @@
 > **采集日期**: 2026-05-01
 > **采集工具**: `scripts/spike-b-probe.sh`（可回归运行）
 > **原始数据**: `tmp/spike-b-raw-output.txt`（506 行，21 个 HTTP 响应头 + 响应体）
-> **测试仓库**: `relaxorg/agentfirst-f1`（本项目自身）；测试 fixture（3 个 issue + 2 个 label）留在仓库供后续回归复用
+> **测试仓库**: `relaxorg/codebuddy-auto`（本项目自身）；测试 fixture（3 个 issue + 2 个 label）留在仓库供后续回归复用
 
 ---
 
@@ -86,7 +86,7 @@ Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提
 ### §2.1 Auth & basics
 
 - ✅ **2.1.1** 认证：`Authorization: Bearer <token>`。Token 从 cnb 个人设置 "访问令牌" 生成；也复用于 git HTTPS（用户名固定 `cnb`，密码 = token）
-- ✅ **2.1.2** 最小调用：`GET /user` → 200；`GET /relaxorg/agentfirst-f1/-/issues?page=1&page_size=5` → 200 `[]`
+- ✅ **2.1.2** 最小调用：`GET /user` → 200；`GET /relaxorg/codebuddy-auto/-/issues?page=1&page_size=5` → 200 `[]`
 - 🟡 **2.1.3** Rate limit：**未暴露 `X-RateLimit-*` header**。串行 20 次 `/issues` 无限流痕迹（全部 200，平均 85ms）。具体阈值需线上观察或联系 cnb 支持
 - ✅ **2.1.4** 文档：https://docs.cnb.build/zh/develops/openapi.html （入门） + https://api.cnb.cool/ （交互式）
 
@@ -145,7 +145,7 @@ Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提
 class CnbTracker implements Tracker {
   constructor(
     private readonly apiBase: string,   // "https://api.cnb.cool"
-    private readonly repo: string,      // "relaxorg/agentfirst-f1"
+    private readonly repo: string,      // "relaxorg/codebuddy-auto"
     private readonly token: string,     // Bearer
     private readonly candidateLabel: string = 'agent-ready',
     private readonly excludeLabel: string = 'skip-agent',
@@ -218,7 +218,7 @@ class CnbTracker implements Tracker {
       "args": ["dist/mcp/cnb-api-server.js"],
       "env": {
         "CNB_TOKEN": "...",
-        "CNB_REPO": "relaxorg/agentfirst-f1"
+        "CNB_REPO": "relaxorg/codebuddy-auto"
       }
     }
   }
@@ -323,7 +323,7 @@ $ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
 
 ```bash
 $ curl -sS -D - -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-    "https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues?labels=agent-ready&state=open"
+    "https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues?labels=agent-ready&state=open"
 # →
 HTTP/2 200
 x-cnb-page: 1
@@ -361,7 +361,7 @@ x-cnb-total: 2
 
 ```bash
 $ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/1
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/1
 # →
 {
   "number": "1",
@@ -399,33 +399,33 @@ $ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
 $ curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
     -H "Accept: application/json" -H "Content-Type: application/json" \
     -d '{"body":"spike-b: probe comment"}' \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/1/comments
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/1/comments
 # → 201 { "id":"...", "body":"...", "author":{...}, "created_at":"..." }
 
 # Add labels
 $ curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
     -H "Accept: application/json" -H "Content-Type: application/json" \
     -d '{"labels":["agent-ready","skip-agent"]}' \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/3/labels
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/3/labels
 # → 200 [ {name:"agent-ready",...}, {name:"skip-agent",...} ]
 
 # Remove a label
 $ curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/1/labels/skip-agent
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/1/labels/skip-agent
 # → 200 [ ...remaining labels... ]
 
 # Close (vnd accept + state+reason pair)
 $ curl -sS -X PATCH -H "Authorization: Bearer $TOKEN" \
     -H "Accept: application/vnd.cnb.api+json" -H "Content-Type: application/json" \
     -d '{"state":"closed","state_reason":"completed"}' \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/3
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/3
 # → 200 { ... state:"closed", state_reason:"completed" ... }
 
 # Assignee
 $ curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
     -H "Accept: application/vnd.cnb.api+json" -H "Content-Type: application/json" \
     -d '{"assignees":["cnb.robiluo"]}' \
-    https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues/3/assignees
+    https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues/3/assignees
 # → 201 { ...issue with assignees populated... }
 ```
 
@@ -433,7 +433,7 @@ $ curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 $ curl -sS -H "Authorization: Bearer $TOKEN" \
-    "https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues?state=all"
+    "https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues?state=all"
 # → HTTP/2 400
 {"errcode":400,"errmsg":"bad request"}
 ```
@@ -443,7 +443,7 @@ $ curl -sS -H "Authorization: Bearer $TOKEN" \
 ```bash
 # 即使 repo 有 3 个 issue，numbers=1,2,3 参数也完全被忽略（返回全量 3 条）
 $ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-    "https://api.cnb.cool/relaxorg/agentfirst-f1/-/issues?numbers=1,2,3" \
+    "https://api.cnb.cool/relaxorg/codebuddy-auto/-/issues?numbers=1,2,3" \
   | jq length
 # → 3（而非按 id 过滤的结果）
 ```

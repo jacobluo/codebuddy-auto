@@ -1,7 +1,7 @@
 # Symphony 解读与借鉴清单
 
 > 整理自 2026-04-30 对 `github.com/openai/symphony` 的调研。
-> 本文件是 agentfirst-f1 起草 `PLAN.md` 和 `typescript/` 实现的**输入材料**，不是项目产出本身。
+> 本文件是 codebuddy-auto 起草 `PLAN.md` 和 `typescript/` 实现的**输入材料**，不是项目产出本身。
 >
 > **2026-05-27 修订**：`PLAN.md` 已完成正式章节主线，`typescript/` 已完成 M1 ~ M4 主线；本文件保留为“为何这样设计”的参考索引。
 
@@ -25,7 +25,7 @@ symphony/
     └── mix.exs
 ```
 
-官方明确鼓励"用任何语言按 SPEC 自己实现一份"，agentfirst-f1 就是这个方向的 TypeScript 版。
+官方明确鼓励"用任何语言按 SPEC 自己实现一份"，codebuddy-auto 就是这个方向的 TypeScript 版。
 
 ---
 
@@ -39,9 +39,9 @@ symphony/
 6. 提供 `linear_graphql` 工具让 agent 自行更新 ticket
 7. issue 进入终态（Done / Closed / Cancelled / Duplicate）时停 agent + 清 workspace
 
-**agentfirst-f1 的策略**：
+**codebuddy-auto 的策略**：
 
-| Symphony | agentfirst-f1 |
+| Symphony | codebuddy-auto |
 |---|---|
 | Linear API 轮询 | **cnb.cool git issue**（主 backend）+ 本地目录（fallback，用于测试） |
 | Codex app-server（stdio 子进程） | **CodeBuddy Code CLI（stdio 子进程）** ← 同构，不是降维 |
@@ -131,7 +131,7 @@ symphony/
 - **落点**：`PLAN.md` `§13 Logging / Status / Observability`
 
 #### 15. 架构/产品层的等价替代
-| Symphony 特性 | agentfirst-f1 的处置 |
+| Symphony 特性 | codebuddy-auto 的处置 |
 |---|---|
 | Elixir/OTP + BEAM 监督树 | 以 Node 子进程 + 心跳 + 崩溃重启作为语义等价实现（`PLAN.md` `§14`） |
 | Linear API + linear_graphql 工具 | 永不接入；用 cnb.cool git issue + `cnb_api` 工具等价替代（`PLAN.md` `§4`） |
@@ -195,5 +195,5 @@ other_message         malformed
 因此本文件现在的用途是：
 
 - 解释为什么 `PLAN.md` 这样组织
-- 记录 Symphony → agentfirst-f1 的等价替换思路
+- 记录 Symphony → codebuddy-auto 的等价替换思路
 - 作为后续增量扩展时的设计背景材料

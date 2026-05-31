@@ -35,7 +35,7 @@ function makeIssue(): Issue {
 
 describe('createRunAttempt', () => {
   it('creates a workspace-backed run attempt context', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-run-attempt-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-run-attempt-'));
     tempDirs.push(root);
 
     const attempt = await createRunAttempt(makeIssue(), root);
@@ -49,7 +49,7 @@ describe('createRunAttempt', () => {
   });
 
   it('passes hook config through to workspace creation', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-run-attempt-hook-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-run-attempt-hook-'));
     tempDirs.push(root);
     const markerPath = path.join(root, 'created.txt');
 

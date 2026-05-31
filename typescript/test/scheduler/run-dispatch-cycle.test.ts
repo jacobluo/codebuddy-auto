@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 function createTrackerRoot(): string {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-scheduler-'));
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-scheduler-'));
   const trackerRoot = path.join(workspaceRoot, '.tracker');
   fs.mkdirSync(trackerRoot, { recursive: true });
   tempDirs.push(workspaceRoot);

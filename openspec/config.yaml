@@ -2,11 +2,11 @@ schema: spec-driven
 
 # Project context (shown to AI when creating artifacts)
 context: |
-  agentfirst-f1 is a TypeScript reference implementation of the OpenAI Symphony
+  codebuddy-auto is a TypeScript reference implementation of the OpenAI Symphony
   specification (docs/references/symphony-spec.md). Core constraints:
 
   - Language: TypeScript + Node.js 20 LTS + pnpm
-  - Agent execution: CodeBuddy Code CLI subprocess (NOT SDK in-process)
+  - Agent execution: CodeBuddy Agent SDK (`@tencent-ai/agent-sdk`, in-process); CLI subprocess retained only as SSH worker fallback
   - Primary tracker backend: cnb.cool (pluggable; TAPD / GitHub / Linear are future backends)
   - Contract alignment: PLAN.md now follows the full Symphony SPEC chapter mainline (`§1 ~ §18 + Appendix A`)
   - Naming: Symphony codex_* fields are renamed to codebuddy_* in this project where applicable

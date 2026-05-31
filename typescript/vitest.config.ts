@@ -5,7 +5,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/.agentfirst/**',
+      '**/.codebuddy-auto/**',
       '**/coverage/**',
       '**/.git/**',
     ],

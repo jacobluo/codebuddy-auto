@@ -33,7 +33,7 @@ function renderDashboardHtml(config: ServiceConfig): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentfirst-f1 dashboard</title>
+<title>codebuddy-auto dashboard</title>
 <style>
 :root { color-scheme: light; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f3efe6; color: #1b1b1b; }
 body { margin: 0; background: radial-gradient(circle at top left, #f8d9a0, #f3efe6 45%, #d7e6de 100%); min-height: 100vh; }
@@ -88,7 +88,7 @@ button { border: 0; background: #1b1b1b; color: #fff; padding: 8px 14px; cursor:
 </head>
 <body>
 <main>
-<h1>agentfirst-f1 dashboard</h1>
+<h1>codebuddy-auto dashboard</h1>
 <p class="subtitle">Real-time agent orchestration · SSE live events</p>
 <div class="config-bar">
   ${repoUrl ? `<span>Repo: <a href="${repoUrl}" target="_blank">${config.tracker.projectSlug}</a></span><span class="sep">|</span>` : ''}

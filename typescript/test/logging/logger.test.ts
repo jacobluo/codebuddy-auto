@@ -6,7 +6,7 @@ describe('createLogger', () => {
   it('creates a named pino logger', () => {
     const logger = createLogger();
 
-    expect(logger.bindings().name).toBe('agentfirst-f1');
+    expect(logger.bindings().name).toBe('codebuddy-auto');
   });
 
   it('adds structured runtime fields through child loggers', () => {
@@ -21,7 +21,7 @@ describe('createLogger', () => {
       issueId: '1',
       issueIdentifier: '#1',
       sessionId: '1-turn-1',
-      name: 'agentfirst-f1',
+      name: 'codebuddy-auto',
     });
   });
 
@@ -39,7 +39,7 @@ describe('createLogger', () => {
       issueIdentifier: '#2',
       sessionId: 'session-2',
       turnCount: 3,
-      name: 'agentfirst-f1',
+      name: 'codebuddy-auto',
     });
   });
 

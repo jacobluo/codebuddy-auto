@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function createWorkspaceRoot(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentfirst-startup-cleanup-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-startup-cleanup-'));
   tempDirs.push(dir);
   return dir;
 }
@@ -31,7 +31,7 @@ function createGitRepo(): string {
   execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
   execFileSync(
     'git',
-    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
     { cwd: dir, stdio: 'ignore' },
   );
   return dir;

@@ -23,13 +23,13 @@ function createTempRoot(prefix: string): string {
 }
 
 function createGitRepo(): string {
-  const dir = createTempRoot('agentfirst-worktree-source-');
+  const dir = createTempRoot('codebuddy-auto-worktree-source-');
   fs.writeFileSync(path.join(dir, 'README.md'), 'seed\n', 'utf8');
   execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
   execFileSync('git', ['add', 'README.md'], { cwd: dir, stdio: 'ignore' });
   execFileSync(
     'git',
-    ['-c', 'user.name=agentfirst', '-c', 'user.email=agentfirst@example.com', 'commit', '-m', 'init'],
+    ['-c', 'user.name=codebuddy-auto', '-c', 'user.email=codebuddy-auto@example.com', 'commit', '-m', 'init'],
     { cwd: dir, stdio: 'ignore' },
   );
   return dir;
@@ -37,7 +37,7 @@ function createGitRepo(): string {
 
 describe('ensureWorkspace', () => {
   it('creates a workspace on first use', async () => {
-    const root = createTempRoot('agentfirst-workspace-');
+    const root = createTempRoot('codebuddy-auto-workspace-');
 
     const workspace = await ensureWorkspace(root, 'ABC-123');
 
@@ -46,7 +46,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('reuses an existing workspace', async () => {
-    const root = createTempRoot('agentfirst-workspace-');
+    const root = createTempRoot('codebuddy-auto-workspace-');
     const workspacePath = path.join(root, 'ABC-123');
     fs.mkdirSync(workspacePath);
 
@@ -56,7 +56,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('runs afterCreate hooks when a workspace is first created', async () => {
-    const root = createTempRoot('agentfirst-workspace-');
+    const root = createTempRoot('codebuddy-auto-workspace-');
     const markerPath = path.join(root, 'hook-created.txt');
 
     const workspace = await ensureWorkspace(root, 'ABC-123', {
@@ -71,7 +71,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('fails workspace creation when the afterCreate hook fails', async () => {
-    const root = createTempRoot('agentfirst-workspace-');
+    const root = createTempRoot('codebuddy-auto-workspace-');
 
     await expect(
       ensureWorkspace(root, 'ABC-123', {
@@ -85,7 +85,7 @@ describe('ensureWorkspace', () => {
 
 
   it('rolls back a directory workspace when the afterCreate hook fails', async () => {
-    const root = createTempRoot('agentfirst-workspace-');
+    const root = createTempRoot('codebuddy-auto-workspace-');
     const workspacePath = path.join(root, 'ABC-123');
 
     await expect(
@@ -101,7 +101,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('rolls back a git worktree when the afterCreate hook fails', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-worktree-root-');
     const sourceRoot = createGitRepo();
     const workspacePath = path.join(workspaceRoot, '_rollback');
     const config = {
@@ -126,7 +126,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('creates and reuses git worktrees when configured', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-worktree-root-');
     const sourceRoot = createGitRepo();
     const config = {
       hooks: DEFAULT_SERVICE_CONFIG.hooks,
@@ -147,7 +147,7 @@ describe('ensureWorkspace', () => {
   });
 
   it('recreates a git worktree after the directory is deleted out of band', async () => {
-    const workspaceRoot = createTempRoot('agentfirst-worktree-root-');
+    const workspaceRoot = createTempRoot('codebuddy-auto-worktree-root-');
     const sourceRoot = createGitRepo();
     const config = {
       hooks: DEFAULT_SERVICE_CONFIG.hooks,

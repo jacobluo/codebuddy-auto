@@ -9,7 +9,7 @@ tracker:
 polling:
   interval_ms: 30000
 workspace:
-  root: ./.agentfirst/workspaces
+  root: ./.codebuddy-auto/workspaces
   mode: directory
   source_root: .
 hooks:
