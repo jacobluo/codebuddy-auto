@@ -54,3 +54,26 @@ Constraints:
 - Work only inside the assigned workspace.
 - Do not change unrelated files.
 - If the issue is blocked or ambiguous, explain the blocker clearly in your final response.
+
+<!--
+Optional: enforce a "commit + PR + agent-finish" handoff.
+Replace `your-org/your-repo` and the target branch as needed.
+
+- After implementation is verified, commit and push to a feature branch
+  named `fix/issue-{{ issue.id }}`.
+- Create a Pull Request:
+    cnb pulls post-pull \
+      --repo your-org/your-repo \
+      --head "fix/issue-{{ issue.id }}" \
+      --base main \
+      --title "fix: {{ issue.title }}" \
+      --body "Closes #{{ issue.id }}"
+- After the PR is created successfully, add the finish label:
+    cnb issues post-issue-labels \
+      --repo your-org/your-repo \
+      --number {{ issue.id }} \
+      --labels agent-finish
+
+cnb API: `--head` = source branch, `--base` = target branch.
+A non-zero cnb CLI exit is a hard failure — do NOT add agent-finish in that case.
+-->
