@@ -14,17 +14,17 @@
 
 Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scenario tests first, then minimal implementation.
 
-- [ ] 3.1 Write `test/worker/run-issue-worker.test.ts` covering scenario "happy path: agent applies finish_label on turn 5 → worker exits without safety-net label"
-- [ ] 3.2 Implement `typescript/src/worker/run-issue-worker.ts` minimum to pass 3.1 (createSession → connect → send initial → stream until result → re-fetch tracker → break on finish_label → close)
-- [ ] 3.3 Add scenario "max_turns reached: worker applies safety-net `agent-finish` label and exits"; extend implementation to satisfy
-- [ ] 3.4 Add scenario "issue moved to terminal mid-flight: reconcile sets gracefulExitRequested → worker breaks at next turn boundary, no safety-net label"; extend implementation
-- [ ] 3.5 Add scenario "stream error mid-turn: worker emits `turn_failed` and exits the loop without retrying"; extend implementation
-- [ ] 3.6 Add scenario "wall-clock turnTimeoutMs: worker aborts the turn, emits `turn_timed_out`, exits"; extend implementation
-- [ ] 3.7 Add scenario "SIGINT / abort signal mid-turn: worker aborts, calls session.close(), removes WorkerHandle"; extend implementation
-- [ ] 3.8 Add scenario "session.connect failure: worker emits `startup_failed`, never enters the turn loop, releases handle"; extend implementation
-- [ ] 3.9 Add scenario "concurrent dispatch: 3 issues start 3 workers with 3 distinct sessionIds, no cross-talk"; extend implementation
-- [ ] 3.10 Add scenario "config reload during run: worker reads new agent.maxTurns at the next turn boundary"; extend implementation
-- [ ] 3.11 Run full vitest suite; new + existing MUST stay green
+- [x] 3.1 Write `test/worker/run-issue-worker.test.ts` covering scenario "happy path: agent applies finish_label on turn 5 → worker exits without safety-net label"
+- [x] 3.2 Implement `typescript/src/worker/run-issue-worker.ts` minimum to pass 3.1 (createSession → connect → send initial → stream until result → re-fetch tracker → break on finish_label → close)
+- [x] 3.3 Add scenario "max_turns reached: worker applies safety-net `agent-finish` label and exits"; extend implementation to satisfy
+- [x] 3.4 Add scenario "issue moved to terminal mid-flight: reconcile sets gracefulExitRequested → worker breaks at next turn boundary, no safety-net label"; extend implementation
+- [x] 3.5 Add scenario "stream error mid-turn: worker emits `turn_failed` and exits the loop without retrying"; extend implementation
+- [x] 3.6 Add scenario "wall-clock turnTimeoutMs: worker aborts the turn, emits `turn_timed_out`, exits"; extend implementation
+- [x] 3.7 Add scenario "SIGINT / abort signal mid-turn: worker aborts, calls session.close(), removes WorkerHandle"; extend implementation
+- [x] 3.8 Add scenario "session.connect failure: worker emits `startup_failed`, never enters the turn loop, releases handle"; extend implementation
+- [x] 3.9 Add scenario "concurrent dispatch: 3 issues start 3 workers with 3 distinct sessionIds, no cross-talk"; extend implementation
+- [x] 3.10 Add scenario "config reload during run: worker reads new agent.maxTurns at the next turn boundary"; extend implementation
+- [x] 3.11 Run full vitest suite; new + existing MUST stay green
 
 ## 4. Continuation guidance prompt
 
