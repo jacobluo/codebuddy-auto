@@ -100,13 +100,27 @@ export interface RunIssueWorkerInput extends IssueWorkerDeps {
   getConfig?: () => ServiceConfig;
 }
 
-const CONTINUATION_GUIDANCE = [
+export const CONTINUATION_GUIDANCE = [
   'This is continuation turn {{ turnCount }} for the same issue. The full',
   'task prompt and Goals/Constraints from the first turn are still in this',
   'conversation history. Keep going until ALL of those goals are met. Do not',
   'respond with "done" until every goal has been verified. If a goal is',
   'blocked, explain the blocker explicitly.',
 ].join(' ');
+
+/**
+ * Suffix appended to the rendered task prompt on turn 1 only. Reinforces
+ * that `turn_completed` is a checkpoint, not a finish line — the empirical
+ * anti-pattern we observed under per-turn `query()` was the agent treating
+ * each turn as a self-contained ask. See design Decision §5.
+ */
+export const INITIAL_PROMPT_SUFFIX = [
+  '\n\n---',
+  'This is a multi-turn session. Treat `turn_completed` as a checkpoint,',
+  'not a finish line. The session ends only when you have completed every',
+  'goal in the prompt above (commit, push, open the PR, add the agent-finish',
+  'label). Do not stop early.',
+].join('\n');
 
 function renderContinuation(turnCount: number): string {
   return CONTINUATION_GUIDANCE.replace('{{ turnCount }}', String(turnCount));
@@ -199,7 +213,10 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
     sessionIdForResult = session.sessionId ?? null;
     handle.sessionId = sessionIdForResult;
 
-    const initialPrompt = input.initialPrompt ?? `Work on ${input.issue.identifier}: ${input.issue.title}.`;
+    const baseInitialPrompt = input.initialPrompt
+      ?? `Work on ${input.issue.identifier}: ${input.issue.title}.`;
+    // Always append the multi-turn reinforcement suffix.
+    const initialPrompt = `${baseInitialPrompt}${INITIAL_PROMPT_SUFFIX}`;
 
     const liveConfig = (): ServiceConfig => (input.getConfig ? input.getConfig() : input.config);
 

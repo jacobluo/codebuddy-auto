@@ -625,3 +625,52 @@ describe('runIssueWorker — config reload (3.10)', () => {
     expect(store.get(issue.id)).toBeUndefined();
   });
 });
+
+describe('runIssueWorker — prompt template (4.2 + 4.3)', () => {
+  it('initial prompt is sent verbatim with the checkpoint reminder appended; continuation guidance is sent on turn 2 and does NOT contain the original prompt', async () => {
+    const issue = makeIssue();
+    const config = makeConfig({ maxTurns: 20 });
+    const store = createWorkerHandleStore();
+
+    const trackerHelper = makeTracker({
+      stateSequence: [
+        { state: 'open', labels: ['agent-ready'] }, // after turn 1
+        { state: 'open', labels: ['agent-ready', 'agent-finish'] }, // after turn 2 → exit
+      ],
+    });
+
+    const fake = createFakeSdk({
+      sessionId: 'sess-prompt',
+      turns: [
+        { messages: [systemInit('sess-prompt'), assistantText('sess-prompt', 'turn1'), resultSuccess('sess-prompt')] },
+        { messages: [assistantText('sess-prompt', 'turn2'), resultSuccess('sess-prompt')] },
+      ],
+    });
+
+    const initialPrompt = 'You are working on #6: 调整 README. Goals: commit, push, PR, agent-finish.';
+
+    await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config,
+      tracker: trackerHelper.tracker,
+      handleStore: store,
+      createSession: (opts) => fake.createSession(opts),
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+      initialPrompt,
+    });
+
+    const sent = fake.sessions[0]!.sentMessages;
+    expect(sent).toHaveLength(2);
+
+    // Turn 1: full task prompt + suffix
+    expect(sent[0]).toContain(initialPrompt);
+    expect(sent[0]).toContain('turn_completed');
+    expect(sent[0]).toContain('checkpoint');
+
+    // Turn 2: continuation guidance only — task prompt MUST NOT be resent
+    expect(sent[1]).not.toContain(initialPrompt);
+    expect(sent[1]).toMatch(/continuation turn 2/);
+    expect(sent[1]).toMatch(/Keep going until ALL of those goals are met/);
+  });
+});

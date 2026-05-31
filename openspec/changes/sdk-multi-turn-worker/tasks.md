@@ -28,9 +28,9 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 4. Continuation guidance prompt
 
-- [ ] 4.1 In `typescript/src/worker/run-issue-worker.ts`, replace the inline continuation guidance with the new template (see design Decision 5). Inject via a local constant
-- [ ] 4.2 Add a unit test that asserts the continuation `send` argument matches the new template AND does NOT include the original task prompt
-- [ ] 4.3 Update the initial prompt path to append the "turn_completed is a checkpoint, not a finish line" reminder used in design §5
+- [x] 4.1 In `typescript/src/worker/run-issue-worker.ts`, replace the inline continuation guidance with the new template (see design Decision 5). Inject via a local constant
+- [x] 4.2 Add a unit test that asserts the continuation `send` argument matches the new template AND does NOT include the original task prompt
+- [x] 4.3 Update the initial prompt path to append the "turn_completed is a checkpoint, not a finish line" reminder used in design §5
 
 ## 5. Scheduler routing
 
