@@ -67,7 +67,7 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 10. Pre-archive verification
 
-- [ ] 10.1 Run `superpowers:verification-before-completion` on the full change set
-- [ ] 10.2 Run `superpowers:requesting-code-review` (project asks for code-reviewer pre-archive); fix findings or document why deferred
-- [ ] 10.3 Confirm `openspec status --change sdk-multi-turn-worker` shows all artifacts done and `tasks.md` checkboxes all checked
+- [x] 10.1 Run `superpowers:verification-before-completion` on the full change set
+- [x] 10.2 Run `superpowers:requesting-code-review` (project asks for code-reviewer pre-archive); fix findings or document why deferred
+- [x] 10.3 Confirm `openspec status --change sdk-multi-turn-worker` shows all artifacts done and `tasks.md` checkboxes all checked
 - [ ] 10.4 Use `superpowers:finishing-a-development-branch` to land the worktree (PR or merge), then `/opsx:archive` the change
