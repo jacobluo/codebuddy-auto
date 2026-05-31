@@ -1,14 +1,14 @@
 ## 1. Spec types and worker handle store
 
-- [ ] 1.1 Add `WorkerHandle` interface and `runners: Record<issueId, WorkerHandle>` field to `typescript/src/spec/runtime-state.ts` (and matching zod schema if applicable)
-- [ ] 1.2 Write `test/worker/worker-handle-store.test.ts` covering register / get / list / release / requestGracefulExit
-- [ ] 1.3 Implement `typescript/src/worker/worker-handle-store.ts` to satisfy 1.2
-- [ ] 1.4 Re-run `pnpm test` for the new file; baseline (38 files / 194 tests) MUST stay green
+- [x] 1.1 Add `WorkerHandle` interface and `runners: Record<issueId, WorkerHandle>` field to `typescript/src/spec/runtime-state.ts` (and matching zod schema if applicable)
+- [x] 1.2 Write `test/worker/worker-handle-store.test.ts` covering register / get / list / release / requestGracefulExit
+- [x] 1.3 Implement `typescript/src/worker/worker-handle-store.ts` to satisfy 1.2
+- [x] 1.4 Re-run `pnpm test` for the new file; baseline (38 files / 194 tests) MUST stay green
 
 ## 2. FakeSdk test harness
 
-- [ ] 2.1 Write `test/worker/fake-sdk.ts` exposing `createFakeSdk(plan: ScenarioPlan)`. The fake's `Session` SHALL implement `connect / send / stream / close / sessionId` and emit messages exactly as a `ScenarioPlan` describes (including `result` boundaries, `is_error`, `assistant tool_use` blocks, and stream errors)
-- [ ] 2.2 Write a smoke test in `test/worker/fake-sdk.test.ts` that drives the fake through one happy turn and asserts the message stream
+- [x] 2.1 Write `test/worker/fake-sdk.ts` exposing `createFakeSdk(plan: ScenarioPlan)`. The fake's `Session` SHALL implement `connect / send / stream / close / sessionId` and emit messages exactly as a `ScenarioPlan` describes (including `result` boundaries, `is_error`, `assistant tool_use` blocks, and stream errors)
+- [x] 2.2 Write a smoke test in `test/worker/fake-sdk.test.ts` that drives the fake through one happy turn and asserts the message stream
 
 ## 3. Worker turn loop (TDD)
 

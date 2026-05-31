@@ -15,6 +15,7 @@ export {
   orchestratorRuntimeStateSchema,
   retryEntrySchema,
   runningEntrySchema,
+  workerHandleSchema,
 } from './runtime-state.js';
 export type { ServiceConfig } from './service-config.js';
 export type {
@@ -23,4 +24,5 @@ export type {
   OrchestratorRuntimeState,
   RetryEntry,
   RunningEntry,
+  WorkerHandle,
 } from './runtime-state.js';

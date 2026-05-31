@@ -9,6 +9,7 @@ describe('orchestratorRuntimeStateSchema', () => {
       running: {},
       claimed: new Set(['abc']),
       retryAttempts: {},
+      runners: {},
       completed: new Set(),
     });
 

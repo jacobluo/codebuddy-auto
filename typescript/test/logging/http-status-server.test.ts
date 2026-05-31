@@ -23,6 +23,7 @@ function createState(): OrchestratorRuntimeState {
     running: {},
     claimed: new Set(),
     retryAttempts: {},
+    runners: {},
     completed: new Set(),
   };
 }

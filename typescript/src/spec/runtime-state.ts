@@ -30,6 +30,28 @@ export const retryEntrySchema = z.object({
   error: z.string().nullable(),
 });
 
+/**
+ * WorkerHandle — the per-issue control surface for a long-lived in-process
+ * worker (see capability `sdk-multi-turn-worker`).
+ *
+ * Used only when `worker.kind === 'local'`. SSH path keeps using the
+ * `retryAttempts` retry table because there is no long-lived session there.
+ *
+ * `gracefulExitRequested` is the cooperative signal from
+ * `reconcileRuntimeState` — the worker checks it at every turn boundary and
+ * exits the loop without aborting any in-flight tool call (design decision 6).
+ *
+ * `abortController` is reserved for hard cases: wall-clock turn timeout,
+ * daemon SIGINT/SIGTERM shutdown, and worker-level error budget exhaustion.
+ */
+export const workerHandleSchema = z.object({
+  issueId: z.string(),
+  sessionId: z.string().nullable(),
+  startedAt: z.string(),
+  turnCount: z.number().int().nonnegative(),
+  gracefulExitRequested: z.boolean(),
+});
+
 export const runningEntrySchema = z.object({
   issue: issueSchema,
   workspacePath: z.string(),
@@ -59,6 +81,11 @@ export const orchestratorRuntimeStateSchema = z.object({
   running: z.record(z.string(), runningEntrySchema),
   claimed: z.set(z.string()),
   retryAttempts: z.record(z.string(), retryEntrySchema),
+  /**
+   * Active per-issue worker handles. Populated only under
+   * `worker.kind === 'local'`; SSH path leaves this empty.
+   */
+  runners: z.record(z.string(), workerHandleSchema),
   completed: z.set(z.string()),
 });
 
@@ -66,4 +93,5 @@ export type BlockerRef = z.infer<typeof blockerRefSchema>;
 export type Issue = z.infer<typeof issueSchema>;
 export type RetryEntry = z.infer<typeof retryEntrySchema>;
 export type RunningEntry = z.infer<typeof runningEntrySchema>;
+export type WorkerHandle = z.infer<typeof workerHandleSchema>;
 export type OrchestratorRuntimeState = z.infer<typeof orchestratorRuntimeStateSchema>;
