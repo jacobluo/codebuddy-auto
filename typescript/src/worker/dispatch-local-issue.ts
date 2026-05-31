@@ -130,6 +130,7 @@ export async function dispatchLocalIssue(
 
   // 5. Kick off the worker. We deliberately do NOT await.
   const workerPromise = (async () => {
+    let exitReason: string | undefined;
     try {
       const result = await runIssueWorker({
         issue: input.issue,
@@ -159,7 +160,7 @@ export async function dispatchLocalIssue(
             }
           }
         },
-        onTurnComplete: ({ turnCount, durationMs, sessionId }) => {
+        onTurnComplete: ({ turnCount, durationMs, sessionId, usage }) => {
           const running = input.state.running[input.issue.id];
           if (running) {
             running.turnCount = turnCount;
@@ -167,9 +168,36 @@ export async function dispatchLocalIssue(
             running.lastEvent = 'turn_completed';
             running.lastEventAt = new Date().toISOString();
             running.secondsRunning += Math.max(durationMs / 1000, 0);
+            // Token usage: the SDK reports absolute cumulative totals per
+            // turn. We track absolute (overwrites running.tokenUsage)
+            // and the per-turn delta against `lastReportedTotals`. See
+            // Symphony §13.5 / src/runner/token-usage.ts for the reference
+            // model the legacy SDK runner used.
+            if (usage) {
+              const last = running.lastReportedTotals;
+              const dInput = Math.max(0, usage.inputTokens - last.inputTokens);
+              const dOutput = Math.max(0, usage.outputTokens - last.outputTokens);
+              const dCacheCreate = Math.max(0, usage.cacheCreationInputTokens - last.cacheCreationInputTokens);
+              const dCacheRead = Math.max(0, usage.cacheReadInputTokens - last.cacheReadInputTokens);
+              running.tokenUsage = {
+                inputTokens: running.tokenUsage.inputTokens + dInput,
+                outputTokens: running.tokenUsage.outputTokens + dOutput,
+                totalTokens: running.tokenUsage.totalTokens + dInput + dOutput,
+                cacheCreationInputTokens: running.tokenUsage.cacheCreationInputTokens + dCacheCreate,
+                cacheReadInputTokens: running.tokenUsage.cacheReadInputTokens + dCacheRead,
+                creditCost: running.tokenUsage.creditCost,
+              };
+              running.lastReportedTotals = {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                cacheCreationInputTokens: usage.cacheCreationInputTokens,
+                cacheReadInputTokens: usage.cacheReadInputTokens,
+              };
+            }
           }
         },
       });
+      exitReason = result.exitReason;
 
       issueLogger?.info(
         {
@@ -191,7 +219,34 @@ export async function dispatchLocalIssue(
     } finally {
       // Drop running state; worker handle is released by runIssueWorker.
       delete input.state.running[input.issue.id];
-      input.state.completed.add(input.issue.id);
+
+      // Claim handling depends on exit reason. The goal is: the scheduler
+      // should NOT keep an issue claimed forever after a transient failure,
+      // and SHOULD treat a successful run (or one whose tracker state is
+      // already terminal) as completed.
+      //
+      //   finish_label_observed / issue_inactive / max_turns_reached
+      //     → terminal for this scheduler. Drop claim, add to completed.
+      //   graceful_exit_requested
+      //     → reconcile already deleted any retry table entries; mirror that
+      //       and add to completed so the same tick doesn't re-evaluate.
+      //   aborted (SIGINT)
+      //     → daemon is shutting down; leave claim/completed untouched so
+      //       the next process inherits a clean restart-recovery model.
+      //   turn_failed / turn_timed_out / startup_failed (or undefined on
+      //   uncaught exception)
+      //     → drop claim so the next tick can retry. Do NOT add to completed.
+      const TERMINAL = new Set(['finish_label_observed', 'issue_inactive', 'max_turns_reached', 'graceful_exit_requested']);
+      const RETRYABLE = new Set(['turn_failed', 'turn_timed_out', 'startup_failed']);
+
+      if (exitReason === 'aborted') {
+        // leave both `claimed` and `completed` alone
+      } else if (exitReason && TERMINAL.has(exitReason)) {
+        input.state.claimed.delete(input.issue.id);
+        input.state.completed.add(input.issue.id);
+      } else if (exitReason === undefined || RETRYABLE.has(exitReason)) {
+        input.state.claimed.delete(input.issue.id);
+      }
 
       const afterRunScript = getWorkspaceHookScript(input.config, 'afterRun');
       if (afterRunScript) {

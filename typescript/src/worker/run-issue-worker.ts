@@ -78,6 +78,13 @@ export interface IssueWorkerCallbacks {
     turnCount: number;
     durationMs: number;
     sessionId: string;
+    /** Absolute SDK token totals reported by this turn's `result` message. Treat as snapshot, not delta. */
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+    };
   }): void;
   /**
    * Fired when the worker emits a runtime-level event (turn_completed,
@@ -297,6 +304,16 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
             handle.turnCount += 1;
             turnDurationMs = (m as unknown as { duration_ms?: number }).duration_ms ?? 0;
             turnSessionId = (m as unknown as { session_id?: string }).session_id ?? handle.sessionId ?? undefined;
+            // Extract absolute token totals from the result message. The SDK
+            // reports cumulative usage per turn (Symphony §13.5); the
+            // dashboard converts to deltas downstream.
+            const rawUsage = (m as unknown as { usage?: Record<string, unknown> }).usage ?? {};
+            const usage = {
+              inputTokens: typeof rawUsage['input_tokens'] === 'number' ? rawUsage['input_tokens'] as number : 0,
+              outputTokens: typeof rawUsage['output_tokens'] === 'number' ? rawUsage['output_tokens'] as number : 0,
+              cacheCreationInputTokens: typeof rawUsage['cache_creation_input_tokens'] === 'number' ? rawUsage['cache_creation_input_tokens'] as number : 0,
+              cacheReadInputTokens: typeof rawUsage['cache_read_input_tokens'] === 'number' ? rawUsage['cache_read_input_tokens'] as number : 0,
+            };
             if (m.is_error) {
               // SDK signals max-turns either via the explicit subtype
               // 'error_max_turns' (the v2 session API) or via an `errors`
@@ -328,6 +345,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
               turnCount: handle.turnCount,
               durationMs: turnDurationMs,
               sessionId: turnSessionId ?? handle.sessionId ?? '',
+              usage,
             });
             break;
           }
