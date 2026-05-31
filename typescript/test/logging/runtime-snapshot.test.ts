@@ -229,3 +229,85 @@ describe('createRuntimeSnapshot', () => {
     });
   });
 });
+
+describe('createRuntimeSnapshot — JSON shape regression (§7.2)', () => {
+  it('produces a snapshot whose top-level field set matches the stable contract', () => {
+    const state = createRuntimeState();
+    state.running['r1'] = {
+      issue: makeIssue({ id: 'r1', identifier: '#r1', title: 'Running One' }),
+      workspacePath: '/tmp/r1',
+      sessionId: 'sess-r1',
+      startedAt: '2026-05-31T00:00:00Z',
+      turnCount: 3,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-31T00:00:01Z',
+      secondsRunning: 12.5,
+      tokenUsage: {
+        inputTokens: 100, outputTokens: 50, totalTokens: 150,
+        cacheCreationInputTokens: 0, cacheReadInputTokens: 80, creditCost: 0,
+      },
+      lastReportedTotals: {
+        inputTokens: 100, outputTokens: 50,
+        cacheCreationInputTokens: 0, cacheReadInputTokens: 80,
+      },
+    };
+    state.retryAttempts['r2'] = {
+      issueId: 'r2', identifier: '#r2',
+      mode: 'continuation', attempt: 1, dueAtMs: 1000, error: 'turn_completed',
+    };
+    state.claimed.add('r1');
+    state.completed.add('done-1');
+
+    const snapshot = createRuntimeSnapshot(state, '2026-05-31T01:00:00Z');
+
+    // Top-level keys
+    expect(Object.keys(snapshot).sort()).toEqual([
+      'cleanedWorkspaceIssueIds',
+      'completedIssueIds',
+      'counts',
+      'generatedAt',
+      'retrying',
+      'running',
+      'totals',
+    ]);
+
+    // counts shape
+    expect(Object.keys(snapshot.counts).sort()).toEqual([
+      'claimed', 'completed', 'retrying', 'running',
+    ]);
+
+    // running entry shape
+    expect(snapshot.running).toHaveLength(1);
+    expect(Object.keys(snapshot.running[0]!).sort()).toEqual([
+      'identifier',
+      'issueId',
+      'lastEvent',
+      'lastEventAt',
+      'secondsRunning',
+      'sessionId',
+      'title',
+      'tokenUsage',
+      'turnCount',
+      'workspacePath',
+    ]);
+    // tokenUsage shape
+    expect(Object.keys(snapshot.running[0]!.tokenUsage).sort()).toEqual([
+      'cacheCreationInputTokens',
+      'cacheReadInputTokens',
+      'creditCost',
+      'inputTokens',
+      'outputTokens',
+      'totalTokens',
+    ]);
+
+    // retrying entry shape
+    expect(snapshot.retrying).toHaveLength(1);
+    expect(Object.keys(snapshot.retrying[0]!).sort()).toEqual([
+      'attempt', 'dueAtMs', 'error', 'identifier', 'issueId', 'mode',
+    ]);
+
+    // turnCount semantics: read from state.running[issueId].turnCount
+    // (which the worker mirrors from WorkerHandle in local mode).
+    expect(snapshot.running[0]!.turnCount).toBe(3);
+  });
+});

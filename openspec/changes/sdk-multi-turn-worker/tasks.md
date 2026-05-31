@@ -49,8 +49,8 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 7. Dashboard / SSE field semantics
 
-- [ ] 7.1 Update `typescript/src/logging/runtime-snapshot.ts` (and any helpers) so `running[*].turnCount` is read from `WorkerHandle.turnCount` for local mode and from existing retry tables for SSH mode
-- [ ] 7.2 Verify that no SSE event name changes; field shapes preserved. Add a regression test asserting the snapshot JSON shape against a fixture
+- [x] 7.1 Update `typescript/src/logging/runtime-snapshot.ts` (and any helpers) so `running[*].turnCount` is read from `WorkerHandle.turnCount` for local mode and from existing retry tables for SSH mode
+- [x] 7.2 Verify that no SSE event name changes; field shapes preserved. Add a regression test asserting the snapshot JSON shape against a fixture
 
 ## 8. Manual end-to-end verification (gated, NOT auto-tested)
 
