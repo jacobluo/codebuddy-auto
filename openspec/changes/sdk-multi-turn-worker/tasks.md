@@ -34,11 +34,11 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 5. Scheduler routing
 
-- [ ] 5.1 Modify `typescript/src/scheduler/run-dispatch-cycle.ts`: when `config.worker.kind === 'local'`, register a `WorkerHandle`, kick off `runIssueWorker(...)` (do NOT await), and return. SSH branch unchanged
-- [ ] 5.2 Modify `typescript/src/scheduler/start-scheduler.ts`: skip `runContinuationCycle` when `config.worker.kind === 'local'`. Add a code comment that explains the routing decision
-- [ ] 5.3 Modify `typescript/src/scheduler/reconcile-runtime-state.ts`: for any `state.runners` entry whose tracker state indicates termination, set `gracefulExitRequested = true` (do NOT call abort)
-- [ ] 5.4 Update / rewrite the dispatch-cycle and continuation-cycle test files where they exercised the local-mode SDK path; SSH-mode tests stay
-- [ ] 5.5 Add a new test that asserts: when `worker.kind === 'local'` and a `WorkerHandle` exists for an issue, `runDispatchCycle` does NOT spawn a second worker for the same issue
+- [x] 5.1 Modify `typescript/src/scheduler/run-dispatch-cycle.ts`: when `config.worker.kind === 'local'`, register a `WorkerHandle`, kick off `runIssueWorker(...)` (do NOT await), and return. SSH branch unchanged
+- [x] 5.2 Modify `typescript/src/scheduler/start-scheduler.ts`: skip `runContinuationCycle` when `config.worker.kind === 'local'`. Add a code comment that explains the routing decision
+- [x] 5.3 Modify `typescript/src/scheduler/reconcile-runtime-state.ts`: for any `state.runners` entry whose tracker state indicates termination, set `gracefulExitRequested = true` (do NOT call abort)
+- [x] 5.4 Update / rewrite the dispatch-cycle and continuation-cycle test files where they exercised the local-mode SDK path; SSH-mode tests stay
+- [x] 5.5 Add a new test that asserts: when `worker.kind === 'local'` and a `WorkerHandle` exists for an issue, `runDispatchCycle` does NOT spawn a second worker for the same issue
 
 ## 6. Runner glue
 

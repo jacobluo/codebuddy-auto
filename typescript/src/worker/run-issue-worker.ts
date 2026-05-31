@@ -72,7 +72,25 @@ export interface IssueWorkerDeps {
   createSession(options: CreateSessionOptions): Session;
 }
 
-export interface RunIssueWorkerInput extends IssueWorkerDeps {
+export interface IssueWorkerCallbacks {
+  /** Fired with the index (1-based) and the assistant text/tool messages of every completed turn. */
+  onTurnComplete?(info: {
+    turnCount: number;
+    durationMs: number;
+    sessionId: string;
+  }): void;
+  /**
+   * Fired when the worker emits a runtime-level event (turn_completed,
+   * turn_failed, session_started, ...). Lets the caller forward to a
+   * shared EventBus / logger.
+   */
+  onWorkerEvent?(event: {
+    event: 'session_started' | 'turn_completed' | 'turn_failed' | 'turn_timed_out' | 'startup_failed';
+    payload: Record<string, unknown>;
+  }): void;
+}
+
+export interface RunIssueWorkerInput extends IssueWorkerDeps, IssueWorkerCallbacks {
   issue: Issue;
   workspacePath: string;
   config: ServiceConfig;
@@ -202,6 +220,10 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
     } catch (err) {
       exitReason = 'startup_failed';
       errorMessage = err instanceof Error ? err.message : String(err);
+      input.onWorkerEvent?.({
+        event: 'startup_failed',
+        payload: { message: errorMessage ?? '' },
+      });
       return {
         exitReason,
         turnCount: handle.turnCount,
@@ -253,18 +275,53 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
 
       try {
         await session.send(message);
+        let turnDurationMs = 0;
+        let turnSessionId: string | undefined;
         for await (const m of session.stream()) {
+          // Capture session_started for callback consumers (Symphony §10.4
+          // event), then keep iterating until a result arrives.
+          if (m.type === 'system' && (m as { subtype?: string }).subtype === 'init') {
+            const sysMsg = m as unknown as { session_id?: string };
+            if (sysMsg.session_id && !sessionIdForResult) {
+              sessionIdForResult = sysMsg.session_id;
+              handle.sessionId = sessionIdForResult;
+            }
+            input.onWorkerEvent?.({
+              event: 'session_started',
+              payload: {
+                sessionId: sysMsg.session_id ?? handle.sessionId ?? '',
+              },
+            });
+          }
           if (m.type === 'result') {
             handle.turnCount += 1;
+            turnDurationMs = (m as unknown as { duration_ms?: number }).duration_ms ?? 0;
+            turnSessionId = (m as unknown as { session_id?: string }).session_id ?? handle.sessionId ?? undefined;
             if (m.is_error) {
               const errs = (m as unknown as { errors?: string[] }).errors;
               const isMaxTurns = !!errs?.some((e) => /max turns/i.test(String(e)));
               if (!isMaxTurns) {
                 exitReason = 'turn_failed';
                 errorMessage = errs?.join('; ');
+                input.onWorkerEvent?.({
+                  event: 'turn_failed',
+                  payload: { message: errorMessage ?? '' },
+                });
                 throw new TurnFailedError(errorMessage);
               }
             }
+            input.onWorkerEvent?.({
+              event: 'turn_completed',
+              payload: {
+                durationMs: turnDurationMs,
+                sessionId: turnSessionId ?? '',
+              },
+            });
+            input.onTurnComplete?.({
+              turnCount: handle.turnCount,
+              durationMs: turnDurationMs,
+              sessionId: turnSessionId ?? handle.sessionId ?? '',
+            });
             break;
           }
         }
@@ -280,6 +337,10 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         }
         if (timedOut) {
           exitReason = 'turn_timed_out';
+          input.onWorkerEvent?.({
+            event: 'turn_timed_out',
+            payload: { timeoutMs: turnTimeoutMs ?? 0 },
+          });
           return {
             exitReason,
             turnCount: handle.turnCount,
@@ -299,6 +360,10 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         // that is the runner-level error budget's job, not the worker's.
         exitReason = 'turn_failed';
         errorMessage = err instanceof Error ? err.message : String(err);
+        input.onWorkerEvent?.({
+          event: 'turn_failed',
+          payload: { message: errorMessage ?? '' },
+        });
         return {
           exitReason,
           turnCount: handle.turnCount,

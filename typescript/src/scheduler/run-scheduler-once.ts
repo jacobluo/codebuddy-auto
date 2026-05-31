@@ -3,6 +3,7 @@ import type { SdkSessionStore } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { removeWorkspace } from '../workspace/index.js';
+import type { WorkerHandleStore, CreateSessionOptions } from '../worker/index.js';
 import { reconcileRuntimeState } from './reconcile-runtime-state.js';
 import { runContinuationCycle } from './run-continuation-cycle.js';
 import { runDispatchCycle, type DispatchCycleResult } from './run-dispatch-cycle.js';
@@ -13,6 +14,17 @@ export interface SchedulerOnceDependencies {
   removeWorkspace?: typeof removeWorkspace;
   eventBus?: EventBus;
   sessionStore?: SdkSessionStore;
+  /**
+   * Local-mode worker glue. When `worker.kind === 'local'`, `runDispatchCycle`
+   * uses `handleStore` + `createSession` + (optional) `getConfig` to start
+   * long-lived `runIssueWorker` promises instead of running the legacy
+   * single-turn dispatch path. Continuation cycle is skipped in this mode
+   * because the worker drives its own turn loop (Symphony §10.3).
+   */
+  workerHandleStore?: WorkerHandleStore;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createSession?: (opts: CreateSessionOptions) => any;
+  getConfig?: () => ServiceConfig;
 }
 
 export interface SchedulerOnceResult {
@@ -56,6 +68,7 @@ export async function runSchedulerOnce(
         trackerStates,
         config.tracker.terminalStates,
         dependencies.sessionStore,
+        dependencies.workerHandleStore,
       );
       releasedIssueIds = reconciliation.releasedIssueIds;
 
@@ -76,12 +89,35 @@ export async function runSchedulerOnce(
     }
   }
 
-  const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
-  const continuation = await continuationRunner(state, config, logger, tracker, dependencies.eventBus, dependencies.sessionStore);
-  continuedIssueIds = continuation.continuedIssueIds;
+  // Continuation cycle is only meaningful in SSH mode. Local mode drives
+  // its turn loop inside the per-issue IssueWorker, which keeps the SDK
+  // session alive across turns (Symphony §10.3).
+  if (config.worker.kind === 'ssh') {
+    const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
+    const continuation = await continuationRunner(state, config, logger, tracker, dependencies.eventBus, dependencies.sessionStore);
+    continuedIssueIds = continuation.continuedIssueIds;
+  }
 
   const dispatchRunner = dependencies.runDispatchCycle ?? runDispatchCycle;
-  const dispatch = await dispatchRunner(state, tracker, config, undefined, logger, dependencies.eventBus, dependencies.sessionStore);
+  const localDeps = (config.worker.kind === 'local'
+    && dependencies.workerHandleStore
+    && dependencies.createSession)
+    ? {
+      handleStore: dependencies.workerHandleStore,
+      createSession: dependencies.createSession,
+      getConfig: dependencies.getConfig,
+    }
+    : undefined;
+  const dispatch = await dispatchRunner(
+    state,
+    tracker,
+    config,
+    undefined,
+    logger,
+    dependencies.eventBus,
+    dependencies.sessionStore,
+    localDeps,
+  );
 
   return {
     releasedIssueIds,

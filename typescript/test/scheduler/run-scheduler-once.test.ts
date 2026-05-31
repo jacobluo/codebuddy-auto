@@ -53,6 +53,22 @@ function makeConfig(): ServiceConfig {
   };
 }
 
+/**
+ * SSH-mode config — continuation cycle is only invoked when
+ * `worker.kind === 'ssh'`. Tests asserting continuation behaviour use this.
+ */
+function makeSshConfig(): ServiceConfig {
+  const base = makeConfig();
+  return {
+    ...base,
+    worker: {
+      ...base.worker,
+      kind: 'ssh',
+      sshHost: 'remote.example',
+    },
+  };
+}
+
 function makeRuntimeMetrics() {
   return {
     secondsRunning: 0,
@@ -212,7 +228,7 @@ describe('runSchedulerOnce', () => {
       ]),
     );
 
-    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+    const result = await runSchedulerOnce(state, tracker, makeSshConfig(), {
       removeWorkspace: async () => {
         throw new Error('cleanup failed');
       },
@@ -444,7 +460,7 @@ describe('runSchedulerOnce', () => {
       releasedIssueIds: [],
     });
 
-    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+    const result = await runSchedulerOnce(state, tracker, makeSshConfig(), {
       runContinuationCycle,
       runDispatchCycle: async () => ({
         availableSlots: 9,

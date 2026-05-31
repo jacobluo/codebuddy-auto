@@ -167,3 +167,71 @@ describe('reconcileRuntimeState', () => {
     expect(state.retryAttempts['4']).toBeUndefined();
   });
 });
+
+describe('reconcileRuntimeState — local worker graceful exit (§5.3)', () => {
+  it('sets gracefulExitRequested instead of deleting running when a WorkerHandle is registered', async () => {
+    const { createWorkerHandleStore } = await import('../../src/worker/index.js');
+    const state = createState();
+    state.running['cont-1'] = {
+      issue: makeIssue({ id: 'cont-1', identifier: '#cont-1', state: 'open' }),
+      workspacePath: '/tmp/ws',
+      sessionId: 's1',
+      startedAt: '2026-05-31T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-31T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('cont-1');
+    state.runners['cont-1'] = {
+      issueId: 'cont-1',
+      sessionId: 's1',
+      startedAt: '2026-05-31T00:00:00Z',
+      turnCount: 1,
+      gracefulExitRequested: false,
+    };
+
+    const handleStore = createWorkerHandleStore();
+    handleStore.register('cont-1', state.runners['cont-1']);
+
+    const result = reconcileRuntimeState(
+      state,
+      new Map([['cont-1', { id: 'cont-1', state: 'closed', labels: [] }]]),
+      ['closed'],
+      undefined,
+      handleStore,
+    );
+
+    // Worker is still alive; reconcile cooperatively asks it to exit and
+    // does NOT delete the running entry.
+    expect(result.gracefulExitRequestedIssueIds).toEqual(['cont-1']);
+    expect(result.releasedIssueIds).toEqual([]);
+    expect(state.running['cont-1']).toBeDefined();
+    expect(handleStore.get('cont-1')?.gracefulExitRequested).toBe(true);
+  });
+
+  it('still deletes running when no WorkerHandle is registered (SSH / legacy path)', () => {
+    const state = createState();
+    state.running['ssh-1'] = {
+      issue: makeIssue({ id: 'ssh-1', identifier: '#ssh-1', state: 'open' }),
+      workspacePath: '/tmp/ws',
+      sessionId: 's1',
+      startedAt: '2026-05-31T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-31T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('ssh-1');
+
+    const result = reconcileRuntimeState(
+      state,
+      new Map([['ssh-1', { id: 'ssh-1', state: 'closed', labels: [] }]]),
+      ['closed'],
+    );
+
+    expect(result.releasedIssueIds).toEqual(['ssh-1']);
+    expect(result.gracefulExitRequestedIssueIds).toEqual([]);
+    expect(state.running['ssh-1']).toBeUndefined();
+  });
+});

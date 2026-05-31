@@ -11,7 +11,12 @@ import {
   type SdkSessionStore,
 } from '../runner/index.js';
 import type { Tracker } from '../tracker/index.js';
-import { prepareWorkerCommand } from '../worker/index.js';
+import {
+  prepareWorkerCommand,
+  dispatchLocalIssue,
+  type CreateSessionOptions,
+  type WorkerHandleStore,
+} from '../worker/index.js';
 import { createRetryEntry } from './create-retry-entry.js';
 import { planDispatchCycle } from './plan-dispatch-cycle.js';
 import { renderPrompt } from '../workflow/index.js';
@@ -40,6 +45,15 @@ export interface DispatchCycleResult {
   availableSlots: number;
   dispatchableIssueIds: string[];
   claimedIssueIds: string[];
+  /** Worker promises started this tick (local mode). Useful for shutdown drain. */
+  workerPromises?: Promise<void>[];
+}
+
+export interface LocalDispatchDeps {
+  handleStore: WorkerHandleStore;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createSession: (opts: CreateSessionOptions) => any;
+  getConfig?: () => ServiceConfig;
 }
 
 export async function runDispatchCycle(
@@ -55,9 +69,54 @@ export async function runDispatchCycle(
   logger?: RuntimeLogger,
   eventBus?: EventBus,
   sessionStore?: SdkSessionStore,
+  localDeps?: LocalDispatchDeps,
 ): Promise<DispatchCycleResult> {
   const issues = await tracker.fetchCandidateIssues();
   const dispatchPlan = planDispatchCycle(state, issues, config);
+
+  // Local-mode dispatch path (Symphony §10.3 long-lived session).
+  // SSH mode falls through to the legacy per-turn path below.
+  const workerPromises: Promise<void>[] = [];
+  if (config.worker.kind === 'local' && localDeps) {
+    for (const issue of dispatchPlan.dispatchableIssues) {
+      const dispatched = await dispatchLocalIssue({
+        issue,
+        config,
+        state,
+        tracker,
+        handleStore: localDeps.handleStore,
+        promptTemplate,
+        logger,
+        eventBus,
+        createSession: localDeps.createSession,
+        getConfig: localDeps.getConfig,
+      });
+      if (!dispatched.started) {
+        // Workspace setup or before_run failed — schedule a retry.
+        state.claimed.add(issue.id);
+        state.retryAttempts[issue.id] = createRetryEntry({
+          issueId: issue.id,
+          identifier: issue.identifier,
+          previousAttempt: getPreviousAttempt(dispatched.reason ?? 'dispatch_failed', state.retryAttempts[issue.id]),
+          reason: dispatched.reason ?? 'dispatch_failed',
+          nowMs: Date.now(),
+          maxRetryBackoffMs: config.agent.maxRetryBackoffMs,
+        });
+        continue;
+      }
+      if (dispatched.workerPromise) {
+        workerPromises.push(dispatched.workerPromise);
+      }
+    }
+    return {
+      availableSlots: dispatchPlan.availableSlots,
+      dispatchableIssueIds: dispatchPlan.dispatchableIssues.map((issue) => issue.id),
+      claimedIssueIds: dispatchPlan.dispatchableIssues
+        .map((issue) => issue.id)
+        .filter((issueId) => state.claimed.has(issueId)),
+      workerPromises,
+    };
+  }
 
   for (const issue of dispatchPlan.dispatchableIssues) {
     const issueLogger = createIssueLogger(logger, {
