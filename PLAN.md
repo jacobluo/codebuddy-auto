@@ -164,6 +164,16 @@
 
 **状态**：🟢 已起草
 
+> **Update (2026-05-31, change `sdk-multi-turn-worker`)**: state-machine entries
+> below assume the legacy "scheduler drives one CLI turn per tick + 1s
+> continuation retry" model. That still applies to `worker.kind === 'ssh'`. For
+> `worker.kind === 'local'` the multi-turn loop is now driven inside the
+> `IssueWorker` (one async function per issue), and `runContinuationCycle` is
+> not invoked. Reconciliation flips `WorkerHandle.gracefulExitRequested = true`
+> so the worker exits at its next turn boundary instead of having
+> `state.running` ripped out from under it. See spec
+> `openspec/specs/sdk-multi-turn-worker/spec.md`.
+
 - issue 编排状态主链固定为：`Unclaimed -> Claimed -> Running -> RetryQueued -> Released`。
 - `Unclaimed` 表示 issue 仅存在于 tracker 视图中，本进程尚未占有它。
 - `Claimed` 表示 issue 已被本进程占有，但当前可能尚未启动 runner，或正在等待 retry due time 到达。
@@ -210,6 +220,16 @@
 ### 2.11 `§10` Agent Runner Protocol
 
 **状态**：🟢 已起草
+
+> **Update (2026-05-31, change `sdk-multi-turn-worker`)**: §10 below describes the
+> SSH (`worker.kind === 'ssh'`) realization, which still spawns a CodeBuddy CLI
+> subprocess per turn and resumes by `--session-id` / `--resume`. **Local mode
+> (`worker.kind === 'local'`) now satisfies SPEC §10.3 long-lived-thread
+> semantics**: a single `unstable_v2_createSession` is opened on dispatch and
+> reused for every continuation turn within one worker, so the CodeBuddy CLI
+> subprocess stays alive across turns. The local-mode invariants live in
+> `openspec/specs/sdk-multi-turn-worker/spec.md`; the §10 contract below
+> applies to SSH only.
 
 - runner 分为两层：`buildCodebuddyCommand()` 负责把类型化配置翻译成 CLI 启动参数；`runCodebuddyTurn()` 负责执行子进程、消费事件流、做 timeout 与错误归一。
 - 启动命令固定以 `codebuddy.command` 为基底，并强制附加 `--print --output-format stream-json`，确保 stdout 可被稳定消费。

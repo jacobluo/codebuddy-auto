@@ -61,9 +61,9 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 9. Documentation
 
-- [ ] 9.1 Add a brief note to `PLAN.md` §10 / §7.1 references documenting that the runtime now satisfies SPEC §10.3 long-lived-thread semantics under `worker.kind === 'local'`
-- [ ] 9.2 Update `docs/references/codebuddy-cli-capabilities.md` if it claims the SDK uses per-turn `query({resume})`. Replace with the new session-based model
-- [ ] 9.3 No README update needed (README is intentionally implementation-light per recent edits)
+- [x] 9.1 Add a brief note to `PLAN.md` §10 / §7.1 references documenting that the runtime now satisfies SPEC §10.3 long-lived-thread semantics under `worker.kind === 'local'`
+- [x] 9.2 Update `docs/references/codebuddy-cli-capabilities.md` if it claims the SDK uses per-turn `query({resume})`. Replace with the new session-based model
+- [x] 9.3 No README update needed (README is intentionally implementation-light per recent edits)
 
 ## 10. Pre-archive verification
 
