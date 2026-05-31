@@ -298,11 +298,18 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
             turnDurationMs = (m as unknown as { duration_ms?: number }).duration_ms ?? 0;
             turnSessionId = (m as unknown as { session_id?: string }).session_id ?? handle.sessionId ?? undefined;
             if (m.is_error) {
+              // SDK signals max-turns either via the explicit subtype
+              // 'error_max_turns' (the v2 session API) or via an `errors`
+              // string array (the legacy query() shape). Treat both as
+              // "this turn ended on a quota, not a failure".
+              const subtype = (m as unknown as { subtype?: string }).subtype;
               const errs = (m as unknown as { errors?: string[] }).errors;
-              const isMaxTurns = !!errs?.some((e) => /max turns/i.test(String(e)));
+              const isMaxTurns
+                = subtype === 'error_max_turns'
+                  || !!errs?.some((e) => /max turns/i.test(String(e)));
               if (!isMaxTurns) {
                 exitReason = 'turn_failed';
-                errorMessage = errs?.join('; ');
+                errorMessage = errs?.join('; ') ?? subtype;
                 input.onWorkerEvent?.({
                   event: 'turn_failed',
                   payload: { message: errorMessage ?? '' },

@@ -89,8 +89,11 @@ function mapSdkMessage(msg: Message): CodebuddyRunnerEvent | null {
 
   if (msg.type === 'result') {
     const isError = raw['is_error'] === true;
+    const subtype = typeof raw['subtype'] === 'string' ? raw['subtype'] as string : undefined;
     const errors = Array.isArray(raw['errors']) ? raw['errors'] as string[] : undefined;
-    const isMaxTurnsExceeded = errors?.some((e) => /max turns/i.test(String(e))) ?? false;
+    const isMaxTurnsExceeded
+      = subtype === 'error_max_turns'
+        || (errors?.some((e) => /max turns/i.test(String(e))) ?? false);
 
     if (isError && !isMaxTurnsExceeded) {
       return {

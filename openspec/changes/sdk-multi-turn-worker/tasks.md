@@ -54,10 +54,10 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 8. Manual end-to-end verification (gated, NOT auto-tested)
 
-- [ ] 8.1 Run `pnpm build && node dist/src/main.js WORKFLOW.md --daemon` against `relaxorg/demo-mini-crm` issue #6 with the new worker. Capture daemon log to `/tmp/codebuddy-auto-e2e-after.log`
-- [ ] 8.2 Confirm via cnb API and SSE that within `agent.maxTurns` the agent reaches: commit on `fix/issue-6` branch → push → `cnb pulls post-pull` returns 201 → `cnb issues post-issue-labels --labels agent-finish` succeeds. If any step fails, do NOT mark task complete; cycle back to systematic-debugging
-- [ ] 8.3 Clean up the test PR (close), delete the probe branch, and remove `agent-finish` from issue #6 if the smoke test created it. Do NOT leave artifacts on the demo repo
-- [ ] 8.4 Snapshot the final `pnpm test` run (must show 38+ test files passing, including new `test/worker/`)
+- [x] 8.1 Run `pnpm build && node dist/src/main.js WORKFLOW.md --daemon` against `relaxorg/demo-mini-crm` issue #6 with the new worker. Capture daemon log to `/tmp/codebuddy-auto-e2e-after.log`
+- [x] 8.2 Confirm via cnb API and SSE that within `agent.maxTurns` the agent reaches: commit on `fix/issue-6` branch → push → `cnb pulls post-pull` returns 201 → `cnb issues post-issue-labels --labels agent-finish` succeeds. If any step fails, do NOT mark task complete; cycle back to systematic-debugging
+- [x] 8.3 Clean up the test PR (close), delete the probe branch, and remove `agent-finish` from issue #6 if the smoke test created it. Do NOT leave artifacts on the demo repo
+- [x] 8.4 Snapshot the final `pnpm test` run (must show 38+ test files passing, including new `test/worker/`)
 
 ## 9. Documentation
 

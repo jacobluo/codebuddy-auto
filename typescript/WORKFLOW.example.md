@@ -23,7 +23,13 @@ server:
   port: 4317
 agent:
   max_concurrent_agents: 1
-  max_turns: 20
+  # Total CodeBuddy SDK internal turns the worker is allowed for ONE issue.
+  # The new long-lived worker (sdk-multi-turn-worker) lets the agent run
+  # uninterrupted within this budget. Real demo-mini-crm runs need ~20–30
+  # turns just to read repo + plan + edit + commit + push + open PR + label.
+  # 60 is a comfortable default; raise for issues that need more files
+  # changed; lower if you want a tighter quota and trust the agent.
+  max_turns: 60
   max_retry_backoff_ms: 300000
 worker:
   kind: local
