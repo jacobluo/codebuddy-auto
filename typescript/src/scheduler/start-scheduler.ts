@@ -1,9 +1,15 @@
 import type { Logger } from 'pino';
 
 import { createRuntimeSnapshot, type EventBus } from '../logging/index.js';
+import { createSdkSession } from '../runner/create-sdk-session.js';
 import { createSdkSessionStore, type SdkSessionStore } from '../runner/index.js';
 import type { OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
+import {
+  createWorkerHandleStore,
+  type CreateSessionOptions,
+  type WorkerHandleStore,
+} from '../worker/index.js';
 import { createRuntimeState } from './create-runtime-state.js';
 import { runSchedulerOnce } from './run-scheduler-once.js';
 import { runStartupCleanup } from './run-startup-cleanup.js';
@@ -24,7 +30,23 @@ export type SchedulerTickContextProvider =
 export interface StartSchedulerDependencies {
   state?: OrchestratorRuntimeState;
   eventBus?: EventBus;
+  /**
+   * Per-process SDK session store, only used by the legacy SSH path.
+   * Local mode owns its sessions inside `runIssueWorker` via `WorkerHandle`.
+   */
   sessionStore?: SdkSessionStore;
+  /**
+   * Per-process worker handle store. Local mode uses this as the
+   * cooperative graceful-exit channel between `reconcileRuntimeState`
+   * and the live `IssueWorker`. SSH mode leaves it empty.
+   */
+  workerHandleStore?: WorkerHandleStore;
+  /**
+   * SDK session factory. Used by the local-mode dispatch path. Tests
+   * inject FakeSdk-backed factories; production uses `createSdkSession`.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createSession?: (opts: CreateSessionOptions) => any;
   runSchedulerOnce?: typeof runSchedulerOnce;
   runStartupCleanup?: typeof runStartupCleanup;
   createRuntimeSnapshot?: typeof createRuntimeSnapshot;
@@ -39,9 +61,17 @@ export function startScheduler(
 ): SchedulerRuntime {
   const state = dependencies.state ?? createRuntimeState();
   const eventBus = dependencies.eventBus;
-  // Per-process SDK session store. Lives for the life of the scheduler so
-  // entries created in dispatch survive across continuation ticks.
-  const sessionStore = dependencies.sessionStore ?? createSdkSessionStore();
+  // SSH path keeps the legacy session token store. Local path leaves
+  // `sessionStore` undefined so reconcile / dispatch don't accidentally
+  // mutate it.
+  const sessionStore = config.worker.kind === 'ssh'
+    ? (dependencies.sessionStore ?? createSdkSessionStore())
+    : undefined;
+  const workerHandleStore = config.worker.kind === 'local'
+    ? (dependencies.workerHandleStore ?? createWorkerHandleStore())
+    : undefined;
+  const createSession = dependencies.createSession
+    ?? (config.worker.kind === 'local' ? createSdkSession : undefined);
   const runOnce = dependencies.runSchedulerOnce ?? runSchedulerOnce;
   const startupCleanup = dependencies.runStartupCleanup ?? runStartupCleanup;
   const buildSnapshot = dependencies.createRuntimeSnapshot ?? createRuntimeSnapshot;
@@ -61,7 +91,13 @@ export function startScheduler(
     currentTickPromise = (async () => {
       try {
         const tickContext = await getTickContext();
-        const result = await runOnce(state, tickContext.tracker, tickContext.config, { eventBus, sessionStore }, logger);
+        const result = await runOnce(state, tickContext.tracker, tickContext.config, {
+          eventBus,
+          sessionStore,
+          workerHandleStore,
+          createSession,
+          getConfig: () => tickContext.config,
+        }, logger);
         const snapshot = buildSnapshot(state);
         snapshot.cleanedWorkspaceIssueIds = result.cleanedWorkspaceIssueIds;
         logger.info(
@@ -136,7 +172,7 @@ export function startScheduler(
       }
       // Drop any remaining SDK session entries on shutdown so test runs and
       // restarts don't leak entries to the next process.
-      sessionStore.clear();
+      sessionStore?.clear();
     },
   };
 }

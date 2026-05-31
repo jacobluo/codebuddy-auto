@@ -1,14 +1,37 @@
-import { query, type Message } from '@tencent-ai/agent-sdk';
+/**
+ * runCodebuddyTurnSdk — drive ONE turn on a pre-existing CodeBuddy SDK
+ * Session. Session lifecycle (createSession + connect + close) is owned
+ * by the caller (typically `runIssueWorker`).
+ *
+ * This was previously a per-turn `query({resume})` wrapper, which spawned
+ * a new CLI subprocess every turn and broke Symphony §10.3 long-lived
+ * thread semantics. The session-backed shape keeps the SDK CLI subprocess
+ * alive across turns; the worker calls this once per turn over a stable
+ * `Session` instance.
+ *
+ * The function does NOT call `createSession`, `connect`, `close`, or
+ * `query()`.
+ */
+
+import type { Message, Session } from '@tencent-ai/agent-sdk';
 
 import type { EventBus } from '../logging/event-bus.js';
 import type { ServiceConfig } from '../spec/index.js';
 import type { CodebuddyRunnerEvent, RunCodebuddyTurnResult } from './run-codebuddy-turn-cli.js';
 
 export interface RunSdkTurnInput {
+  /** Live SDK session, owned by the caller. Caller MUST have called connect(). */
+  session: Session;
+  /** User message for this turn. */
   prompt: string;
-  workspacePath: string;
   config: ServiceConfig;
-  resumeSessionId?: string;
+  /**
+   * Wall-clock turn timeout source. The function attaches a timer and
+   * aborts this controller on `codebuddy.turnTimeoutMs`. Callers SHOULD
+   * pass the same controller they handed to `createSession({abortController})`
+   * so the SDK transport observes the abort.
+   */
+  abortController?: AbortController;
   onEvent?: (event: CodebuddyRunnerEvent) => void;
   eventBus?: EventBus;
   issueId?: string;
@@ -104,59 +127,7 @@ function mapSdkMessage(msg: Message): CodebuddyRunnerEvent | null {
 export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCodebuddyTurnResult> {
   const events: CodebuddyRunnerEvent[] = [];
 
-  const options: Record<string, unknown> = {
-    cwd: input.workspacePath,
-    maxTurns: input.config.agent.maxTurns,
-    permissionMode: input.config.codebuddy.permissionMode ?? 'bypassPermissions',
-  };
-
-  if (input.config.codebuddy.model && input.config.codebuddy.model.length > 0) {
-    options.model = input.config.codebuddy.model;
-  }
-
-  if (input.config.codebuddy.settingSources && input.config.codebuddy.settingSources.length > 0) {
-    options.settingSources = input.config.codebuddy.settingSources;
-  }
-
-  if (input.resumeSessionId) {
-    options.resume = input.resumeSessionId;
-  }
-
-  if (input.config.codebuddy.allowedTools && input.config.codebuddy.allowedTools.length > 0) {
-    options.allowedTools = input.config.codebuddy.allowedTools;
-  }
-
-  if (input.config.codebuddy.disallowedTools && input.config.codebuddy.disallowedTools.length > 0) {
-    options.disallowedTools = input.config.codebuddy.disallowedTools;
-  }
-
-  if (input.config.codebuddy.mcpConfig) {
-    // MCP config handled at SDK level if needed
-  }
-
-  const canUseTool = input.eventBus && input.issueId
-    ? (toolName: string, toolInput: Record<string, unknown>) => {
-        if (input.eventBus) {
-          input.eventBus.emit({
-            type: 'issue_event',
-            timestamp: new Date().toISOString(),
-            issueId: input.issueId,
-            payload: { event: 'tool_call', tool: toolName, input: toolInput },
-          });
-        }
-        return Promise.resolve({
-          behavior: 'allow' as const,
-          updatedInput: toolInput,
-        });
-      }
-    : undefined;
-
-  if (canUseTool) {
-    options.canUseTool = canUseTool;
-  }
-
-  // Wall-clock timeout
-  const abortController = new AbortController();
+  const abortController = input.abortController ?? new AbortController();
   let timeoutHandle: NodeJS.Timeout | null = null;
   let timedOut = false;
 
@@ -167,12 +138,9 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
     }, input.config.codebuddy.turnTimeoutMs);
   }
 
-  options.abortController = abortController;
-
   try {
-    const q = query({ prompt: input.prompt, options: options as Parameters<typeof query>[0]['options'] });
-
-    for await (const msg of q) {
+    await input.session.send(input.prompt);
+    for await (const msg of input.session.stream()) {
       const mapped = mapSdkMessage(msg);
       if (mapped) {
         events.push(mapped);
@@ -184,6 +152,10 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
           }
         }
       }
+      // Turn boundary: stop draining stream as soon as we observe a result.
+      if (msg.type === 'result') {
+        break;
+      }
     }
   } catch (error) {
     if (timedOut) {
@@ -194,7 +166,6 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
       };
     }
 
-    // Other abort/error
     const message = error instanceof Error ? error.message : String(error);
     events.push({
       event: 'turn_failed',

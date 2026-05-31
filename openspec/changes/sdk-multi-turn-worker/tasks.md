@@ -42,10 +42,10 @@ Tasks 3.x MUST follow `superpowers:test-driven-development`: write failing scena
 
 ## 6. Runner glue
 
-- [ ] 6.1 Refactor `typescript/src/runner/run-codebuddy-turn-sdk.ts` so its public surface accepts an externally-provided `Session`. The function becomes "drive one turn on a session"; it MUST NOT call `createSession` or `query()`
-- [ ] 6.2 Update `typescript/src/runner/run-codebuddy-turn.ts` so the SDK branch requires the caller to provide a session (the new worker provides it). SSH branch unchanged
-- [ ] 6.3 Update `test/runner/run-codebuddy-turn-sdk.test.ts` to inject a `FakeSession` rather than mock `query`. Existing per-turn behaviour assertions remain
-- [ ] 6.4 Delete the unused `SessionStore` symbol from the local path (it remains for SSH if and only if SSH already used it; otherwise remove entirely)
+- [x] 6.1 Refactor `typescript/src/runner/run-codebuddy-turn-sdk.ts` so its public surface accepts an externally-provided `Session`. The function becomes "drive one turn on a session"; it MUST NOT call `createSession` or `query()`
+- [x] 6.2 Update `typescript/src/runner/run-codebuddy-turn.ts` so the SDK branch requires the caller to provide a session (the new worker provides it). SSH branch unchanged
+- [x] 6.3 Update `test/runner/run-codebuddy-turn-sdk.test.ts` to inject a `FakeSession` rather than mock `query`. Existing per-turn behaviour assertions remain
+- [x] 6.4 Delete the unused `SessionStore` symbol from the local path (it remains for SSH if and only if SSH already used it; otherwise remove entirely)
 
 ## 7. Dashboard / SSE field semantics
 
