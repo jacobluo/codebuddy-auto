@@ -26,6 +26,9 @@ export function createTracker(config: ServiceConfig): Tracker {
       apiBaseUrl: config.tracker.endpoint,
       repo: config.tracker.projectSlug,
       token: config.tracker.apiKey,
+      candidateLabel: config.tracker.candidateLabel,
+      excludeLabel: config.tracker.excludeLabel,
+      finishLabel: config.tracker.finishLabel,
     });
   }
 

@@ -8,6 +8,7 @@ interface CnbTrackerOptions {
   token: string;
   candidateLabel?: string;
   excludeLabel?: string;
+  finishLabel?: string;
   fetchFn?: typeof fetch;
 }
 
@@ -35,6 +36,7 @@ export class CnbTracker implements Tracker {
   private readonly token: string;
   private readonly candidateLabel: string;
   private readonly excludeLabel: string;
+  private readonly finishLabel: string;
   private readonly fetchFn: typeof fetch;
 
   constructor(options: CnbTrackerOptions) {
@@ -43,6 +45,7 @@ export class CnbTracker implements Tracker {
     this.token = options.token;
     this.candidateLabel = options.candidateLabel ?? 'agent-ready';
     this.excludeLabel = options.excludeLabel ?? 'skip-agent';
+    this.finishLabel = options.finishLabel ?? 'agent-finish';
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
@@ -64,7 +67,8 @@ export class CnbTracker implements Tracker {
 
     const candidates = issues
       .map((issue) => normalizeCnbIssue(issue as Record<string, unknown>))
-      .filter((issue) => !issue.labels.includes(this.excludeLabel));
+      .filter((issue) => !issue.labels.includes(this.excludeLabel))
+      .filter((issue) => !issue.labels.includes(this.finishLabel));
 
     return Promise.all(
       candidates.map(async (issue) => {
@@ -115,5 +119,46 @@ export class CnbTracker implements Tracker {
     );
 
     return new Map(states);
+  }
+
+  async closeIssue(issueId: string, reason?: string): Promise<void> {
+    const url = joinUrl(this.apiBaseUrl, `/${this.repo}/-/issues/${encodeURIComponent(issueId)}`);
+    const response = await this.fetchFn(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        state: 'closed',
+        state_reason: reason ?? 'completed',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`cnb close issue failed: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  async addLabel(issueId: string, label: string): Promise<void> {
+    const url = joinUrl(this.apiBaseUrl, `/${this.repo}/-/issues/${encodeURIComponent(issueId)}/labels`);
+    const response = await this.fetchFn(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ labels: [label] }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`cnb add label failed: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  getFinishLabel(): string {
+    return this.finishLabel;
   }
 }

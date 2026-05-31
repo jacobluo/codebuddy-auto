@@ -58,10 +58,25 @@ h1 { margin: 0 0 4px; font-size: 24px; }
 .issue-item .id { font-weight: bold; }
 .issue-item .meta { font-size: 11px; color: rgba(27,27,27,0.55); margin-top: 2px; }
 .event-list { list-style: none; padding: 0; margin: 0; max-height: 500px; overflow-y: auto; }
-.event-list li { padding: 6px 0; border-bottom: 1px dashed rgba(27,27,27,0.08); font-size: 12px; display: grid; grid-template-columns: 70px 120px 1fr; gap: 8px; }
-.event-list .time { color: rgba(27,27,27,0.5); }
-.event-list .type { font-weight: 600; }
+.event-list li { padding: 8px 6px; border-bottom: 1px dashed rgba(27,27,27,0.08); font-size: 12px; cursor: pointer; border-radius: 4px; transition: background 0.15s; }
+.event-list li:hover { background: rgba(27,27,27,0.03); }
+.event-list .ev-row { display: grid; grid-template-columns: 22px 62px 110px 1fr; gap: 6px; align-items: center; }
+.event-list .ev-icon { font-size: 13px; text-align: center; }
+.event-list .time { color: rgba(27,27,27,0.45); font-size: 11px; }
+.event-list .type { font-weight: 600; font-size: 11px; }
+.event-list .type.t-session { color: #0b6b41; }
+.event-list .type.t-completed { color: #1a7f37; }
+.event-list .type.t-failed { color: #cf222e; }
+.event-list .type.t-tool { color: #6639ba; }
+.event-list .type.t-notification { color: #0969da; }
+.event-list .type.t-other { color: rgba(27,27,27,0.55); }
 .event-list .msg { color: rgba(27,27,27,0.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.event-list .ev-detail { display: none; margin-top: 6px; padding: 8px 10px; background: rgba(27,27,27,0.03); border-radius: 6px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; color: rgba(27,27,27,0.65); max-height: 200px; overflow-y: auto; }
+.event-list li.expanded .ev-detail { display: block; }
+.ev-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+.ev-badge.tokens { background: rgba(26,127,55,0.1); color: #1a7f37; }
+.ev-badge.duration { background: rgba(9,105,218,0.1); color: #0969da; }
+.ev-badge.tool-name { background: rgba(102,57,186,0.1); color: #6639ba; }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .dot-running { background: #0b6b41; }
 .dot-retrying { background: #9a5a00; }
@@ -136,8 +151,19 @@ setInterval(() => {
 }, 1000);
 
 const globalEs = new EventSource('/api/v1/events');
-globalEs.onopen = () => { connStatus.textContent = 'connected (SSE)'; };
-globalEs.onerror = () => { connStatus.textContent = 'reconnecting...'; };
+globalEs.onopen = () => { connStatus.textContent = '● connected'; connStatus.style.color = '#0b6b41'; };
+globalEs.onerror = () => {
+  if (globalEs.readyState === EventSource.CONNECTING) {
+    connStatus.textContent = '○ reconnecting...'; connStatus.style.color = '#9a5a00';
+  } else if (globalEs.readyState === EventSource.CLOSED) {
+    connStatus.textContent = '✗ disconnected'; connStatus.style.color = '#cf222e';
+  }
+};
+globalEs.onmessage = () => {
+  if (connStatus.textContent !== '● connected') {
+    connStatus.textContent = '● connected'; connStatus.style.color = '#0b6b41';
+  }
+};
 
 globalEs.addEventListener('state_snapshot', (e) => {
   latestState = JSON.parse(e.data);
@@ -235,13 +261,86 @@ function renderEvents() {
     eventListEl.innerHTML = '<li><span class="msg">waiting for events...</span></li>';
     return;
   }
-  eventListEl.innerHTML = events.slice(-100).map(ev => {
+  eventListEl.innerHTML = events.slice(-100).map((ev, idx) => {
     const t = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
-    const type = ev.event || ev.payload?.event || ev.type || '';
-    const msg = ev.payload?.message || ev.payload?.event || JSON.stringify(ev.payload).slice(0, 120);
-    return '<li><span class="time">' + t + '</span><span class="type">' + type + '</span><span class="msg">' + msg + '</span></li>';
+    const rawType = ev.event || ev.payload?.event || ev.type || 'unknown';
+    const { icon, cls, label } = classifyEvent(rawType);
+    const msg = formatEventMessage(rawType, ev.payload);
+    const badges = formatBadges(rawType, ev.payload);
+    const detail = JSON.stringify(ev.payload, null, 2);
+    return '<li>' +
+      '<div class="ev-row">' +
+        '<span class="ev-icon">' + icon + '</span>' +
+        '<span class="time">' + t + '</span>' +
+        '<span class="type ' + cls + '">' + label + badges + '</span>' +
+        '<span class="msg">' + escHtml(msg) + '</span>' +
+      '</div>' +
+      '<div class="ev-detail">' + escHtml(detail) + '</div>' +
+    '</li>';
   }).join('');
   eventListEl.scrollTop = eventListEl.scrollHeight;
+}
+
+function classifyEvent(type) {
+  const map = {
+    session_started: { icon: '●', cls: 't-session', label: 'session' },
+    turn_completed:  { icon: '✓', cls: 't-completed', label: 'completed' },
+    turn_failed:     { icon: '✗', cls: 't-failed', label: 'failed' },
+    turn_timed_out:  { icon: '⏱', cls: 't-failed', label: 'timeout' },
+    tool_call:       { icon: '⚙', cls: 't-tool', label: 'tool' },
+    notification:    { icon: '◆', cls: 't-notification', label: 'message' },
+    dispatched:      { icon: '▶', cls: 't-session', label: 'dispatch' },
+    released:        { icon: '■', cls: 't-other', label: 'released' },
+    continuation:    { icon: '↻', cls: 't-session', label: 'continue' },
+  };
+  return map[type] || { icon: '·', cls: 't-other', label: type };
+}
+
+function formatEventMessage(type, payload) {
+  if (!payload) return '';
+  if (type === 'tool_call') {
+    const tool = payload.tool || '';
+    const inp = payload.input ? JSON.stringify(payload.input).slice(0, 80) : '';
+    return tool + (inp ? '(' + inp + ')' : '');
+  }
+  if (type === 'notification') {
+    return payload.message || (payload.raw ? JSON.stringify(payload.raw).slice(0, 150) : '');
+  }
+  if (type === 'turn_completed') {
+    const parts = [];
+    if (payload.numTurns) parts.push(payload.numTurns + ' turns');
+    if (payload.durationMs) parts.push(formatSecs(payload.durationMs / 1000));
+    if (payload.usage) {
+      const tok = payload.usage.total_tokens || payload.usage.totalTokens || 0;
+      if (tok) parts.push(formatNum(tok) + ' tok');
+    }
+    return parts.join(' · ') || 'done';
+  }
+  if (type === 'turn_failed' || type === 'turn_timed_out') {
+    return payload.message || '';
+  }
+  if (type === 'session_started') {
+    return payload.model || payload.sessionId || '';
+  }
+  return payload.message || payload.event || JSON.stringify(payload).slice(0, 120);
+}
+
+function formatBadges(type, payload) {
+  if (!payload) return '';
+  let html = '';
+  if (type === 'turn_completed') {
+    const tok = payload.usage?.total_tokens || payload.usage?.totalTokens || 0;
+    if (tok) html += '<span class="ev-badge tokens">' + formatNum(tok) + '</span>';
+    if (payload.durationMs) html += '<span class="ev-badge duration">' + formatSecs(payload.durationMs / 1000) + '</span>';
+  }
+  if (type === 'tool_call' && payload.tool) {
+    html += '<span class="ev-badge tool-name">' + payload.tool + '</span>';
+  }
+  return html;
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function formatNum(n) { return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n); }
@@ -249,6 +348,11 @@ function formatSecs(s) { const m = Math.floor(s/60); return m > 0 ? m+'m ' + Mat
 
 refreshBtn.addEventListener('click', async () => {
   await fetch('/api/v1/refresh', { method: 'POST' });
+});
+
+eventListEl.addEventListener('click', (e) => {
+  const li = e.target.closest('li');
+  if (li) li.classList.toggle('expanded');
 });
 
 eventListEl.style.display = 'none';
@@ -310,6 +414,7 @@ export async function startStatusServer(
         'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no',
       });
+      response.flushHeaders();
 
       // Replay history for reconnection
       if (lastId > 0) {
@@ -325,6 +430,13 @@ export async function startStatusServer(
       }
 
       const unsubscribe = eventBus.subscribe((evt) => {
+        if (evt.type === 'state_snapshot') {
+          if (!filterIssueId) {
+            // Only send state_snapshot to global (unfiltered) connections
+            response.write(`id: ${evt.id}\nevent: state_snapshot\ndata: ${JSON.stringify(evt.payload)}\n\n`);
+          }
+          return;
+        }
         if (filterIssueId && evt.issueId !== filterIssueId) {
           return;
         }
