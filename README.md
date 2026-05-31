@@ -1,6 +1,6 @@
 # agentfirst-f1
 
-> **TypeScript 参考实现 · 基于 OpenAI Symphony SPEC + CodeBuddy Code CLI**
+> **TypeScript 参考实现 · 基于 OpenAI Symphony SPEC + CodeBuddy Code SDK**
 
 ## 项目目标
 
