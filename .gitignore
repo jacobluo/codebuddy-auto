@@ -32,3 +32,11 @@ tmp/
 .codebuddy/*
 !.codebuddy/rules/
 !.codebuddy/rules/**
+
+# Claude Code worktrees (created by EnterWorktree). Ignore the whole tree;
+# it's a per-session staging area, not part of the source repository.
+.claude/worktrees/
+
+# Claude Code worktrees (created by EnterWorktree). Ignore the whole tree;
+# it's a per-session staging area, not part of the source repository.
+.claude/worktrees/
