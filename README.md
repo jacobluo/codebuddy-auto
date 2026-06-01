@@ -98,6 +98,112 @@ tracker:
   finish_label: agent-finish
 ```
 
+## Scheduler ↔ Worker 调用细节
+
+```
+                    ┌──────────────────────┐
+       SIGINT/TERM ─┤   start-scheduler    │
+                    │  (per-process root)  │
+                    └──────────┬───────────┘
+                               │ tick every polling.intervalMs
+                               ▼
+                    ┌──────────────────────┐
+                    │  run-scheduler-once  │
+                    └──┬─────────┬───────┬─┘
+                       │         │       │
+        ┌──────────────▼──┐  ┌───▼───┐  ┌▼──────────────────┐
+        │ release-retry   │  │ recon-│  │  run-dispatch-    │
+        │ (drop expired   │  │ cile  │  │  cycle            │
+        │  retry entries) │  │       │  │                   │
+        └─────────────────┘  └───┬───┘  └──┬──┬─────────────┘
+                                 │         │  │
+                  workerHandleSt ▼         │  │ kind === 'local'?
+                                           │  │
+                                           │  └─► dispatch-local-issue
+                                           │         │ (background promise)
+                                           │         ▼
+                                           │     run-issue-worker
+                                           │   (SDK session loop)
+                                           │
+                                           ▼ kind === 'ssh' only
+                                    run-continuation-cycle
+                                    (legacy per-turn CLI)
+```
+
+### scheduler tick (run-scheduler-once)
+
+每个 tick 严格走四步：
+
+1. **Release expired retry claims** — `state.retryAttempts` 中 `dueAtMs <= now` 且不在 `state.running` 的 entry 直接清除，让 issue 重回候选集。
+2. **Reconcile running issues** — 用 `tracker.fetchIssueStatesByIds(running)` 拉一批 tracker state，`reconcile-runtime-state` 处理结果：
+   - SSH 模式 / 没有 `WorkerHandle` 的条目 → 直接从 `state.running` 删除 + 标 `state.completed`，必要时清理 workspace。
+   - **Local 模式** 有活 worker 的条目 → 不删 `state.running`，改为 `workerHandleStore.requestGracefulExit(issueId) = true`（cooperative）。Worker 在下一个 turn 边界自查并退出，避免半截工具调用留下脏状态。
+3. **Continuation cycle** — **仅在 `worker.kind === 'ssh'`** 调用 `run-continuation-cycle`。Local 模式不走这条路：worker 自己在内部跑多轮。
+4. **Dispatch cycle** — 调用 `run-dispatch-cycle`：先用 `plan-dispatch-cycle` 算 `availableSlots = maxConcurrentAgents - |running|`，按候选 issue 排序后，根据 `worker.kind` 分流：
+   - `local` → `dispatch-local-issue(issue, …)`（异步、不 await）
+   - `ssh`   → 旧路径：单轮 `runCodebuddyTurn` + 写入 `state.running` + 创建 retry entry。
+
+### local 模式的 worker 生命周期
+
+`dispatch-local-issue` 把 issue 准备好后启动一个**背景 Promise**，scheduler tick 马上返回：
+
+```
+dispatch-local-issue(issue)
+  ├─ createRunAttempt → 工作目录 + 空 RunningEntry
+  ├─ before_run hook  → 失败则 schedule retry
+  ├─ state.running[id] = runningEntry      // ← 让后续 tick 不再选这个 issue
+  ├─ state.claimed.add(id)
+  ├─ eventBus.emit('dispatch_started')
+  └─ ┌─ runIssueWorker(...) (background)
+     │     │
+     │     │ loop while turnCount < liveConfig.agent.maxTurns:
+     │     │   ┌─ 顶部检查 handle.gracefulExitRequested → 退
+     │     │   ├─ message = turn 1 ? initialPrompt+suffix : continuationGuidance
+     │     │   ├─ session.send(message)
+     │     │   ├─ for await m of session.stream():
+     │     │   │     - system_init → emit session_started
+     │     │   │     - result      → handle.turnCount++; emit turn_completed
+     │     │   ├─ tracker.fetchIssueStatesByIds([id])
+     │     │   │     - finish_label 出现 → exitReason=finish_label_observed
+     │     │   │     - state 不再 active → exitReason=issue_inactive
+     │     │   └─ 否则继续下一轮
+     │     │
+     │     │ 退出后:
+     │     │   max_turns_reached → tracker.addLabel(finish_label) (兜底)
+     │     │
+     │     └─ finally: session.close(); handleStore.release(id)
+     │
+     └─ 外层 IIFE finally:
+          - delete state.running[id]
+          - 根据 exitReason 分类:
+              terminal*  → drop claimed + add completed
+              retryable* → drop claimed only (下一 tick 可重试)
+              aborted    → 不动 (SIGINT 时为重启留干净状态)
+          - run after_run hook
+```
+
+`* terminal = finish_label_observed | issue_inactive | max_turns_reached | graceful_exit_requested`
+`* retryable = turn_failed | turn_timed_out | startup_failed`
+
+### 关键状态
+
+| 字段 | 谁写 | 谁读 | 作用 |
+|---|---|---|---|
+| `state.running[id]` | dispatch + worker callbacks | plan-dispatch / dashboard / reconcile | "这个 issue 被人占着" |
+| `state.claimed` | dispatch + worker exit | select-dispatch-candidates | 防止 race window 期内重复派发 |
+| `state.completed` | worker exit / reconcile | dashboard | 信息性，不参与调度 |
+| `state.runners[id]` (= WorkerHandle) | worker 入口 register | reconcile / worker turn 顶部 | 协作式 graceful-exit 开关 |
+| `state.retryAttempts[id]` | dispatch failure / SSH continuation | run-scheduler-once / continuation cycle | SSH 路径专用；local 路径不写 |
+
+### Symphony SPEC 对位
+
+| 章节 | 实现 |
+|---|---|
+| §7.1 worker re-checks tracker each turn | `runIssueWorker` 每个 result 后 `fetchIssueStatesByIds` |
+| §7.3 worker exit + 1s continuation retry | local: 单 worker 跑完整生命周期，无 1s 续跑；SSH: 走 `runContinuationCycle` |
+| §10.3 app-server alive across turns | local: 一次 `unstable_v2_createSession` 串 N 轮；SSH: 每轮新 CLI 子进程 + `--resume` |
+| §13.5 absolute token totals → delta | `dispatch-local-issue.onTurnComplete` 用 `lastReportedTotals` 算 delta |
+
 ## 目标仓库要求（Harness Engineering）
 
 Symphony 假设目标仓库已采用 [Harness Engineering](https://openai.com/index/harness-engineering/) 体系，agent 才能稳定地完成工作：
