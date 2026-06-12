@@ -40,3 +40,6 @@ tmp/
 # Claude Code worktrees (created by EnterWorktree). Ignore the whole tree;
 # it's a per-session staging area, not part of the source repository.
 .claude/worktrees/
+
+# Project-local git worktrees used for isolated feature implementation.
+.worktrees/
