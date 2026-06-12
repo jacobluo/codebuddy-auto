@@ -112,11 +112,11 @@ codebuddy-auto/
 5. **debug 必须先系统化定位**
    测试失败、未预期行为、诡异日志任一出现，必须启用 `systematic-debugging`；禁止猜测原因或直接改代码碰运气。
 
-6. **新运行时行为必须使用 Git Worktree 隔离**
-   新运行时行为的改动，必须启用 `using-git-worktrees`，在独立 Git Worktree 中开发。以下情况可直接在主分支处理：
-   - 纯文档改动（注：`prompts/*.md` 除外，它定义 Agent 运行时行为）
-   - 单文件 typo / 链接修复 / 非行为性配置（不新增运行时依赖）
-   - 脚本小 bug fix（不新增脚本、不改主流程语义）
+6. **默认不使用 Git Worktree 隔离**
+   本项目目前按单人开发节奏推进，默认直接在当前工作树 / 当前分支实施 OpenSpec change。不要主动启用 `using-git-worktrees`，除非用户明确要求、需要长期并行分支，或当前工作树已有无法绕开的未提交冲突。
+   - 开始改动前仍需检查 `git status --short`，识别已有未提交内容
+   - 不回滚用户已有改动；若已有改动与当前任务冲突，先说明冲突再继续
+   - 若用户明确要求隔离开发，再使用 Git Worktree，并在完成后按用户选择清理
 
 7. **完成宣告才触发最终 verification**
    只有宣告整个顶层 task / proposal / PR 完成前需要 `verification-before-completion`；中间进度汇报（如"第 1 步做完，进入第 2 步"）不触发。
@@ -131,7 +131,7 @@ codebuddy-auto/
 
 | 触发场景 | 调用 skill / 动作 | 档位 |
 |---|---|---|
-| 启动引入新运行时行为的新功能开发，且不属于主流程第 6 条的豁免场景 | `using-git-worktrees` + `brainstorming` | MUST |
+| 启动新功能开发 / 准备 propose | `brainstorming` | MUST |
 | 准备调用 `/opsx:propose`，但尚未完成脑暴 | `brainstorming` | MUST |
 | `brainstorming` 完成后准备 propose | 直接 `/opsx:propose`，跳过 `writing-plans` | MUST NOT 调 `writing-plans` |
 | `/opsx:apply` 中实现运行时行为 / 修 bug | `test-driven-development` | MUST |
@@ -140,5 +140,5 @@ codebuddy-auto/
 | `tasks.md` 有 5+ 个顶层 task，且已确认无依赖、文件无冲突 | `dispatching-parallel-agents` | SHOULD |
 | 完成一个 `tasks.md` 顶层 task | `code-reviewer` | SHOULD |
 | `/opsx:archive` 前 | `verification-before-completion` + `code-reviewer` | MUST |
-| `/opsx:archive` 后 | `finishing-a-development-branch`，清理 worktree | MUST |
+| `/opsx:archive` 后，且用户准备合并 / PR / 清理分支 | `finishing-a-development-branch` | SHOULD |
 | 里程碑交付前（user 主动要求） | `requesting-code-review` | SHOULD |
