@@ -69,9 +69,20 @@ node dist/src/main.js WORKFLOW.md --daemon
 
 Dashboard：
 
-- `GET /` — 实时 SSE 驱动的 HTML
+- `GET /` — 由 status server 托管的 React SPA shell（静态资源来自 `typescript/dist/dashboard`）
+- `GET /api/v1/dashboard/bootstrap` — Dashboard 首屏 bootstrap 数据（配置摘要 + 初始 snapshot + `repoUrl` + `serverTime`）
 - `GET /api/v1/state` / `events` / `<issue>` — 结构化 snapshot / SSE / 单 issue
 - `POST /api/v1/refresh` — 排队一次额外 tick
+
+前端开发：
+
+```bash
+cd typescript
+pnpm run dev:dashboard
+# 默认代理到 http://127.0.0.1:4317
+# 如 status server 监听其他地址，可用 DASHBOARD_PROXY_TARGET 覆盖
+# DASHBOARD_PROXY_TARGET=http://127.0.0.1:4567 pnpm run dev:dashboard
+```
 
 ## Issue 生命周期
 

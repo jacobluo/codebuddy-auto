@@ -1,8 +1,13 @@
-## ADDED Requirements
+# sse-event-stream Specification
+
+## Purpose
+Defines the status server's Server-Sent Events endpoint, event envelope, replay behavior, and connection cleanup guarantees for real-time dashboard observability.
+
+## Requirements
 
 ### Requirement: SSE endpoint availability
 
-The status server exposes an SSE endpoint for real-time event streaming.
+The status server SHALL expose an SSE endpoint for real-time event streaming.
 
 #### Scenario: global event stream
 - **WHEN** a client connects to `GET /api/v1/events`
@@ -18,19 +23,22 @@ The status server exposes an SSE endpoint for real-time event streaming.
 
 ### Requirement: SSE event format
 
-Events follow the standard SSE protocol.
+Events follow the standard SSE protocol and SHALL expose a stable event envelope for Dashboard SPA consumers.
 
 #### Scenario: event framing
 - **WHEN** an event is pushed to the client
 - **THEN** it is formatted as `id: <monotonic-id>\nevent: <type>\ndata: <json>\n\n`
+- **AND** the SSE `event` field is one of `issue_event`, `scheduler_event`, or `state_snapshot`
 
 #### Scenario: JSON data payload
 - **WHEN** the `data` field is read
-- **THEN** it is a valid JSON object with fields: `issueId`, `event`, `payload`, `timestamp`
+- **THEN** it is a valid JSON object with fields `type`, `timestamp`, and `payload`
+- **AND** it includes `issueId` when the event is associated with a specific issue
+- **AND** the JSON `type` matches the SSE `event` field
 
 ### Requirement: Reconnection replay
 
-Clients can resume from where they left off.
+Clients MUST be able to resume from where they left off when event history is still available.
 
 #### Scenario: client sends Last-Event-ID
 - **WHEN** a client reconnects with `Last-Event-ID: 42`
@@ -42,7 +50,7 @@ Clients can resume from where they left off.
 
 ### Requirement: Connection cleanup
 
-Server resources are freed when clients disconnect.
+Server resources SHALL be freed when clients disconnect.
 
 #### Scenario: client disconnects
 - **WHEN** the SSE connection closes (client navigates away / network drop)

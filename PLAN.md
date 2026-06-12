@@ -287,7 +287,7 @@
 - 最小 HTTP status API 当前固定提供：`GET /`、`GET /api/v1/state`、`GET /api/v1/<issue_identifier>`、`POST /api/v1/refresh`。
 - `POST /api/v1/refresh` 的职责仅是向 scheduler 排队一次额外 tick，请求语义固定为“触发 poll + reconcile”；它不保证立即执行完毕。
 - observability sink failure 不得打挂 orchestration 主流程。即使状态服务未启动、snapshot 序列化失败或日志下游异常，issue 调度也应尽量继续。
-- Dashboard 已作为 `GET /` 页面落地，但它仍只是 `§13` 的展现层扩展，不得反向定义或篡改 runtime snapshot contract。
+- Dashboard 已作为 `GET /` 的 SPA 页面落地，但它仍只是 `§13` 的展现层扩展，不得反向定义或篡改 runtime snapshot contract。
 
 ### 2.15 `§14` Failure Model and Recovery
 
