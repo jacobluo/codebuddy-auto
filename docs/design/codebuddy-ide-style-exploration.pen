@@ -33,70 +33,16 @@
           }
         ]
       },
-      "cornerRadius": 20,
       "stroke": "#20284A",
       "strokeWidth": 1,
       "layout": "vertical",
-      "gap": 24,
-      "padding": [
-        28,
-        32,
-        32,
-        32
-      ],
       "children": [
-        {
-          "type": "frame",
-          "id": "X3I6Vi",
-          "name": "Board Header",
-          "width": "fill_container",
-          "layout": "vertical",
-          "gap": 10,
-          "children": [
-            {
-              "type": "text",
-              "id": "XnY8O",
-              "name": "Board Eyebrow",
-              "fill": "#7C84AD",
-              "content": "PENCIL / STYLE EXPLORATION",
-              "fontFamily": "Geist Mono",
-              "fontSize": 12,
-              "fontWeight": "500"
-            },
-            {
-              "type": "text",
-              "id": "XmFni",
-              "name": "Board Title",
-              "fill": "#F4F7FF",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "深色 AI IDE 工作台风格探索",
-              "lineHeight": 1.2,
-              "fontFamily": "Geist",
-              "fontSize": 30,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "gQSBi",
-              "name": "Board Subtitle",
-              "fill": "#A3ADD2",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "已保留 B 方向，并按本项目现有 Dashboard 功能收敛：配置概览、trigger refresh、运行统计、Issue 列表、Live Events SSE 明细。",
-              "lineHeight": 1.45,
-              "fontFamily": "Inter",
-              "fontSize": 14
-            }
-          ]
-        },
         {
           "type": "frame",
           "id": "rsja1",
           "name": "Direction Row",
           "width": "fill_container",
           "height": "fill_container",
-          "gap": 24,
           "children": [
             {
               "type": "frame",
@@ -104,10 +50,8 @@
               "name": "Direction B Card",
               "width": "fill_container",
               "height": "fill_container",
-              "fill": "#12172A",
-              "cornerRadius": 12,
+              "fill": "#12172A00",
               "stroke": "#6C5CFF",
-              "strokeWidth": 1,
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -119,87 +63,7 @@
                 "blur": 28
               },
               "layout": "vertical",
-              "gap": 14,
-              "padding": 16,
               "children": [
-                {
-                  "type": "frame",
-                  "id": "v3s2Vt",
-                  "name": "Direction B Meta",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 8,
-                  "children": [
-                    {
-                      "type": "frame",
-                      "id": "GNBsp",
-                      "name": "Direction B Meta Top",
-                      "width": "fill_container",
-                      "justifyContent": "space_between",
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "r250Xt",
-                          "name": "Direction B Tag",
-                          "fill": "#171D34",
-                          "cornerRadius": 999,
-                          "padding": [
-                            6,
-                            10
-                          ],
-                          "children": [
-                            {
-                              "type": "text",
-                              "id": "T0RpPx",
-                              "name": "Direction B Tag Label",
-                              "fill": "#6C5CFF",
-                              "content": "IMPLEMENTED",
-                              "fontFamily": "Geist Mono",
-                              "fontSize": 11,
-                              "fontWeight": "600"
-                            }
-                          ]
-                        },
-                        {
-                          "type": "text",
-                          "id": "U05OMy",
-                          "name": "Direction B Mode",
-                          "fill": "#7F88AF",
-                          "content": "IMPLEMENTED / CURRENT",
-                          "fontFamily": "Geist Mono",
-                          "fontSize": 11,
-                          "fontWeight": "500"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "text",
-                      "id": "RtTTm",
-                      "name": "Direction B Title",
-                      "fill": "#F2F5FF",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "Implemented Runtime Dashboard",
-                      "lineHeight": 1.3,
-                      "fontFamily": "Geist",
-                      "fontSize": 20,
-                      "fontWeight": "700"
-                    },
-                    {
-                      "type": "text",
-                      "id": "dHk0j",
-                      "name": "Direction B Desc",
-                      "fill": "#9EA8CF",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "只保留当前代码已实现的单页能力：配置概览、trigger refresh、运行统计、Issues 面板与 Live Events / SSE。",
-                      "lineHeight": 1.45,
-                      "fontFamily": "Inter",
-                      "fontSize": 13
-                    }
-                  ]
-                },
                 {
                   "type": "frame",
                   "id": "g2U1Gg",
@@ -228,52 +92,18 @@
                       "id": "fFlaI",
                       "name": "B Fit Topbar",
                       "width": "fill_container",
-                      "height": 52,
+                      "height": 56,
                       "fill": "#090C18",
                       "stroke": "#232C4D",
                       "strokeWidth": {
                         "bottom": 1
                       },
-                      "gap": 14,
                       "padding": [
-                        0,
+                        12,
                         16
                       ],
                       "alignItems": "center",
                       "children": [
-                        {
-                          "type": "frame",
-                          "id": "zhQPM",
-                          "name": "B Fit Controls",
-                          "gap": 8,
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "ellipse",
-                              "id": "kJgRS",
-                              "name": "B Fit Dot Red",
-                              "fill": "#FF6B6B",
-                              "width": 10,
-                              "height": 10
-                            },
-                            {
-                              "type": "ellipse",
-                              "id": "vpbiy",
-                              "name": "B Fit Dot Yellow",
-                              "fill": "#F6C453",
-                              "width": 10,
-                              "height": 10
-                            },
-                            {
-                              "type": "ellipse",
-                              "id": "XA0i1",
-                              "name": "B Fit Dot Green",
-                              "fill": "#2ED3A7",
-                              "width": 10,
-                              "height": 10
-                            }
-                          ]
-                        },
                         {
                           "type": "frame",
                           "id": "rvjta",
@@ -294,26 +124,6 @@
                             {
                               "type": "text",
                               "id": "NCte3",
-                              "name": "B Fit Header Subtitle",
-                              "fill": "#7F88AF",
-                              "content": "Real-time agent orchestration · SSE live events",
-                              "fontFamily": "Geist Mono",
-                              "fontSize": 10,
-                              "fontWeight": "500"
-                            },
-                            {
-                              "type": "text",
-                              "id": "hr03s",
-                              "name": "B Fit Header Title",
-                              "fill": "#F4F7FF",
-                              "content": "codebuddy-auto dashboard",
-                              "fontFamily": "Geist",
-                              "fontSize": 14,
-                              "fontWeight": "700"
-                            },
-                            {
-                              "type": "text",
-                              "id": "O8srp",
                               "name": "B Fit Header Subtitle",
                               "fill": "#7F88AF",
                               "content": "Real-time agent orchestration · SSE live events",
