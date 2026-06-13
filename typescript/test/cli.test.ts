@@ -10,12 +10,14 @@ import * as schedulerModule from '../src/scheduler/index.js';
 
 const tempDirs: string[] = [];
 let runDispatchCycleSpy: ReturnType<typeof vi.spyOn> | null = null;
+const originalCwd = process.cwd();
 
 beforeEach(() => {
   runDispatchCycleSpy = vi.spyOn(schedulerModule, 'runDispatchCycle') as ReturnType<typeof vi.spyOn>;
 });
 
 afterEach(() => {
+  process.chdir(originalCwd);
   runDispatchCycleSpy?.mockRestore();
   runDispatchCycleSpy = null;
   for (const dir of tempDirs.splice(0)) {
@@ -31,7 +33,112 @@ function createWorkflow(contents: string): string {
   return workflowPath;
 }
 
+function createTempCwd(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-init-'));
+  tempDirs.push(dir);
+  process.chdir(dir);
+  return dir;
+}
+
 describe('runCli', () => {
+  it('initializes with editable placeholder values when project options are omitted', async () => {
+    const dir = createTempCwd();
+
+    await expect(runCli(['node', 'codebuddy-auto', 'init'])).resolves.toBe(0);
+
+    const workflow = fs.readFileSync(path.join(dir, 'WORKFLOW.md'), 'utf8');
+    expect(workflow).toContain('projectSlug: your-org/your-repo');
+    expect(workflow).toContain('git clone https://cnb.cool/your-org/your-repo.git .');
+    expect(fs.existsSync(path.join(dir, '.codebuddy-auto/workspaces'))).toBe(true);
+    expect(fs.existsSync(path.join(dir, '.env'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, '.env.example'))).toBe(false);
+  });
+
+  it('prompts for project options during init when a prompt dependency is provided', async () => {
+    const dir = createTempCwd();
+    const promptInitOptions = vi.fn(async () => ({
+      project: 'relaxorg/symphony_repo_crm',
+      repoUrl: 'https://cnb.cool/relaxorg/symphony_repo_crm.git',
+    }));
+
+    await expect(runCli(['node', 'codebuddy-auto', 'init'], {
+      promptInitOptions,
+    })).resolves.toBe(0);
+
+    expect(promptInitOptions).toHaveBeenCalledWith({
+      project: 'your-org/your-repo',
+      repoUrl: 'https://cnb.cool/your-org/your-repo.git',
+    });
+
+    const workflow = fs.readFileSync(path.join(dir, 'WORKFLOW.md'), 'utf8');
+    expect(workflow).toContain('projectSlug: relaxorg/symphony_repo_crm');
+    expect(workflow).toContain('git clone https://cnb.cool/relaxorg/symphony_repo_crm.git .');
+  });
+
+  it('initializes the current directory with a workflow and workspace root', async () => {
+    const dir = createTempCwd();
+
+    await expect(runCli([
+      'node',
+      'codebuddy-auto',
+      'init',
+      '--project',
+      'relaxorg/symphony_repo_crm',
+      '--repo-url',
+      'https://cnb.cool/relaxorg/symphony_repo_crm.git',
+    ])).resolves.toBe(0);
+
+    const workflow = fs.readFileSync(path.join(dir, 'WORKFLOW.md'), 'utf8');
+    expect(workflow).toContain('projectSlug: relaxorg/symphony_repo_crm');
+    expect(workflow).toContain('apiKey: $CNB_TOKEN');
+    expect(workflow).toContain('root: ./.codebuddy-auto/workspaces');
+    expect(workflow).toContain('source_root: .');
+    expect(workflow).toContain('git clone https://cnb.cool/relaxorg/symphony_repo_crm.git .');
+    expect(workflow).toContain('{{ issue.description }}');
+    expect(fs.existsSync(path.join(dir, '.codebuddy-auto/workspaces'))).toBe(true);
+  });
+
+  it('does not create or overwrite env files during init', async () => {
+    const dir = createTempCwd();
+    const envPath = path.join(dir, '.env');
+    fs.writeFileSync(envPath, 'CNB_TOKEN=keep-me\n', 'utf8');
+
+    await expect(runCli(['node', 'codebuddy-auto', 'init', '--force'])).resolves.toBe(0);
+
+    expect(fs.readFileSync(envPath, 'utf8')).toBe('CNB_TOKEN=keep-me\n');
+  });
+
+  it('does not overwrite an existing workflow during init unless forced', async () => {
+    const dir = createTempCwd();
+    const workflowPath = path.join(dir, 'WORKFLOW.md');
+    fs.writeFileSync(workflowPath, 'custom workflow\n', 'utf8');
+
+    await expect(runCli([
+      'node',
+      'codebuddy-auto',
+      'init',
+      '--project',
+      'relaxorg/symphony_repo_crm',
+      '--repo-url',
+      'https://cnb.cool/relaxorg/symphony_repo_crm.git',
+    ])).resolves.toBe(1);
+
+    expect(fs.readFileSync(workflowPath, 'utf8')).toBe('custom workflow\n');
+
+    await expect(runCli([
+      'node',
+      'codebuddy-auto',
+      'init',
+      '--project',
+      'relaxorg/symphony_repo_crm',
+      '--repo-url',
+      'https://cnb.cool/relaxorg/symphony_repo_crm.git',
+      '--force',
+    ])).resolves.toBe(0);
+
+    expect(fs.readFileSync(workflowPath, 'utf8')).toContain('projectSlug: relaxorg/symphony_repo_crm');
+  });
+
   it('returns 0 for a valid workflow in check mode', async () => {
     const workflowPath = createWorkflow([
       '---',

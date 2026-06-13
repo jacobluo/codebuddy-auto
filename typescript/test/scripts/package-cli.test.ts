@@ -94,7 +94,6 @@ describe('package cli contract', () => {
     expect(packedPaths.has('dist/src/main.js')).toBe(true);
     expect(packedPaths.has('dist/dashboard/index.html')).toBe(true);
     expect(packedPaths.has('dist/examples/workflows/cnb-generic.WORKFLOW.md')).toBe(true);
-    expect(packedPaths.has('dist/examples/workflows/local-dashboard-demo.WORKFLOW.md')).toBe(true);
     expect(packedPaths.has('dist/examples/workflows/symphony_repo_crm.WORKFLOW.md')).toBe(true);
     expect(packedPaths.has('dist/templates/cnb/ISSUE_TEMPLATE/agent-ready.yml')).toBe(true);
     expect(packedPaths.has('src/main.ts')).toBe(false);
@@ -129,7 +128,6 @@ describe('root package entrypoint contract', () => {
     expect(packedPaths.has('typescript/dist/src/main.js')).toBe(true);
     expect(packedPaths.has('typescript/dist/dashboard/index.html')).toBe(true);
     expect(packedPaths.has('examples/workflows/cnb-generic.WORKFLOW.md')).toBe(true);
-    expect(packedPaths.has('examples/workflows/local-dashboard-demo.WORKFLOW.md')).toBe(true);
     expect(packedPaths.has('examples/workflows/symphony_repo_crm.WORKFLOW.md')).toBe(true);
     expect(packedPaths.has('templates/cnb/ISSUE_TEMPLATE/agent-ready.yml')).toBe(true);
     expect(packedPaths.has('typescript/src/main.ts')).toBe(false);

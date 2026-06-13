@@ -12,7 +12,6 @@ coverage/
 # env
 .env
 .env.*
-!.env.example
 
 # editors
 .DS_Store
@@ -23,7 +22,6 @@ coverage/
 tasks/
 logs/
 typescript/.codebuddy-auto/
-typescript/WORKFLOW.md
 
 # spike / probe 原始数据（含账号响应，本地保留）
 tmp/

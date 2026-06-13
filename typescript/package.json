@@ -7,8 +7,7 @@
     "codebuddy-auto": "./dist/src/main.js"
   },
   "files": [
-    "dist/",
-    ".env.example"
+    "dist/"
   ],
   "engines": {
     "node": ">=20"

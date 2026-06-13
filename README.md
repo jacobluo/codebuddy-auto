@@ -57,15 +57,35 @@ codebuddy-auto/
 
 ```bash
 pnpm install
-cp typescript/.env.example .env             # 填入 CODEBUDDY_API_KEY、CNB_TOKEN 等
-cp examples/workflows/cnb-generic.WORKFLOW.md WORKFLOW.md   # 改 projectSlug、clone 地址、prompt
-
-set -a; source .env; set +a
 pnpm build
-node typescript/dist/src/main.js WORKFLOW.md --daemon
 ```
 
-> Prompt 中务必包含 `{{ issue.description }}`，否则 agent 拿不到正文。
+创建一个独立的调度运行目录，并初始化 `WORKFLOW.md`：
+
+```bash
+mkdir -p ../codebuddy-auto-runner
+cd ../codebuddy-auto-runner
+node ../codebuddy-auto/typescript/dist/src/main.js init
+```
+
+然后编辑 `WORKFLOW.md`，把 `your-org/your-repo` 和 clone URL 改成业务仓库。也可以初始化时直接填好 workflow 里的业务仓库：
+
+```bash
+node ../codebuddy-auto/typescript/dist/src/main.js init \
+  --project relaxorg/symphony_repo_crm \
+  --repo-url https://cnb.cool/relaxorg/symphony_repo_crm.git
+```
+
+导出必要环境变量后检查并启动：
+
+```bash
+export CODEBUDDY_API_KEY=...
+export CNB_TOKEN=...
+node ../codebuddy-auto/typescript/dist/src/main.js --check
+node ../codebuddy-auto/typescript/dist/src/main.js --daemon
+```
+
+如果你自己维护私有凭据文件，也可以手动 `source`，但 `codebuddy-auto init` 不会生成或读取 `.env`。
 
 调度器只会捞取 **open + `agent-ready` 标签** 的 issue。
 
@@ -85,17 +105,17 @@ pnpm link --global
 安装后可直接运行：
 
 ```bash
-codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --check
-codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --daemon
+mkdir -p ../codebuddy-auto-runner
+cd ../codebuddy-auto-runner
+codebuddy-auto init
+# 编辑 WORKFLOW.md，或初始化时传 --project / --repo-url 直接填好业务仓库
+export CODEBUDDY_API_KEY=...
+export CNB_TOKEN=...
+codebuddy-auto --check
+codebuddy-auto --daemon
 ```
 
-CNB workflow 运行前需要让 token 进入当前 shell，并先创建 workspace 根目录：
-
-```bash
-set -a; source .env; set +a
-mkdir -p .codebuddy-auto/workspaces
-codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --check
-```
+`init` 会在当前目录生成 `WORKFLOW.md`，并创建 `.codebuddy-auto/workspaces/`。不传参数时会在交互式终端询问 project 和 repo URL；非交互环境会生成可编辑占位值。已有 `WORKFLOW.md` 时默认不会覆盖，确认要重建时使用 `codebuddy-auto init --force`。凭据由 shell / CI 环境显式提供，`init` 不生成 `.env`。
 
 如果 `pnpm link --global` 报 `ERR_PNPM_NO_GLOBAL_BIN_DIR`，说明本机还没有 pnpm 全局 bin 目录。执行 `pnpm setup` 后重开 shell，再运行 `pnpm link --global`。
 

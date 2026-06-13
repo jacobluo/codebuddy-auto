@@ -1,6 +1,8 @@
 import { Command } from 'commander';
+import { createInterface } from 'node:readline/promises';
+import { z } from 'zod';
 
-import { createWorkflowRuntimeSource } from './config/index.js';
+import { createWorkflowRuntimeSource, initRuntimeDirectory } from './config/index.js';
 import {
   createEventBus,
   createLogger,
@@ -15,9 +17,151 @@ import type { OrchestratorRuntimeState } from './spec/index.js';
 
 export interface RunCliDependencies {
   createWorkflowRuntimeSource?: typeof createWorkflowRuntimeSource;
+  initRuntimeDirectory?: typeof initRuntimeDirectory;
+  promptInitOptions?: (defaults: InitCliPromptDefaults) => Promise<Partial<InitCliPromptDefaults>>;
   startScheduler?: typeof startScheduler;
   startStatusServer?: typeof startStatusServer;
   waitForShutdownSignal?: () => Promise<void>;
+}
+
+interface InitCliPromptDefaults {
+  project: string;
+  repoUrl: string;
+}
+
+const initCliOptionsSchema = z.object({
+  project: z.string().min(1).optional(),
+  repoUrl: z.string().min(1).optional(),
+  force: z.boolean(),
+});
+
+const DEFAULT_INIT_PROJECT = 'your-org/your-repo';
+
+function defaultRepoUrlForProject(project: string): string {
+  return `https://cnb.cool/${project}.git`;
+}
+
+function parseInitCliOptions(args: string[]): z.infer<typeof initCliOptionsSchema> {
+  const options: {
+    project?: string;
+    repoUrl?: string;
+    force: boolean;
+  } = {
+    force: false,
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--force') {
+      options.force = true;
+      continue;
+    }
+    if (arg === '--project') {
+      const value = args[index + 1];
+      if (value === undefined) {
+        throw new Error('--project requires a value');
+      }
+      options.project = value;
+      index += 1;
+      continue;
+    }
+    if (arg === '--repo-url') {
+      const value = args[index + 1];
+      if (value === undefined) {
+        throw new Error('--repo-url requires a value');
+      }
+      options.repoUrl = value;
+      index += 1;
+      continue;
+    }
+
+    throw new Error(`unknown init option: ${arg ?? ''}`);
+  }
+
+  return initCliOptionsSchema.parse(options);
+}
+
+async function promptInitOptions(defaults: InitCliPromptDefaults): Promise<InitCliPromptDefaults> {
+  const terminal = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const projectAnswer = (await terminal.question(`CNB project slug (${defaults.project}): `)).trim();
+    const project = projectAnswer.length > 0 ? projectAnswer : defaults.project;
+    const repoUrlDefault = projectAnswer.length > 0 ? defaultRepoUrlForProject(project) : defaults.repoUrl;
+    const repoUrlAnswer = (await terminal.question(`Repository clone URL (${repoUrlDefault}): `)).trim();
+
+    return {
+      project,
+      repoUrl: repoUrlAnswer.length > 0 ? repoUrlAnswer : repoUrlDefault,
+    };
+  } finally {
+    terminal.close();
+  }
+}
+
+async function resolveInitOptions(
+  parsed: z.infer<typeof initCliOptionsSchema>,
+  dependencies: RunCliDependencies,
+): Promise<z.infer<typeof initCliOptionsSchema> & InitCliPromptDefaults> {
+  const projectDefault = parsed.project ?? DEFAULT_INIT_PROJECT;
+  const defaults = {
+    project: projectDefault,
+    repoUrl: parsed.repoUrl ?? defaultRepoUrlForProject(projectDefault),
+  };
+  const needsPrompt = parsed.project === undefined || parsed.repoUrl === undefined;
+  const canPrompt = dependencies.promptInitOptions !== undefined || (
+    process.stdin.isTTY === true && process.stdout.isTTY === true
+  );
+
+  if (needsPrompt && canPrompt) {
+    const answers = dependencies.promptInitOptions
+      ? await dependencies.promptInitOptions(defaults)
+      : await promptInitOptions(defaults);
+    const promptedProject = answers.project ?? defaults.project;
+    return {
+      force: parsed.force,
+      project: promptedProject,
+      repoUrl: answers.repoUrl ?? (
+        answers.project !== undefined && parsed.repoUrl === undefined
+          ? defaultRepoUrlForProject(promptedProject)
+          : defaults.repoUrl
+      ),
+    };
+  }
+
+  return {
+    force: parsed.force,
+    project: defaults.project,
+    repoUrl: defaults.repoUrl,
+  };
+}
+
+async function runInitCommand(
+  argv: string[],
+  dependencies: RunCliDependencies,
+): Promise<number> {
+  const logger = createLogger();
+
+  try {
+    const options = await resolveInitOptions(parseInitCliOptions(argv.slice(3)), dependencies);
+    const result = await (dependencies.initRuntimeDirectory ?? initRuntimeDirectory)({
+      cwd: process.cwd(),
+      project: options.project,
+      repoUrl: options.repoUrl,
+      force: options.force,
+    });
+    process.stdout.write(`Initialized codebuddy-auto runtime in ${process.cwd()}\n`);
+    process.stdout.write(`- ${result.workflowPath}\n`);
+    process.stdout.write(`- ${result.workspaceRoot}\n`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error({ error: message }, 'init_failed');
+    return 1;
+  }
 }
 
 function waitForShutdownSignal(): Promise<void> {
@@ -118,7 +262,12 @@ async function stopStatusServer(
 }
 
 export async function runCli(argv: string[], dependencies: RunCliDependencies = {}): Promise<number> {
+  if (argv[2] === 'init') {
+    return runInitCommand(argv, dependencies);
+  }
+
   const program = new Command();
+
   program
     .name('codebuddy-auto')
     .argument('[workflowPath]', 'path to WORKFLOW.md', 'WORKFLOW.md')
@@ -126,6 +275,11 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     .option('--status', 'print a human-readable runtime status snapshot and exit')
     .option('--reload', 'reload workflow/config from disk before running the requested action')
     .option('--daemon', 'start polling scheduler and return after bootstrap')
+    .addHelpText('after', [
+      '',
+      'Commands:',
+      '  init --project <slug> --repo-url <url>  initialize WORKFLOW.md in the current directory',
+    ].join('\n'))
     .allowExcessArguments(false);
 
   program.parse(argv);

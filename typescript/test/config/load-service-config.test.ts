@@ -21,10 +21,6 @@ describe('loadServiceConfig', () => {
         path: path.join(repoRoot, 'examples/workflows/symphony_repo_crm.WORKFLOW.md'),
         workspaceRoot: path.join(repoRoot, '.codebuddy-auto/workspaces'),
       },
-      {
-        path: path.join(repoRoot, 'examples/workflows/local-dashboard-demo.WORKFLOW.md'),
-        workspaceRoot: path.join(repoRoot, '.demo-workspaces'),
-      },
     ];
 
     for (const example of examples) {

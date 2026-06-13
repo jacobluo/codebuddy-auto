@@ -8,7 +8,6 @@
   },
   "files": [
     "typescript/dist/",
-    "typescript/.env.example",
     "examples/",
     "templates/",
     "docs/cnb-harness.md",
