@@ -45,13 +45,58 @@
 local 模式 dispatch 后不会等待 worker 完成，而是启动背景 Promise：
 
 ```text
-run-scheduler-once
-  -> run-dispatch-cycle
-    -> dispatch-local-issue
-      -> createRunAttempt
-      -> before_run hook
-      -> state.running[id] = runningEntry
-      -> runIssueWorker(...) in background
+                    +----------------------+
+       SIGINT/TERM -|   start-scheduler    |
+                    |  (per-process root)  |
+                    +----------+-----------+
+                               | tick every polling.intervalMs
+                               v
+                    +----------------------+
+                    |  run-scheduler-once  |
+                    +--+---------+-------+-+
+                       |         |       |
+        +--------------v--+  +---v---+  +v------------------+
+        | release-retry   |  | recon-|  |  run-dispatch-    |
+        | (drop expired   |  | cile  |  |  cycle            |
+        |  retry entries) |  |       |  |                   |
+        +-----------------+  +---+---+  +--+--+-------------+
+                                 |         |  |
+                  workerHandleSt v         |  | kind === local?
+                                           |  |
+                                           |  +-> dispatch-local-issue
+                                           |        | (background promise)
+                                           |        v
+                                           |    run-issue-worker
+                                           |   (SDK session loop)
+                                           |
+                                           v kind === ssh only
+                                    run-continuation-cycle
+                                    (legacy per-turn CLI)
+```
+
+local worker 的内部生命周期：
+
+```text
+dispatch-local-issue(issue)
+  -> createRunAttempt
+  -> before_run hook
+  -> state.running[id] = runningEntry
+  -> state.claimed.add(id)
+  -> eventBus.emit(dispatch_started)
+  -> runIssueWorker(...) in background
+       |
+       | loop while turnCount < agent.maxTurns
+       |   -> check gracefulExitRequested
+       |   -> send initial prompt or continuation guidance
+       |   -> stream SDK session events
+       |   -> fetch latest tracker state
+       |   -> stop on finish_label, inactive issue, no-progress, max turns
+       v
+     classify exit reason
+       -> terminal: drop claimed + add completed
+       -> stuck: drop claimed + state.stuck[id]
+       -> retryable: drop claimed only
+       -> aborted: keep restart-friendly state
 ```
 
 `runIssueWorker` 持有一个 SDK session，在每个 turn 后重新读取 tracker，并根据 finish label、issue state、graceful exit、max turns、progress fingerprint 决定是否继续。
