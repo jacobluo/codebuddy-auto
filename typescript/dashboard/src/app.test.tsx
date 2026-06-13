@@ -120,6 +120,8 @@ function createBootstrapPayload(): DashboardBootstrapPayload {
         },
       ],
       retrying: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: [],
     },
   };

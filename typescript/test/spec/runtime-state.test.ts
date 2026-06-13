@@ -41,4 +41,41 @@ describe('orchestratorRuntimeStateSchema', () => {
       error: 'turn_failed',
     });
   });
+
+  it('tracks progress metadata and stuck entries in the runtime state factory shape', () => {
+    const state = createRuntimeState();
+
+    state.progress['issue-1'] = {
+      issueId: 'issue-1',
+      identifier: '#1',
+      fingerprint: 'fingerprint-1',
+      repeatedCount: 2,
+      latest: {
+        issueId: 'issue-1',
+        identifier: '#1',
+        headCommit: null,
+        statusShort: [],
+        untrackedFiles: [],
+        trackerState: 'open',
+        trackerLabels: ['agent-ready'],
+        lastEvent: 'turn_completed',
+        fingerprint: 'fingerprint-1',
+      },
+      stuck: {
+        reason: 'no_progress',
+        repeatedCount: 2,
+        fingerprint: 'fingerprint-1',
+      },
+    };
+    state.stuck['issue-1'] = {
+      reason: 'no_progress',
+      repeatedCount: 2,
+      fingerprint: 'fingerprint-1',
+    };
+
+    const parsed = orchestratorRuntimeStateSchema.parse(state);
+
+    expect(parsed.progress['issue-1']?.repeatedCount).toBe(2);
+    expect(parsed.stuck['issue-1']?.reason).toBe('no_progress');
+  });
 });

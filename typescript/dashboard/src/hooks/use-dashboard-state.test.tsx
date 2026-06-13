@@ -131,6 +131,8 @@ function createBootstrapPayload() {
         creditCost: 0,
       },
       cleanedWorkspaceIssueIds: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: [],
     },
   };
@@ -139,7 +141,11 @@ function createBootstrapPayload() {
 function DashboardStateProbe({ dependencies }: { dependencies: DashboardRuntimeDependencies }) {
   const state = useDashboardState(dependencies);
   const issueIds = state.snapshot
-    ? [...state.snapshot.running.map((issue) => issue.issueId), ...state.snapshot.retrying.map((issue) => issue.issueId)]
+    ? [
+      ...state.snapshot.running.map((issue) => issue.issueId),
+      ...state.snapshot.retrying.map((issue) => issue.issueId),
+      ...state.snapshot.stuck.map((issue) => issue.issueId),
+    ]
     : [];
 
   return (

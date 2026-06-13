@@ -27,6 +27,7 @@ class StubTracker implements Tracker {
   constructor(
     private readonly candidates: Issue[],
     private readonly snapshots: Map<string, Pick<Issue, 'id' | 'state' | 'labels'>>,
+    private readonly finishLabel = 'agent-finish',
   ) {}
 
   async fetchCandidateIssues(): Promise<Issue[]> {
@@ -39,6 +40,10 @@ class StubTracker implements Tracker {
 
   async fetchIssueStatesByIds(): Promise<Map<string, Pick<Issue, 'id' | 'state' | 'labels'>>> {
     return this.snapshots;
+  }
+
+  getFinishLabel(): string {
+    return this.finishLabel;
   }
 }
 
@@ -427,6 +432,107 @@ describe('runSchedulerOnce', () => {
 
     expect(state.retryAttempts['retry-4']).toBeUndefined();
     expect(state.claimed.has('retry-4')).toBe(false);
+  });
+
+  it('releases stuck issues when the tracker handoff label appears', async () => {
+    const state = createRuntimeState();
+    state.stuck['stuck-finish'] = {
+      reason: 'no_progress',
+      repeatedCount: 2,
+      fingerprint: 'same',
+    };
+    state.progress['stuck-finish'] = {
+      issueId: 'stuck-finish',
+      identifier: '#stuck-finish',
+      fingerprint: 'same',
+      repeatedCount: 2,
+      latest: {
+        issueId: 'stuck-finish',
+        identifier: '#stuck-finish',
+        headCommit: null,
+        statusShort: [],
+        untrackedFiles: [],
+        trackerState: 'open',
+        trackerLabels: ['agent-ready'],
+        lastEvent: 'turn_completed',
+        fingerprint: 'same',
+      },
+      stuck: {
+        reason: 'no_progress',
+        repeatedCount: 2,
+        fingerprint: 'same',
+      },
+    };
+
+    const tracker = new StubTracker(
+      [makeIssue({ id: 'stuck-finish', identifier: '#stuck-finish' })],
+      new Map([
+        ['stuck-finish', { id: 'stuck-finish', state: 'open', labels: ['agent-ready', 'agent-finish'] }],
+      ]),
+    );
+
+    await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: [],
+        claimedIssueIds: [],
+      }),
+    });
+
+    expect(state.stuck['stuck-finish']).toBeUndefined();
+    expect(state.progress['stuck-finish']).toBeUndefined();
+    expect(state.completed.has('stuck-finish')).toBe(true);
+  });
+
+  it('releases stuck issues when the tracker state is no longer active', async () => {
+    const state = createRuntimeState();
+    state.stuck['stuck-inactive'] = {
+      reason: 'no_progress',
+      repeatedCount: 2,
+      fingerprint: 'same',
+    };
+    state.progress['stuck-inactive'] = {
+      issueId: 'stuck-inactive',
+      identifier: '#stuck-inactive',
+      fingerprint: 'same',
+      repeatedCount: 2,
+      latest: {
+        issueId: 'stuck-inactive',
+        identifier: '#stuck-inactive',
+        headCommit: null,
+        statusShort: [],
+        untrackedFiles: [],
+        trackerState: 'open',
+        trackerLabels: ['agent-ready'],
+        lastEvent: 'turn_completed',
+        fingerprint: 'same',
+      },
+      stuck: {
+        reason: 'no_progress',
+        repeatedCount: 2,
+        fingerprint: 'same',
+      },
+    };
+
+    const tracker = new StubTracker(
+      [],
+      new Map([
+        ['stuck-inactive', { id: 'stuck-inactive', state: 'closed', labels: ['agent-ready'] }],
+      ]),
+    );
+
+    const result = await runSchedulerOnce(state, tracker, makeConfig(), {
+      runDispatchCycle: async () => ({
+        availableSlots: 10,
+        dispatchableIssueIds: [],
+        claimedIssueIds: [],
+      }),
+    });
+
+    expect(result.releasedIssueIds).toEqual(['stuck-inactive']);
+    expect(state.stuck['stuck-inactive']).toBeUndefined();
+    expect(state.progress['stuck-inactive']).toBeUndefined();
+    expect(state.completed.has('stuck-inactive')).toBe(true);
   });
 
   it('runs continuation retries for active running issues before fresh dispatch', async () => {

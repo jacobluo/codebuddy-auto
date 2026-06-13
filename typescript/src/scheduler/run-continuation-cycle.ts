@@ -1,9 +1,10 @@
 import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging/index.js';
 import type { CodebuddyRunnerEvent, SdkSessionStore } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
-import type { ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
+import type { Issue, ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { prepareWorkerCommand } from '../worker/index.js';
+import { createProgressFingerprint, recordProgressFingerprint } from '../progress/index.js';
 import { renderPrompt } from '../workflow/index.js';
 
 import { createRetryEntry } from './create-retry-entry.js';
@@ -65,10 +66,18 @@ export async function runContinuationCycle(
       continue;
     }
 
+    if (state.stuck[issueId]) {
+      delete state.retryAttempts[issueId];
+      state.claimed.delete(issueId);
+      continue;
+    }
+
+    let latestIssueState: Pick<Issue, 'id' | 'state' | 'labels'> | undefined;
     if (tracker) {
       try {
         const stateSnapshot = await tracker.fetchIssueStatesByIds([issueId]);
         const issueState = stateSnapshot.get(issueId);
+        latestIssueState = issueState;
         const isActive = issueState
           ? config.tracker.activeStates.some((s) => s.toLowerCase() === issueState.state.toLowerCase())
           : false;
@@ -85,6 +94,7 @@ export async function runContinuationCycle(
           delete state.retryAttempts[issueId];
           state.claimed.delete(issueId);
           state.completed.add(issueId);
+          delete state.stuck[issueId];
           // Task 3.4: drop the SDK session when the issue is no longer active.
           sessionStore?.destroy(issueId);
           releasedIssueIds.push(issueId);
@@ -174,6 +184,54 @@ export async function runContinuationCycle(
       delete state.retryAttempts[issueId];
 
       if (lastEvent === 'turn_completed' && nextTurnCount < config.agent.maxTurns) {
+        const progress = await createProgressFingerprint({
+          issueId,
+          identifier: runningEntry.issue.identifier,
+          workspacePath: runningEntry.workspacePath,
+          trackerState: latestIssueState
+            ? { state: latestIssueState.state, labels: latestIssueState.labels }
+            : undefined,
+          lastEvent,
+        });
+        const nextProgress = recordProgressFingerprint(
+          state.progress[issueId],
+          progress,
+          config.agent.noProgressThreshold,
+        );
+        state.progress[issueId] = nextProgress;
+        if (eventBus) {
+          eventBus.emit({
+            type: 'issue_event',
+            timestamp: new Date().toISOString(),
+            issueId,
+            payload: {
+              event: 'progress_fingerprint_recorded',
+              repeatedCount: nextProgress.repeatedCount,
+              stuck: nextProgress.stuck !== null,
+            },
+          });
+        }
+        if (nextProgress.stuck) {
+          state.stuck[issueId] = nextProgress.stuck;
+          delete state.running[issueId];
+          delete state.retryAttempts[issueId];
+          state.claimed.delete(issueId);
+          sessionStore?.destroy(issueId);
+          if (eventBus) {
+            eventBus.emit({
+              type: 'issue_event',
+              timestamp: new Date().toISOString(),
+              issueId,
+              payload: {
+                event: 'issue_stuck',
+                reason: nextProgress.stuck.reason,
+                repeatedCount: nextProgress.stuck.repeatedCount,
+              },
+            });
+          }
+          continue;
+        }
+        delete state.stuck[issueId];
         state.retryAttempts[issueId] = createRetryEntry({
           issueId,
           identifier: runningEntry.issue.identifier,
@@ -217,34 +275,13 @@ export async function runContinuationCycle(
         delete state.running[issueId];
         delete state.retryAttempts[issueId];
         state.claimed.delete(issueId);
-        state.completed.add(issueId);
+        state.stuck[issueId] = {
+          reason: 'max_turns_reached',
+          repeatedCount: state.progress[issueId]?.repeatedCount ?? 1,
+          fingerprint: state.progress[issueId]?.fingerprint ?? 'max_turns_reached',
+        };
         // Task 3.4: drop the SDK session when maxTurns is hit.
         sessionStore?.destroy(issueId);
-
-        // Add finish label as safety net (preserves human review window)
-        const finishLabel = config.tracker.finishLabel ?? tracker?.getFinishLabel?.() ?? 'agent-finish';
-        if (tracker?.addLabel) {
-          try {
-            await tracker.addLabel(issueId, finishLabel);
-            issueLogger?.info(
-              {
-                workspacePath: runningEntry.workspacePath,
-                secondsRunning: runningEntry.secondsRunning,
-                totalTokens: runningEntry.tokenUsage.totalTokens,
-                finishLabel,
-              },
-              'issue_labeled_finish_at_max_turns',
-            );
-          } catch (labelError) {
-            issueLogger?.error(
-              {
-                workspacePath: runningEntry.workspacePath,
-                error: labelError instanceof Error ? labelError.message : String(labelError),
-              },
-              'issue_label_failed_at_max_turns',
-            );
-          }
-        }
 
         issueLogger?.info(
           {

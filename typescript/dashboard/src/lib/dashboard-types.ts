@@ -32,6 +32,32 @@ export interface DashboardRetryingIssue {
   error: string | null;
 }
 
+export interface DashboardProgressIssue {
+  issueId: string;
+  identifier: string;
+  fingerprint: string;
+  repeatedCount: number;
+  headCommit: string | null;
+  statusShort: string[];
+  untrackedFiles: string[];
+  trackerState: string | null;
+  trackerLabels: string[];
+  lastEvent: string | null;
+  stuck: {
+    reason: 'no_progress' | 'max_turns_reached';
+    repeatedCount: number;
+    fingerprint: string;
+  } | null;
+}
+
+export interface DashboardStuckIssue {
+  issueId: string;
+  identifier: string;
+  reason: 'no_progress' | 'max_turns_reached';
+  repeatedCount: number;
+  fingerprint: string;
+}
+
 export interface DashboardSnapshot {
   generatedAt: string;
   counts: {
@@ -46,6 +72,8 @@ export interface DashboardSnapshot {
   };
   running: DashboardRunningIssue[];
   retrying: DashboardRetryingIssue[];
+  progress: DashboardProgressIssue[];
+  stuck: DashboardStuckIssue[];
   completedIssueIds: string[];
 }
 

@@ -81,6 +81,8 @@ function createPageState(overrides: Partial<DashboardPageState> = {}): Dashboard
           creditCost: 0,
         },
         cleanedWorkspaceIssueIds: [],
+        progress: [],
+        stuck: [],
         completedIssueIds: ['8', '9', '10', '11'],
       },
     },
@@ -128,6 +130,8 @@ function createPageState(overrides: Partial<DashboardPageState> = {}): Dashboard
         creditCost: 0,
       },
       cleanedWorkspaceIssueIds: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: ['8', '9', '10', '11'],
     },
     selectedIssueId: '1',
@@ -235,6 +239,42 @@ describe('dashboard UI components', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /#2/i }));
     expect(state.onSelectIssue).toHaveBeenCalledWith('2');
+  });
+
+  it('renders stuck issues with their stuck reason', () => {
+    const state = createPageState({
+      selectedIssueId: 'stuck-1',
+    });
+    const snapshot = {
+      ...state.snapshot!,
+      running: [],
+      retrying: [],
+      stuck: [
+        {
+          issueId: 'stuck-1',
+          identifier: '#stuck-1',
+          reason: 'no_progress' as const,
+          repeatedCount: 3,
+          fingerprint: 'same',
+        },
+      ],
+    };
+
+    render(
+      <IssueSidebar
+        snapshot={snapshot}
+        selectedIssueId={state.selectedIssueId}
+        onSelectIssue={state.onSelectIssue}
+      />,
+    );
+
+    const stuckIssue = screen.getByRole('button', { name: /#stuck-1/i });
+    expect(stuckIssue.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByText('stuck')).toBeTruthy();
+    expect(screen.getByText('no_progress')).toBeTruthy();
+
+    fireEvent.click(stuckIssue);
+    expect(state.onSelectIssue).toHaveBeenCalledWith('stuck-1');
   });
 
   it('renders the live events panel and empty state', () => {

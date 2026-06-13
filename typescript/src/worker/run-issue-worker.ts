@@ -19,8 +19,6 @@
  *         tracker no longer active, OR turnCount >= maxTurns
  *      f. Otherwise continue at (a)
  *   4. session.close() (always, in finally)
- *   5. Apply safety-net `agent-finish` label if exit reason was max_turns
- *      (preserves existing behaviour).
  *
  * Exit reasons:
  *   - finish_label_observed   — tracker now has finishLabel after turn N
@@ -51,7 +49,8 @@ export type IssueWorkerExitReason =
   | 'turn_timed_out'
   | 'turn_failed'
   | 'startup_failed'
-  | 'aborted';
+  | 'aborted'
+  | 'stuck_no_progress';
 
 export interface IssueWorkerResult {
   exitReason: IssueWorkerExitReason;
@@ -95,6 +94,11 @@ export interface IssueWorkerCallbacks {
     event: 'session_started' | 'turn_completed' | 'turn_failed' | 'turn_timed_out' | 'startup_failed';
     payload: Record<string, unknown>;
   }): void;
+  onProgress?(info: {
+    turnCount: number;
+    trackerState: IssueStateSnapshot | undefined;
+    lastEvent: 'turn_completed';
+  }): 'continue' | 'stuck' | Promise<'continue' | 'stuck'>;
 }
 
 export interface RunIssueWorkerInput extends IssueWorkerDeps, IssueWorkerCallbacks {
@@ -422,6 +426,20 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         };
       }
 
+      const progressDecision = await input.onProgress?.({
+        turnCount: handle.turnCount,
+        trackerState: snap,
+        lastEvent: 'turn_completed',
+      });
+      if (progressDecision === 'stuck') {
+        exitReason = 'stuck_no_progress';
+        return {
+          exitReason,
+          turnCount: handle.turnCount,
+          sessionId: sessionIdForResult,
+        };
+      }
+
       // Honour graceful exit set during the turn we just finished.
       if (input.handleStore.get(input.issue.id)?.gracefulExitRequested) {
         exitReason = 'graceful_exit_requested';
@@ -430,17 +448,6 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
 
       // The cap is re-checked at the top of the next iteration via the live
       // config; no need to duplicate it here.
-    }
-
-    if (exitReason === 'max_turns_reached') {
-      // Apply safety-net label.
-      try {
-        await input.tracker.addLabel?.(input.issue.id, finishLabel);
-      } catch {
-        // Best-effort: surfacing the failure here would mask the more
-        // important fact that we hit max_turns. The reconcile loop will
-        // retry on next tick.
-      }
     }
 
     return {

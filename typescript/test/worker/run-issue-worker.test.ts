@@ -136,6 +136,7 @@ describe('runIssueWorker — happy path (3.1)', () => {
         ],
       })),
     };
+    const fake = createFakeSdk(plan);
 
     const result = await runIssueWorker({
       issue,
@@ -143,7 +144,7 @@ describe('runIssueWorker — happy path (3.1)', () => {
       config,
       tracker: trackerHelper.tracker,
       handleStore: store,
-      createSession: withFake(plan),
+      createSession: (options) => fake.createSession(options),
       now: () => new Date('2026-05-31T00:00:00.000Z'),
     });
 
@@ -151,13 +152,14 @@ describe('runIssueWorker — happy path (3.1)', () => {
     expect(result.turnCount).toBe(5);
     // No safety-net label applied (agent did the handoff itself)
     expect(trackerHelper.addedLabels).toEqual([]);
+    expect(fake.sessions[0]?.closed).toBe(true);
     // Handle removed
     expect(store.get(issue.id)).toBeUndefined();
   });
 });
 
 describe('runIssueWorker — max turns (3.3)', () => {
-  it('reaches maxTurns without finish_label; worker applies safety-net agent-finish and exits', async () => {
+  it('reaches maxTurns without finish_label; worker exits without applying finish label', async () => {
     const issue = makeIssue();
     const maxTurns = 3;
     const config = makeConfig({ maxTurns });
@@ -180,6 +182,7 @@ describe('runIssueWorker — max turns (3.3)', () => {
         ],
       })),
     };
+    const fake = createFakeSdk(plan);
 
     const result = await runIssueWorker({
       issue,
@@ -187,13 +190,14 @@ describe('runIssueWorker — max turns (3.3)', () => {
       config,
       tracker: trackerHelper.tracker,
       handleStore: store,
-      createSession: withFake(plan),
+      createSession: (options) => fake.createSession(options),
       now: () => new Date('2026-05-31T00:00:00.000Z'),
     });
 
     expect(result.exitReason).toBe('max_turns_reached');
     expect(result.turnCount).toBe(maxTurns);
-    expect(trackerHelper.addedLabels).toEqual(['agent-finish']);
+    expect(trackerHelper.addedLabels).toEqual([]);
+    expect(fake.sessions[0]?.closed).toBe(true);
     expect(store.get(issue.id)).toBeUndefined();
   });
 });
@@ -521,7 +525,7 @@ describe('runIssueWorker — concurrent dispatch (3.9)', () => {
 
     const a = setup('a', true);
     const b = setup('b', true);
-    const c = setup('c', false); // c will hit max_turns=1 and apply safety-net label
+    const c = setup('c', false); // c will hit max_turns=1 without handoff
 
     const [ra, rb, rc] = await Promise.all([
       runIssueWorker({
@@ -564,7 +568,7 @@ describe('runIssueWorker — concurrent dispatch (3.9)', () => {
 
     expect(a.tracker.addedLabels).toEqual([]);
     expect(b.tracker.addedLabels).toEqual([]);
-    expect(c.tracker.addedLabels).toEqual(['agent-finish']);
+    expect(c.tracker.addedLabels).toEqual([]);
 
     expect(store.get(a.issue.id)).toBeUndefined();
     expect(store.get(b.issue.id)).toBeUndefined();
@@ -621,7 +625,7 @@ describe('runIssueWorker — config reload (3.10)', () => {
 
     expect(result.exitReason).toBe('max_turns_reached');
     expect(result.turnCount).toBe(2);
-    expect(trackerHelper.addedLabels).toEqual(['agent-finish']);
+    expect(trackerHelper.addedLabels).toEqual([]);
     expect(store.get(issue.id)).toBeUndefined();
   });
 });

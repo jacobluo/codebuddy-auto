@@ -7,6 +7,7 @@ interface SelectDispatchCandidatesInput {
   runningIssueIds: Set<string>;
   runningStateCounts: Map<string, number>;
   claimedIssueIds: Set<string>;
+  stuckIssueIds: Set<string>;
   maxConcurrentAgents: number;
   maxConcurrentAgentsByState: Record<string, number>;
   runningCount: number;
@@ -76,6 +77,7 @@ export function selectDispatchCandidates(input: SelectDispatchCandidatesInput): 
     .filter((candidate) => !terminalStates.has(normalizeState(candidate.state)))
     .filter((candidate) => !input.runningIssueIds.has(candidate.id))
     .filter((candidate) => !input.claimedIssueIds.has(candidate.id))
+    .filter((candidate) => !input.stuckIssueIds.has(candidate.id))
     .filter((candidate) => !isBlocked(candidate))
     .sort(compareIssues)) {
     if (availableSlots <= 0) {

@@ -7,5 +7,7 @@ export function createRuntimeState(): OrchestratorRuntimeState {
     retryAttempts: {},
     runners: {},
     completed: new Set(),
+    progress: {},
+    stuck: {},
   };
 }

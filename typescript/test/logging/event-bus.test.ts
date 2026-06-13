@@ -81,6 +81,28 @@ describe('EventBus', () => {
     expect(historyB).toHaveLength(1);
   });
 
+  it('stores progress-gate issue events in per-issue history', () => {
+    const bus = createEventBus();
+
+    bus.emit({
+      type: 'issue_event',
+      timestamp: '2026-01-01T00:00:00Z',
+      issueId: 'A',
+      payload: { event: 'progress_fingerprint_recorded', repeatedCount: 1, stuck: false },
+    });
+    bus.emit({
+      type: 'issue_event',
+      timestamp: '2026-01-01T00:00:01Z',
+      issueId: 'A',
+      payload: { event: 'issue_stuck', reason: 'no_progress', repeatedCount: 3 },
+    });
+
+    expect(bus.history('A').map((event) => event.payload)).toEqual([
+      { event: 'progress_fingerprint_recorded', repeatedCount: 1, stuck: false },
+      { event: 'issue_stuck', reason: 'no_progress', repeatedCount: 3 },
+    ]);
+  });
+
   it('returns empty array for unknown issueId', () => {
     const bus = createEventBus();
     expect(bus.history('nonexistent')).toEqual([]);

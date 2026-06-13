@@ -2,9 +2,10 @@ import type {
   DashboardRetryingIssue,
   DashboardRunningIssue,
   DashboardSseEnvelope,
+  DashboardStuckIssue,
 } from '../lib/dashboard-types.js';
 
-type DashboardSelectableIssue = DashboardRunningIssue | DashboardRetryingIssue | null;
+type DashboardSelectableIssue = DashboardRunningIssue | DashboardRetryingIssue | DashboardStuckIssue | null;
 
 interface LiveEventsPanelProps {
   repoUrl: string | null;
@@ -53,7 +54,11 @@ export function LiveEventsPanel({ repoUrl, selectedIssue, selectedIssueEvents }:
   }
 
   const issueUrl = repoUrl ? `${repoUrl}/-/issues/${selectedIssue.issueId}` : null;
-  const workspaceLabel = 'workspacePath' in selectedIssue ? selectedIssue.workspacePath : 'retry queue';
+  const workspaceLabel = 'workspacePath' in selectedIssue
+    ? selectedIssue.workspacePath
+    : 'reason' in selectedIssue
+      ? `stuck · ${selectedIssue.reason}`
+      : 'retry queue';
 
   return (
     <section className="dashboard-panel dashboard-live-events">

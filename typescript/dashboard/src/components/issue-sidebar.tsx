@@ -50,7 +50,23 @@ export function IssueSidebar({ snapshot, selectedIssueId, onSelectIssue }: Issue
             </small>
           </button>
         ))}
-        {snapshot.running.length === 0 && snapshot.retrying.length === 0 ? (
+        {snapshot.stuck.map((issue) => (
+          <button
+            key={issue.issueId}
+            className="dashboard-issue-card"
+            type="button"
+            aria-pressed={selectedIssueId === issue.issueId}
+            onClick={() => onSelectIssue(issue.issueId)}
+          >
+            <span className="dashboard-issue-state is-stuck">stuck</span>
+            <strong>{issue.identifier}</strong>
+            <span>{issue.reason}</span>
+            <small>
+              repeated {issue.repeatedCount} · fingerprint {issue.fingerprint}
+            </small>
+          </button>
+        ))}
+        {snapshot.running.length === 0 && snapshot.retrying.length === 0 && snapshot.stuck.length === 0 ? (
           <p className="dashboard-empty-copy">No active issues right now.</p>
         ) : null}
       </div>

@@ -81,6 +81,27 @@ describe('planDispatchCycle', () => {
     expect(plan.dispatchableIssues.map((issue) => issue.id)).toEqual(['1']);
   });
 
+  it('filters out stuck issues through the dispatch plan', () => {
+    const state = createRuntimeState();
+    state.stuck['2'] = {
+      reason: 'no_progress',
+      repeatedCount: 2,
+      fingerprint: 'same',
+    };
+
+    const plan = planDispatchCycle(
+      state,
+      [
+        makeIssue({ id: '1', identifier: '#1' }),
+        makeIssue({ id: '2', identifier: '#2' }),
+      ],
+      DEFAULT_SERVICE_CONFIG,
+    );
+
+    expect(plan.dispatchableIssues.map((issue) => issue.id)).toEqual(['1']);
+  });
+
+
   it('applies per-state concurrency caps from running issue state counts', () => {
     const state = createRuntimeState();
     state.running.openOne = {

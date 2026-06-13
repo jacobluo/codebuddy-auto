@@ -39,6 +39,8 @@ function isDashboardSnapshot(value: unknown): value is DashboardSnapshot {
     && isRecord(value.counts)
     && Array.isArray(value.running)
     && Array.isArray(value.retrying)
+    && Array.isArray(value.progress)
+    && Array.isArray(value.stuck)
     && Array.isArray(value.completedIssueIds)
     && Array.isArray(value.cleanedWorkspaceIssueIds)
     && isRecord(value.totals)

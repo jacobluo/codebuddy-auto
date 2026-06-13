@@ -191,6 +191,9 @@ export function loadServiceConfig(
   if (typeof agentOverrides.max_retry_backoff_ms === 'number') {
     agent.maxRetryBackoffMs = agentOverrides.max_retry_backoff_ms;
   }
+  if (typeof agentOverrides.no_progress_threshold === 'number') {
+    agent.noProgressThreshold = agentOverrides.no_progress_threshold;
+  }
   if (
     typeof agentOverrides.max_concurrent_agents_by_state === 'object' &&
     agentOverrides.max_concurrent_agents_by_state !== null

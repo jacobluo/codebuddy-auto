@@ -34,6 +34,7 @@ function getSelectedIssue(state: DashboardPageState) {
   }
   return state.snapshot.running.find((issue) => issue.issueId === state.selectedIssueId)
     ?? state.snapshot.retrying.find((issue) => issue.issueId === state.selectedIssueId)
+    ?? state.snapshot.stuck.find((issue) => issue.issueId === state.selectedIssueId)
     ?? null;
 }
 

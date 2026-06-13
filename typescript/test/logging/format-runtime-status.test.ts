@@ -106,6 +106,8 @@ describe('formatRuntimeStatus', () => {
         dueAtMs: 200,
         error: 'turn_failed',
       }],
+      progress: [],
+      stuck: [],
       completedIssueIds: ['3'],
     });
 
@@ -138,12 +140,50 @@ describe('formatRuntimeStatus', () => {
       },
       running: [],
       retrying: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: [],
     });
 
     expect(rendered).toContain('running: none');
     expect(rendered).toContain('retrying: none');
+    expect(rendered).toContain('stuck: none');
     expect(rendered).toContain('completed: none');
     expect(rendered).toContain('cleanedWorkspaces: none');
+  });
+
+  it('prints stuck issue entries with reason and repeated count', () => {
+    const rendered = formatRuntimeStatus({
+      generatedAt: '2026-05-20T00:04:00Z',
+      counts: {
+        running: 0,
+        retrying: 0,
+        claimed: 1,
+        completed: 0,
+      },
+      cleanedWorkspaceIssueIds: [],
+      totals: {
+        secondsRunning: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        cacheCreationInputTokens: 0,
+        cacheReadInputTokens: 0,
+        creditCost: 0,
+      },
+      running: [],
+      retrying: [],
+      progress: [],
+      stuck: [{
+        issueId: 'stuck-1',
+        identifier: '#stuck-1',
+        reason: 'no_progress',
+        repeatedCount: 3,
+        fingerprint: 'same',
+      }],
+      completedIssueIds: [],
+    });
+
+    expect(rendered).toContain('stuck: #stuck-1 reason=no_progress repeated=3 fingerprint=same');
   });
 });

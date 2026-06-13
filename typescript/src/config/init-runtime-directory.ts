@@ -59,6 +59,7 @@ server:
 agent:
   max_concurrent_agents: 1
   max_turns: 30
+  no_progress_threshold: 3
   max_retry_backoff_ms: 300000
 
 worker:
@@ -106,7 +107,7 @@ Description:
 5. Run the smallest useful verification while iterating.
 6. Run the verification commands requested by the issue before handoff.
 7. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
-8. Add the \`agent-finish\` label only after the work is ready for human review.
+8. Add the \`agent-finish\` label only after verification passes, changes are committed and pushed, and the work is ready for human review.
 
 ## Handoff Format
 

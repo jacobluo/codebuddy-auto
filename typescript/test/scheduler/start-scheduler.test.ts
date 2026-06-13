@@ -275,6 +275,8 @@ describe('startScheduler', () => {
       },
       running: [],
       retrying: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: [],
     }));
 
@@ -308,6 +310,8 @@ describe('startScheduler', () => {
           },
           running: [],
           retrying: [],
+          progress: [],
+          stuck: [],
           completedIssueIds: [],
         },
       },

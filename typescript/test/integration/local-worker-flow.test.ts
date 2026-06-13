@@ -312,8 +312,9 @@ describe('local worker integration flow', () => {
     await Promise.all(retryRun.dispatch.workerPromises ?? []);
 
     expect(second.fake.sessions).toHaveLength(1);
-    expect(tracker.addedLabels).toEqual(['agent-finish']);
-    expect(state.completed.has(issue.id)).toBe(true);
+    expect(tracker.addedLabels).toEqual([]);
+    expect(state.completed.has(issue.id)).toBe(false);
+    expect(state.stuck[issue.id]?.reason).toBe('max_turns_reached');
     expect(state.claimed.has(issue.id)).toBe(false);
   });
 
@@ -400,6 +401,62 @@ describe('local worker integration flow', () => {
     expect(handleStore.get(issue.id)).toBeUndefined();
   });
 
+  it('marks a local issue stuck after repeated no-progress fingerprints', async () => {
+    const workspaceRoot = makeTempDir('cb-integration-stuck-workspaces-');
+    const issue = makeIssue({ id: 'issue-stuck', identifier: '#stuck' });
+    const tracker = makeMutableTracker(issue);
+    const config = makeConfig(workspaceRoot, {
+      agent: {
+        ...DEFAULT_SERVICE_CONFIG.agent,
+        maxConcurrentAgents: 1,
+        maxTurns: 5,
+        maxRetryBackoffMs: 1_000,
+        noProgressThreshold: 2,
+      },
+    });
+    const state = createRuntimeState();
+    const handleStore = createWorkerHandleStore();
+    const { fake, createSession } = createSessionFactory({
+      sessionId: 'sess-stuck',
+      turns: [
+        {
+          messages: [
+            systemInit('sess-stuck'),
+            assistantText('sess-stuck', 'first checkpoint'),
+            resultSuccess('sess-stuck'),
+          ],
+        },
+        {
+          messages: [
+            assistantText('sess-stuck', 'same state'),
+            resultSuccess('sess-stuck'),
+          ],
+        },
+        {
+          messages: [
+            assistantText('sess-stuck', 'should not run'),
+            resultSuccess('sess-stuck'),
+          ],
+        },
+      ],
+    });
+
+    const result = await runSchedulerOnce(state, tracker, config, {
+      workerHandleStore: handleStore,
+      createSession,
+    });
+
+    await Promise.all(result.dispatch.workerPromises ?? []);
+
+    expect(fake.sessions[0]?.sentMessages).toHaveLength(2);
+    expect(state.stuck[issue.id]?.reason).toBe('no_progress');
+    expect(state.progress[issue.id]?.repeatedCount).toBe(2);
+    expect(state.running[issue.id]).toBeUndefined();
+    expect(state.completed.has(issue.id)).toBe(false);
+    expect(state.claimed.has(issue.id)).toBe(false);
+    expect(tracker.addedLabels).toEqual([]);
+  });
+
   it('uses reloaded maxTurns at the next local worker turn boundary', async () => {
     const workspaceRoot = makeTempDir('cb-integration-reload-workspaces-');
     const issue = makeIssue({ id: 'issue-reload', identifier: '#reload' });
@@ -453,8 +510,9 @@ describe('local worker integration flow', () => {
 
     expect(fake.sessions).toHaveLength(1);
     expect(fake.sessions[0]?.sentMessages).toHaveLength(1);
-    expect(tracker.addedLabels).toEqual(['agent-finish']);
-    expect(state.completed.has(issue.id)).toBe(true);
+    expect(tracker.addedLabels).toEqual([]);
+    expect(state.completed.has(issue.id)).toBe(false);
+    expect(state.stuck[issue.id]?.reason).toBe('max_turns_reached');
     expect(state.claimed.has(issue.id)).toBe(false);
   });
 
@@ -541,8 +599,10 @@ describe('local worker integration flow', () => {
 
     expect(firstSessionFactory.fake.sessions).toHaveLength(1);
     expect(secondSessionFactory.fake.sessions).toHaveLength(1);
-    expect(state.completed.has('concurrent-1')).toBe(true);
-    expect(state.completed.has('concurrent-2')).toBe(true);
+    expect(state.completed.has('concurrent-1')).toBe(false);
+    expect(state.completed.has('concurrent-2')).toBe(false);
+    expect(state.stuck['concurrent-1']?.reason).toBe('max_turns_reached');
+    expect(state.stuck['concurrent-2']?.reason).toBe('max_turns_reached');
     expect(state.claimed.has('concurrent-1')).toBe(false);
     expect(state.claimed.has('concurrent-2')).toBe(false);
   });

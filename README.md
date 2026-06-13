@@ -199,7 +199,9 @@ open + agent-ready  →  处理中  →  open + agent-finish  →  closed
 4. Scheduler 检测到 `agent-finish` → 停止 continuation 并 release
 5. 人工审核合并 → 关闭 issue → reconciliation 清理 workspace
 
-安全网：每次 continuation 前检查标签；达到 `maxTurns` 自动贴 `agent-finish`；审核未过则人工撤掉标签即可重启。
+安全边界：每次 continuation 前检查标签；`agent-finish` 只由 agent 在完成验证、commit/push、handoff 准备后主动添加。达到 `maxTurns` 不会自动贴 `agent-finish`，而是记录为 stuck，等待人工处理或 tracker 状态变化。
+
+progress gate 是在 Symphony-compatible handoff 之外的增强层：它只比较 workspace/tracker 指纹来识别连续无进展的 turn，并把 issue 暂停在本进程内。scheduler 不运行或解释业务仓库的 `npm run verify` 等项目命令，验证仍由 workflow prompt 中的 agent 负责。
 
 ```yaml
 # WORKFLOW.md front matter
@@ -280,7 +282,7 @@ dispatch-local-issue(issue)
      │     │   └─ 否则继续下一轮
      │     │
      │     │ 退出后:
-     │     │   max_turns_reached → tracker.addLabel(finish_label) (兜底)
+     │     │   max_turns_reached → state.stuck[id] = max_turns_reached
      │     │
      │     └─ finally: session.close(); handleStore.release(id)
      │
@@ -288,12 +290,14 @@ dispatch-local-issue(issue)
           - delete state.running[id]
           - 根据 exitReason 分类:
               terminal*  → drop claimed + add completed
+              stuck*     → drop claimed + state.stuck[id]
               retryable* → drop claimed only (下一 tick 可重试)
               aborted    → 不动 (SIGINT 时为重启留干净状态)
           - run after_run hook
 ```
 
-`* terminal = finish_label_observed | issue_inactive | max_turns_reached | graceful_exit_requested`
+`* terminal = finish_label_observed | issue_inactive | graceful_exit_requested`
+`* stuck = max_turns_reached | stuck_no_progress`
 `* retryable = turn_failed | turn_timed_out | startup_failed`
 
 ### 关键状态
@@ -305,6 +309,8 @@ dispatch-local-issue(issue)
 | `state.completed` | worker exit / reconcile | dashboard | 信息性，不参与调度 |
 | `state.runners[id]` (= WorkerHandle) | worker 入口 register | reconcile / worker turn 顶部 | 协作式 graceful-exit 开关 |
 | `state.retryAttempts[id]` | dispatch failure / SSH continuation | run-scheduler-once / continuation cycle | SSH 路径专用；local 路径不写 |
+| `state.progress[id]` | worker / SSH continuation turn 边界 | dashboard / status | workspace + tracker 指纹，供 no-progress 判断 |
+| `state.stuck[id]` | worker / continuation / maxTurns | scheduler / dashboard / status | 本进程内暂停自动续跑，直到 tracker handoff 或 inactive release |
 
 ### Symphony SPEC 对位
 

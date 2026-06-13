@@ -311,6 +311,11 @@ button {
   color: #ffd890;
 }
 
+.dashboard-issue-state.is-stuck {
+  background: rgba(255, 119, 119, 0.12);
+  color: #ffaaa5;
+}
+
 .dashboard-completed-strip {
   margin-top: 14px;
   padding-top: 14px;

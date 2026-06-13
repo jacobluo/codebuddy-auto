@@ -40,6 +40,7 @@ export const agentConfigSchema = z.object({
   maxTurns: z.number().int().positive(),
   maxRetryBackoffMs: z.number().int().positive(),
   maxConcurrentAgentsByState: z.record(z.string(), z.number().int().positive()),
+  noProgressThreshold: z.number().int().positive(),
 });
 
 export const workerConfigSchema = z.object({
@@ -127,6 +128,7 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
     maxTurns: 20,
     maxRetryBackoffMs: 300_000,
     maxConcurrentAgentsByState: {},
+    noProgressThreshold: 3,
   },
   worker: {
     kind: 'local',

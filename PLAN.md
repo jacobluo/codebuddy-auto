@@ -108,8 +108,9 @@
 - `tokenUsage` 保存对外展示用累计 totals；`lastReportedTotals` 保存 provider 最近一次 absolute totals，用于把增量事件去重折算为稳定聚合值。
 - `RetryEntry` 固定为 `{ issueId, identifier, mode, attempt, dueAtMs, error }`，其中 `mode` 仅允许 `continuation | failure`。
 - `RetryEntry.attempt` 表示同一 retry mode 下的第几次调度；`continuation` 模式使用固定 1 秒重试；`failure` 模式使用指数回退并受 `agent.maxRetryBackoffMs` 限制。
-- `OrchestratorRuntimeState` 固定由 `running`、`claimed`、`retryAttempts`、`completed` 四部分构成，且 `scheduler` 是其唯一权威持有者。
+- `OrchestratorRuntimeState` 固定由 `running`、`claimed`、`retryAttempts`、`completed`、`progress`、`stuck` 六部分构成，且 `scheduler` 是其唯一权威持有者。
 - `claimed` 表示本进程已占有但不一定正在运行的 issue id 集合，覆盖 `running` 与“等待 dueAt 的 retry issue”；`completed` 只记录本进程观察到已完成主流程的 issue id，用于 snapshot 和后续清理判断。
+- `progress` 保存每个 issue 最近一次 turn 边界的 workspace/tracker 指纹；`stuck` 保存本进程内暂停自动续跑的 issue 及原因。二者是 progress-gate 增强层，不是 tracker handoff 真相源。
 - tracker 返回的新 `Issue` 快照可以替换 `runningEntry.issue` 中的元数据字段，但不得回写或重写 `sessionId`、`tokenUsage`、`turnCount` 这类编排期状态。
 
 ### 2.5 `§4` Tracker Integration Contract
@@ -174,15 +175,16 @@
 > `state.running` ripped out from under it. See spec
 > `openspec/specs/sdk-multi-turn-worker/spec.md`.
 
-- issue 编排状态主链固定为：`Unclaimed -> Claimed -> Running -> RetryQueued -> Released`。
+- issue 编排状态主链固定为：`Unclaimed -> Claimed -> Running -> RetryQueued -> Released`，并允许通过 progress-gate 增强层进入 `Stuck` 暂停态。
 - `Unclaimed` 表示 issue 仅存在于 tracker 视图中，本进程尚未占有它。
 - `Claimed` 表示 issue 已被本进程占有，但当前可能尚未启动 runner，或正在等待 retry due time 到达。
 - `Running` 表示 issue 在 `state.running` 中存在活动运行态，并可能伴随一个 continuation retry entry。
 - `RetryQueued` 是 Claimed 的子语义，表示 issue 已计划下一次 continuation/failure retry，必须继续保留 claim，直到 dueAt 到达或 issue 被 release。
+- `Stuck` 表示 issue 在本进程内被暂停自动续跑，原因包括 `no_progress` 或 `max_turns_reached`。它不等同于完成，不自动写 tracker label，也不运行项目验证命令。
 - `Released` 表示 issue 已从本进程的 `running / claimed / retryAttempts` 中移除，并可视情况进入 completed 或 workspace cleanup 路径。
 - 单次 attempt 生命周期可细分为：`SelectingIssue`、`PreparingWorkspace`、`RunningBeforeHook`、`BuildingPrompt`、`BuildingCommand`、`LaunchingAgentProcess`、`ReadingStream`、`ClassifyingResult`、`SchedulingNextStep`、`RunningAfterHook`、`FinalizingRuntimeState`。
 - 正常首轮 dispatch 的状态迁移为：candidate selected -> claimed -> attempt success -> running persisted -> continuation retry queued。
-- 正常 continuation 的状态迁移为：retry due -> attempt resumed -> running updated -> 若未达 maxTurns 则 continuation retry re-queued，否则保持 running 等待 tracker/reconciliation 决定 release。
+- 正常 continuation 的状态迁移为：retry due -> attempt resumed -> running updated -> 记录 progress fingerprint -> 若未达 maxTurns 且未触发 no-progress threshold 则 continuation retry re-queued，否则进入 stuck 并等待 tracker/reconciliation 或人工处理。
 - 异常路径的核心触发器固定为：workspace setup failure、beforeRun failure、runner event failure、timeout/stall、unexpected throw、retry timer fired、reconciliation release、startup cleanup。
 - 单个 issue 的异常必须尽量收口为 issue 级 retry 或 release，不得把同轮其他 issue 的状态迁移一并回滚。
 
@@ -190,12 +192,13 @@
 
 **状态**：🟢 已起草
 
-- scheduler tick 顺序固定为四步：释放到期 retry claim、reconcile active runs、执行 continuation cycle、执行 dispatch cycle。
+- scheduler tick 顺序固定为五步：释放到期 retry claim、reconcile active runs、reconcile stuck issues 的 tracker handoff/inactive 状态、执行 continuation cycle、执行 dispatch cycle。
 - “释放到期 retry claim” 只针对 `dueAtMs <= now` 且当前不在 `running` 中的 retry entry；释放时同时删除 retry entry 与 claimed 标记，使该 issue 重新进入可派发候选集。
 - reconciliation 只刷新当前 `running` issue 的 tracker state，不扫描全量 tracker。其职责是识别已脱离活动态的 issue，并决定是否 cleanup workspace。
 - reconciliation release 的判定固定为：tracker 不再返回该 issue，或其 state 已进入 terminalStates。前者通常表示 issue 已不可见或已不再需要本地继续持有；后者表示可按终态策略进入 cleanup。
+- stuck reconciliation 的判定固定为：stuck issue 如果收到配置的 finish label、离开 active states、进入 terminalStates，或 tracker 不再返回，则按正常 handoff/release 规则清理本进程的 stuck/progress bookkeeping。
 - continuation cycle 只处理已到期的 retry entry，且要求对应 running entry 仍存在；若 running entry 已不存在，则应直接清理 retry bookkeeping。
-- dispatch cycle 先取 tracker candidates，再按 active state、非 terminal、非 claimed、非 running、非 blocked、并发配额、priority/createdAt 排序规则做筛选。
+- dispatch cycle 先取 tracker candidates，再按 active state、非 terminal、非 claimed、非 running、非 stuck、非 blocked、并发配额、priority/createdAt 排序规则做筛选。
 - blockedBy 规则当前固定为：仅当 issue 本身处于 `todo` 状态时，若存在 blocker 且 blocker.state 非 `closed`，则视为 blocked，不参与 dispatch。
 - 并发控制同时受全局 `agent.maxConcurrentAgents` 与分状态 `agent.maxConcurrentAgentsByState` 约束；分状态限流按 issue 当前 state 的小写归一化结果计算。
 - retry 语义固定为两类：`continuation` 使用固定 1000ms；`failure` 使用指数回退并受 `agent.maxRetryBackoffMs` 上限限制。
@@ -329,9 +332,10 @@
 - `tick(state, tracker, config)`
   1. 释放所有到期且当前不在 running 中的 retry claim。
   2. 对 running issues 做 reconciliation，并对需要 cleanup 的 released issue 执行 best-effort workspace cleanup。
-  3. 执行 continuation cycle。
-  4. 执行 dispatch cycle。
-  5. 生成 runtime snapshot，写入日志与状态面。
+  3. 对 stuck issues 做 tracker handoff/inactive reconciliation，释放已完成或已不可继续的 issue。
+  4. 执行 continuation cycle。
+  5. 执行 dispatch cycle。
+  6. 生成 runtime snapshot，写入日志与状态面。
 - `reconcile(state, trackerStates, terminalStates)`
   1. 遍历每个 running issue。
   2. 若 tracker 已不再返回该 issue，或 issue state 已进入 terminalStates，则 release 该 issue。
@@ -348,8 +352,9 @@
   1. 读取 running entry 与到期 retry entry；若 running entry 已缺失则清理 retry bookkeeping。
   2. 用 continuation template 构造下一轮 prompt，并以 `--resume` 启动 CodeBuddy。
   3. 更新 running entry 的 turnCount、sessionId、lastEvent、secondsRunning、tokenUsage。
-  4. 若未达 maxTurns 且 `turn_completed`，则计划下一次 continuation retry；否则保持 running，等待 reconciliation/release。
-  5. 若失败，则计划 failure retry。
+  4. 在成功 turn 边界记录 progress fingerprint；若连续无进展达到阈值，则写入 stuck 并停止自动 continuation。
+  5. 若未达 maxTurns 且 `turn_completed` 且未 stuck，则计划下一次 continuation retry；若达到 maxTurns，则写入 `max_turns_reached` stuck 而不是贴 finish label。
+  6. 若失败，则计划 failure retry。
 - `onWorkerExit(issueId, result)`
   1. 提取最后领域事件、stderr、duration、usage。
   2. 将 provider 事件折算为 scheduler 可消费的 success / retry / release 信号。

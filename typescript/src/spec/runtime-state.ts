@@ -77,6 +77,33 @@ export const runningEntrySchema = z.object({
   }),
 });
 
+export const progressFingerprintSchema = z.object({
+  issueId: z.string(),
+  identifier: z.string(),
+  headCommit: z.string().nullable(),
+  statusShort: z.array(z.string()),
+  untrackedFiles: z.array(z.string()),
+  trackerState: z.string().nullable(),
+  trackerLabels: z.array(z.string()),
+  lastEvent: z.string().nullable(),
+  fingerprint: z.string(),
+});
+
+export const stuckProgressStateSchema = z.object({
+  reason: z.enum(['no_progress', 'max_turns_reached']),
+  repeatedCount: z.number().int().positive(),
+  fingerprint: z.string(),
+});
+
+export const issueProgressStateSchema = z.object({
+  issueId: z.string(),
+  identifier: z.string(),
+  fingerprint: z.string(),
+  repeatedCount: z.number().int().positive(),
+  latest: progressFingerprintSchema,
+  stuck: stuckProgressStateSchema.nullable(),
+});
+
 export const orchestratorRuntimeStateSchema = z.object({
   running: z.record(z.string(), runningEntrySchema),
   claimed: z.set(z.string()),
@@ -87,6 +114,8 @@ export const orchestratorRuntimeStateSchema = z.object({
    */
   runners: z.record(z.string(), workerHandleSchema),
   completed: z.set(z.string()),
+  progress: z.record(z.string(), issueProgressStateSchema).default({}),
+  stuck: z.record(z.string(), stuckProgressStateSchema).default({}),
 });
 
 export type BlockerRef = z.infer<typeof blockerRefSchema>;
@@ -94,4 +123,7 @@ export type Issue = z.infer<typeof issueSchema>;
 export type RetryEntry = z.infer<typeof retryEntrySchema>;
 export type RunningEntry = z.infer<typeof runningEntrySchema>;
 export type WorkerHandle = z.infer<typeof workerHandleSchema>;
+export type ProgressFingerprintState = z.infer<typeof progressFingerprintSchema>;
+export type StuckProgressState = z.infer<typeof stuckProgressStateSchema>;
+export type IssueProgressState = z.infer<typeof issueProgressStateSchema>;
 export type OrchestratorRuntimeState = z.infer<typeof orchestratorRuntimeStateSchema>;

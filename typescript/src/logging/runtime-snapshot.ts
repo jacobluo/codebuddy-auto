@@ -45,6 +45,30 @@ export interface RuntimeSnapshot {
     dueAtMs: number;
     error: string | null;
   }>;
+  progress: Array<{
+    issueId: string;
+    identifier: string;
+    fingerprint: string;
+    repeatedCount: number;
+    headCommit: string | null;
+    statusShort: string[];
+    untrackedFiles: string[];
+    trackerState: string | null;
+    trackerLabels: string[];
+    lastEvent: string | null;
+    stuck: {
+      reason: 'no_progress' | 'max_turns_reached';
+      repeatedCount: number;
+      fingerprint: string;
+    } | null;
+  }>;
+  stuck: Array<{
+    issueId: string;
+    identifier: string;
+    reason: 'no_progress' | 'max_turns_reached';
+    repeatedCount: number;
+    fingerprint: string;
+  }>;
   completedIssueIds: string[];
 }
 
@@ -77,6 +101,32 @@ export function createRuntimeSnapshot(
       error: entry.error,
     }))
     .sort((left, right) => left.dueAtMs - right.dueAtMs || left.identifier.localeCompare(right.identifier));
+
+  const progress = Object.values(state.progress)
+    .map((entry) => ({
+      issueId: entry.issueId,
+      identifier: entry.identifier,
+      fingerprint: entry.fingerprint,
+      repeatedCount: entry.repeatedCount,
+      headCommit: entry.latest.headCommit,
+      statusShort: entry.latest.statusShort,
+      untrackedFiles: entry.latest.untrackedFiles,
+      trackerState: entry.latest.trackerState,
+      trackerLabels: entry.latest.trackerLabels,
+      lastEvent: entry.latest.lastEvent,
+      stuck: entry.stuck,
+    }))
+    .sort((left, right) => left.identifier.localeCompare(right.identifier));
+
+  const stuck = Object.entries(state.stuck)
+    .map(([issueId, entry]) => ({
+      issueId,
+      identifier: state.progress[issueId]?.identifier ?? state.running[issueId]?.issue.identifier ?? issueId,
+      reason: entry.reason,
+      repeatedCount: entry.repeatedCount,
+      fingerprint: entry.fingerprint,
+    }))
+    .sort((left, right) => left.identifier.localeCompare(right.identifier));
 
   const totals = running.reduce(
     (aggregate, entry) => ({
@@ -111,6 +161,8 @@ export function createRuntimeSnapshot(
     totals,
     running,
     retrying,
+    progress,
+    stuck,
     completedIssueIds: Array.from(state.completed).sort(),
   };
 }

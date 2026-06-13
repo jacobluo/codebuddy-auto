@@ -26,6 +26,7 @@ import type { CodebuddyRunnerEvent } from '../runner/run-codebuddy-turn.js';
 import type { Issue, OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { createRunAttempt } from '../runner/index.js';
+import { createProgressFingerprint, recordProgressFingerprint } from '../progress/index.js';
 import { renderPrompt } from '../workflow/index.js';
 import { getWorkspaceHookScript, runWorkspaceHook } from '../workspace/index.js';
 
@@ -196,6 +197,51 @@ export async function dispatchLocalIssue(
             }
           }
         },
+        onProgress: async ({ trackerState, lastEvent }) => {
+          const progress = await createProgressFingerprint({
+            issueId: input.issue.id,
+            identifier: input.issue.identifier,
+            workspacePath: runAttempt.workspacePath,
+            trackerState,
+            lastEvent,
+          });
+          const next = recordProgressFingerprint(
+            input.state.progress[input.issue.id],
+            progress,
+            (input.getConfig?.() ?? input.config).agent.noProgressThreshold,
+          );
+          input.state.progress[input.issue.id] = next;
+          if (input.eventBus) {
+            input.eventBus.emit({
+              type: 'issue_event',
+              timestamp: new Date().toISOString(),
+              issueId: input.issue.id,
+              payload: {
+                event: 'progress_fingerprint_recorded',
+                repeatedCount: next.repeatedCount,
+                stuck: next.stuck !== null,
+              },
+            });
+          }
+          if (next.stuck) {
+            input.state.stuck[input.issue.id] = next.stuck;
+            if (input.eventBus) {
+              input.eventBus.emit({
+                type: 'issue_event',
+                timestamp: new Date().toISOString(),
+                issueId: input.issue.id,
+                payload: {
+                  event: 'issue_stuck',
+                  reason: next.stuck.reason,
+                  repeatedCount: next.stuck.repeatedCount,
+                },
+              });
+            }
+            return 'stuck';
+          }
+          delete input.state.stuck[input.issue.id];
+          return 'continue';
+        },
       });
       exitReason = result.exitReason;
 
@@ -225,8 +271,10 @@ export async function dispatchLocalIssue(
       // and SHOULD treat a successful run (or one whose tracker state is
       // already terminal) as completed.
       //
-      //   finish_label_observed / issue_inactive / max_turns_reached
+      //   finish_label_observed / issue_inactive
       //     → terminal for this scheduler. Drop claim, add to completed.
+      //   max_turns_reached / stuck_no_progress
+      //     → non-handoff stuck states. Drop claim, do not add completed.
       //   graceful_exit_requested
       //     → reconcile already deleted any retry table entries; mirror that
       //       and add to completed so the same tick doesn't re-evaluate.
@@ -236,7 +284,7 @@ export async function dispatchLocalIssue(
       //   turn_failed / turn_timed_out / startup_failed (or undefined on
       //   uncaught exception)
       //     → drop claim so the next tick can retry. Do NOT add to completed.
-      const TERMINAL = new Set(['finish_label_observed', 'issue_inactive', 'max_turns_reached', 'graceful_exit_requested']);
+      const TERMINAL = new Set(['finish_label_observed', 'issue_inactive', 'graceful_exit_requested']);
       const RETRYABLE = new Set(['turn_failed', 'turn_timed_out', 'startup_failed']);
 
       if (exitReason === 'aborted') {
@@ -244,6 +292,17 @@ export async function dispatchLocalIssue(
       } else if (exitReason && TERMINAL.has(exitReason)) {
         input.state.claimed.delete(input.issue.id);
         input.state.completed.add(input.issue.id);
+        delete input.state.stuck[input.issue.id];
+      } else if (exitReason === 'max_turns_reached') {
+        input.state.claimed.delete(input.issue.id);
+        const latest = input.state.progress[input.issue.id];
+        input.state.stuck[input.issue.id] = {
+          reason: 'max_turns_reached',
+          repeatedCount: latest?.repeatedCount ?? 1,
+          fingerprint: latest?.fingerprint ?? 'max_turns_reached',
+        };
+      } else if (exitReason === 'stuck_no_progress') {
+        input.state.claimed.delete(input.issue.id);
       } else if (exitReason === undefined || RETRYABLE.has(exitReason)) {
         input.state.claimed.delete(input.issue.id);
       }

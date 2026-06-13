@@ -29,6 +29,8 @@ function createState(): OrchestratorRuntimeState {
     retryAttempts: {},
     runners: {},
     completed: new Set(),
+    progress: {},
+    stuck: {},
   };
 }
 
@@ -58,6 +60,8 @@ function createSnapshot() {
       },
     ],
     retrying: [],
+    progress: [],
+    stuck: [],
     totals: {
       secondsRunning: 1,
       inputTokens: 1,
@@ -518,6 +522,96 @@ describe('startStatusServer', () => {
         issueId: '1',
         timestamp: '2026-05-23T00:00:05Z',
         payload: { event: 'included' },
+      });
+
+      await sse.close();
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('streams progress-gate issue events over SSE', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const eventBus = createEventBus();
+
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      eventBus,
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const sseResponse = await fetch(`${address}/api/v1/events?issueId=1`);
+      expect(sseResponse.status).toBe(200);
+      if (!sseResponse.body) {
+        throw new Error('expected SSE body');
+      }
+
+      const sse = createSseReader(sseResponse.body);
+      eventBus.emit({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:05Z',
+        payload: {
+          event: 'progress_fingerprint_recorded',
+          repeatedCount: 2,
+          stuck: false,
+        },
+      });
+      eventBus.emit({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:06Z',
+        payload: {
+          event: 'issue_stuck',
+          reason: 'no_progress',
+          repeatedCount: 3,
+        },
+      });
+
+      const progressEvent = await sse.next();
+      expect(progressEvent.event).toBe('issue_event');
+      if (!progressEvent.data) {
+        throw new Error('expected progress event payload');
+      }
+      expect(JSON.parse(progressEvent.data)).toEqual({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:05Z',
+        payload: {
+          event: 'progress_fingerprint_recorded',
+          repeatedCount: 2,
+          stuck: false,
+        },
+      });
+
+      const stuckEvent = await sse.next();
+      expect(stuckEvent.event).toBe('issue_event');
+      if (!stuckEvent.data) {
+        throw new Error('expected stuck event payload');
+      }
+      expect(JSON.parse(stuckEvent.data)).toEqual({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:06Z',
+        payload: {
+          event: 'issue_stuck',
+          reason: 'no_progress',
+          repeatedCount: 3,
+        },
       });
 
       await sse.close();

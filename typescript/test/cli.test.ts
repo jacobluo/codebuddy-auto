@@ -93,6 +93,7 @@ describe('runCli', () => {
     expect(workflow).toContain('apiKey: $CNB_TOKEN');
     expect(workflow).toContain('root: ./.codebuddy-auto/workspaces');
     expect(workflow).toContain('source_root: .');
+    expect(workflow).toContain('no_progress_threshold: 3');
     expect(workflow).toContain('git clone https://cnb.cool/relaxorg/symphony_repo_crm.git .');
     expect(workflow).toContain('{{ issue.description }}');
     expect(fs.existsSync(path.join(dir, '.codebuddy-auto/workspaces'))).toBe(true);
@@ -258,7 +259,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1', port: 0 },
-          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
@@ -380,7 +381,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
-          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },
@@ -426,7 +427,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
-          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {} },
+          agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
         },

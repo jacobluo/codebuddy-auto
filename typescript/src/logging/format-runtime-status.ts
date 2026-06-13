@@ -20,6 +20,16 @@ function formatRetrying(snapshot: RuntimeSnapshot): string[] {
   });
 }
 
+function formatStuck(snapshot: RuntimeSnapshot): string[] {
+  if (snapshot.stuck.length === 0) {
+    return ['stuck: none'];
+  }
+
+  return snapshot.stuck.map((entry) => {
+    return `stuck: ${entry.identifier} reason=${entry.reason} repeated=${entry.repeatedCount} fingerprint=${entry.fingerprint}`;
+  });
+}
+
 export function formatRuntimeStatus(snapshot: RuntimeSnapshot): string {
   const lines = [
     `generatedAt: ${snapshot.generatedAt}`,
@@ -27,6 +37,7 @@ export function formatRuntimeStatus(snapshot: RuntimeSnapshot): string {
     `totals: seconds=${snapshot.totals.secondsRunning} input=${snapshot.totals.inputTokens} output=${snapshot.totals.outputTokens} total=${snapshot.totals.totalTokens} cacheCreate=${snapshot.totals.cacheCreationInputTokens} cacheRead=${snapshot.totals.cacheReadInputTokens} credit=${snapshot.totals.creditCost}`,
     ...formatRunning(snapshot),
     ...formatRetrying(snapshot),
+    ...formatStuck(snapshot),
     `completed: ${snapshot.completedIssueIds.length === 0 ? 'none' : snapshot.completedIssueIds.join(', ')}`,
     `cleanedWorkspaces: ${snapshot.cleanedWorkspaceIssueIds.length === 0 ? 'none' : snapshot.cleanedWorkspaceIssueIds.join(', ')}`,
   ];

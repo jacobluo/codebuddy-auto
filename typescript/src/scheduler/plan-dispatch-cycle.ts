@@ -39,6 +39,7 @@ export function planDispatchCycle(
     runningIssueIds: new Set(Object.keys(state.running)),
     runningStateCounts,
     claimedIssueIds: state.claimed,
+    stuckIssueIds: new Set(Object.keys(state.stuck)),
     maxConcurrentAgents: config.agent.maxConcurrentAgents,
     maxConcurrentAgentsByState: config.agent.maxConcurrentAgentsByState,
     runningCount,

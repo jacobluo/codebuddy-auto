@@ -112,6 +112,8 @@ describe('createRuntimeSnapshot', () => {
           error: 'turn_failed',
         },
       ],
+      progress: [],
+      stuck: [],
       completedIssueIds: ['3'],
     });
   });
@@ -143,6 +145,8 @@ describe('createRuntimeSnapshot', () => {
       },
       running: [],
       retrying: [],
+      progress: [],
+      stuck: [],
       completedIssueIds: ['a', 'z'],
     });
   });
@@ -228,6 +232,68 @@ describe('createRuntimeSnapshot', () => {
       creditCost: 6,
     });
   });
+
+  it('serializes progress and stuck state for dashboard consumers', () => {
+    const state = createRuntimeState();
+    state.progress['slow-1'] = {
+      issueId: 'slow-1',
+      identifier: '#slow-1',
+      fingerprint: 'fp-1',
+      repeatedCount: 2,
+      latest: {
+        issueId: 'slow-1',
+        identifier: '#slow-1',
+        headCommit: 'abc123',
+        statusShort: ['M src/app.ts'],
+        untrackedFiles: ['scratch.ts'],
+        trackerState: 'open',
+        trackerLabels: ['agent-ready'],
+        lastEvent: 'turn_completed',
+        fingerprint: 'fp-1',
+      },
+      stuck: {
+        reason: 'no_progress',
+        repeatedCount: 2,
+        fingerprint: 'fp-1',
+      },
+    };
+    state.stuck['slow-1'] = {
+      reason: 'no_progress',
+      repeatedCount: 2,
+      fingerprint: 'fp-1',
+    };
+
+    const snapshot = createRuntimeSnapshot(state, '2026-05-20T00:05:00Z');
+
+    expect(snapshot.progress).toEqual([
+      {
+        issueId: 'slow-1',
+        identifier: '#slow-1',
+        fingerprint: 'fp-1',
+        repeatedCount: 2,
+        headCommit: 'abc123',
+        statusShort: ['M src/app.ts'],
+        untrackedFiles: ['scratch.ts'],
+        trackerState: 'open',
+        trackerLabels: ['agent-ready'],
+        lastEvent: 'turn_completed',
+        stuck: {
+          reason: 'no_progress',
+          repeatedCount: 2,
+          fingerprint: 'fp-1',
+        },
+      },
+    ]);
+    expect(snapshot.stuck).toEqual([
+      {
+        issueId: 'slow-1',
+        identifier: '#slow-1',
+        reason: 'no_progress',
+        repeatedCount: 2,
+        fingerprint: 'fp-1',
+      },
+    ]);
+  });
 });
 
 describe('createRuntimeSnapshot — JSON shape regression (§7.2)', () => {
@@ -266,8 +332,10 @@ describe('createRuntimeSnapshot — JSON shape regression (§7.2)', () => {
       'completedIssueIds',
       'counts',
       'generatedAt',
+      'progress',
       'retrying',
       'running',
+      'stuck',
       'totals',
     ]);
 

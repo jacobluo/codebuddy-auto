@@ -90,6 +90,41 @@ export async function runSchedulerOnce(
     }
   }
 
+  const stuckIssueIds = Object.keys(state.stuck)
+    .filter((issueId) => state.running[issueId] === undefined);
+  if (stuckIssueIds.length > 0) {
+    try {
+      const stuckStates = await tracker.fetchIssueStatesByIds(stuckIssueIds);
+      const activeStates = new Set(config.tracker.activeStates.map((stateName) => stateName.toLowerCase()));
+      const terminalStates = new Set(config.tracker.terminalStates.map((stateName) => stateName.toLowerCase()));
+      const finishLabel = config.tracker.finishLabel ?? tracker.getFinishLabel?.();
+      const normalizedFinishLabel = finishLabel?.toLowerCase();
+
+      for (const issueId of stuckIssueIds) {
+        const issueState = stuckStates.get(issueId);
+        const normalizedState = issueState?.state.toLowerCase();
+        const hasFinishLabel = normalizedFinishLabel !== undefined
+          && issueState !== undefined
+          && issueState.labels.some((label) => label.toLowerCase() === normalizedFinishLabel);
+        const isActive = normalizedState !== undefined && activeStates.has(normalizedState);
+        const isTerminal = normalizedState !== undefined && terminalStates.has(normalizedState);
+
+        if (issueState === undefined || !isActive || isTerminal || hasFinishLabel) {
+          delete state.stuck[issueId];
+          delete state.progress[issueId];
+          delete state.retryAttempts[issueId];
+          state.claimed.delete(issueId);
+          state.completed.add(issueId);
+          releasedIssueIds.push(issueId);
+        }
+      }
+    } catch (error) {
+      if (reconciliationError === null) {
+        reconciliationError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  }
+
   // Continuation cycle is only meaningful in SSH mode. Local mode drives
   // its turn loop inside the per-issue IssueWorker, which keeps the SDK
   // session alive across turns (Symphony §10.3).
