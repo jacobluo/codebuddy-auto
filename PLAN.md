@@ -1,19 +1,19 @@
-# PLAN.md 项目计划
+# PLAN.md 历史计划与契约演进
 
-> **状态**：M0 / M1 / M2 / M3 已完成；PLAN 正在继续补齐正式契约章节。本文件是 codebuddy-auto 的**项目计划 + 契约主干**，
-> 对齐 Symphony SPEC 的语义，但 backend 与技术栈按本项目实际选型（TypeScript / CodeBuddy Code CLI / cnb.cool）落地。
+> **当前定位（2026-06-13）**：本文件保留为 codebuddy-auto 的历史路线图、契约演进记录和旧决策背景。
+> 当前实现架构见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)，可执行能力规范见 [`openspec/specs/`](./openspec/specs/)。
 >
-> 章节完成后把 ⚪ 改为 🟢。
+> M0 / M1 / M2 / M3 / M4 已完成。后续行为变更优先走 OpenSpec change，不再把 README 或 PLAN 作为实现细节的主承载文档。
 
 ---
 
-## 0. 决策快照（2026-05-01 锁定）
+## 0. 决策快照
 
 | 维度 | 决策 | 备注 |
 |---|---|---|
-| 实现语言 | **TypeScript / Node.js 20 LTS** | 原计划 Python，因切 CLI 子进程改 TS |
+| 实现语言 | **TypeScript / Node.js 20 LTS** | |
 | 包管理 | **pnpm** | |
-| Agent 执行层 | **CodeBuddy Code CLI 子进程** | 非 SDK in-process；对位 Symphony 的 codex app-server |
+| Agent 执行层 | **CodeBuddy Agent SDK in-process** | `worker.kind: local` 主路径；`worker.kind: ssh` 保留 CLI subprocess fallback |
 | Tracker 主 backend | **cnb（cnb.cool git issue）** | 不接 Linear |
 | Tracker fallback | **LocalTracker**（本地目录） | 测试/离线用 |
 | Dashboard | 已实现为 status-server 首页 | `GET /` 基于 `/api/v1/state` 渲染仪表盘 |
@@ -36,8 +36,7 @@
 
 ## 2. 正式契约章节主线
 
-本节开始作为 `PLAN.md` 的正式正文主线，按上游 Symphony SPEC 的 `§1 ~ §18 + Appendix A` 组织。
-后文迁移差距分析仅保留为补充材料，不再充当实现主线。
+本节是历史契约正文，按上游 Symphony SPEC 的 `§1 ~ §18 + Appendix A` 组织。它解释项目如何从旧计划演进到当前实现；新的行为性变更以 OpenSpec specs 和 change archive 为准。
 
 ### 2.1 章节目录
 
@@ -52,7 +51,7 @@
 | `§7` Orchestration State Machine | 🟢 | `Unclaimed / Claimed / Running / RetryQueued / Released` 与 11 阶段 run lifecycle |
 | `§8` Polling / Scheduling / Reconciliation | 🟢 | poll tick、候选筛选、并发限制、retry/backoff、startup cleanup |
 | `§9` Workspace Management and Safety | 🟢 | workspace layout、create/reuse、hooks、git worktree、自愈与安全不变量 |
-| `§10` Agent Runner Protocol | 🟢 | CodeBuddy CLI launch contract、事件映射、timeout/error mapping |
+| `§10` Agent Runner Protocol | 🟢 | CodeBuddy SDK local worker + SSH CLI fallback contract、事件映射、timeout/error mapping |
 | `§11` Token / Runtime / Rate-Limit Accounting | 🟢 | totals 聚合、delta 去重、seconds running、latest rate-limit snapshot |
 | `§12` Prompt Construction | 🟢 | issue + attempt 注入、continuation prompt、失败语义 |
 | `§13` Logging / Status / Observability | 🟢 | pino 字段、runtime snapshot、human-readable status、HTTP status API |
@@ -68,11 +67,11 @@
 **状态**：🟢 已起草
 
 - `codebuddy-auto` 的目标不是复刻 Symphony 的具体后端实现，而是在本地 Node.js 环境中提供一套与其调度语义对齐的参考实现。
-- 本项目要解决的问题固定为：持续读取 tracker issue、为每个 issue 创建隔离工作目录、驱动 CodeBuddy CLI 执行多轮 coding turn、维护 retry / reconciliation / cleanup，并对外暴露最小运行态观察面。
-- 与上游 Symphony 的等价替换关系固定为：`Linear -> cnb.cool`、`Codex app-server -> CodeBuddy Code CLI`、`Elixir/OTP orchestration -> Node subprocess orchestration`。
+- 本项目要解决的问题固定为：持续读取 tracker issue、为每个 issue 创建隔离工作目录、驱动 CodeBuddy Agent SDK 或 SSH CLI fallback 执行多轮 coding turn、维护 retry / reconciliation / cleanup，并对外暴露最小运行态观察面。
+- 与上游 Symphony 的等价替换关系固定为：`Linear -> cnb.cool`、`Codex app-server -> CodeBuddy Agent SDK local worker / SSH CLI fallback`、`Elixir/OTP orchestration -> Node scheduler + async worker orchestration`。
 - 本项目的 handoff 边界固定在“把一个 issue 从可派发状态推进到 workflow 所定义的 handoff state”。handoff state 可以是 tracker 的终态，也可以是“等待人工 review / 等待外部合入”等中间态，不强制等于 `Done`。
 - 本项目负责 orchestration，不负责组织级业务策略。是否评论 issue、是否开 PR、如何写变更说明，默认交给 workflow prompt 引导 agent 自主完成，而不是写死在 scheduler 中。
-- Non-Goals 固定包括：不接入 Linear、不复刻 OTP 监督树、不在当前主线内实现 RemoteWorker、不把 Dashboard 当作主流程前提。
+- Non-Goals 固定包括：不接入 Linear、不复刻 OTP 监督树、不把 Dashboard 当作主流程前提、不把 SSH RemoteWorker 扩展升级成另一套调度状态机。
 - 本项目默认运行于高信任本地环境，目标是“工程上可靠的本地编排器”，不是“可对抗恶意 agent / 恶意 hook 的强隔离沙箱”。
 - conformance 主线固定为 LocalWorker。RemoteWorker 与 richer dashboard 只作为后续扩展，占位存在但不参与当前最小闭环定义。
 
@@ -80,14 +79,14 @@
 
 **状态**：🟢 已起草
 
-- 系统组件固定分为七层：`workflow loader`、`config layer`、`tracker client`、`scheduler/orchestrator`、`workspace manager`、`agent runner`、`logging/status surface`。
+- 系统组件固定分为八层：`workflow loader`、`config layer`、`tracker client`、`scheduler/orchestrator`、`workspace manager`、`local worker`、`agent runner`、`logging/status surface`。
 - `spec/` 是共享类型中枢，向下为所有模块提供统一 schema 与 runtime types；除 `spec/` 外，依赖方向必须保持单向，禁止底层反向依赖 scheduler。
 - 运行期权威状态只存在于 scheduler：`running`、`claimed`、`retryAttempts`、`completed` 都由 scheduler 持有并驱动变迁。
 - tracker 层只负责把外部 ticket 系统归一化为 `Issue` 流，不持有调度状态，也不直接了解 session、workspace、retry timer。
 - workspace 层只负责 issue 到目录的映射、目录创建/复用/移除、hook 执行与 git worktree 生命周期；它不决定 issue 是否应该继续运行。
-- runner 层只负责把 CodeBuddy CLI 进程抽象成可消费事件流；它不决定 issue release、cleanup、tracker writes 或整体调度顺序。
+- runner / worker 层只负责把 CodeBuddy SDK session 或 CLI fallback 抽象成可消费 turn 结果；它不决定 issue release、cleanup、tracker writes 或整体调度顺序。
 - logging/status 层只消费运行态并向外投影，不反向影响 dispatch 决策；即使状态面异常，主调度流程也应尽量继续。
-- 外部依赖固定为：cnb.cool API、本地文件系统、CodeBuddy CLI、可选 git CLI、宿主环境变量与认证材料。
+- 外部依赖固定为：cnb.cool API、本地文件系统、CodeBuddy Agent SDK、可选 CodeBuddy CLI fallback、可选 git CLI、宿主环境变量与认证材料。
 - 运行面最小入口固定为：读取 `WORKFLOW.md`，载入有效 config，完成 startup cleanup，然后进入定时 tick；可选通过 status server 触发额外 refresh tick。
 
 ### 2.4 `§3` State Schema
@@ -156,7 +155,7 @@
 - 当前必须做环境变量解析的字段包括：`tracker.apiKey`，以及所有声明为路径值的字符串在做路径解析前也要先过一遍环境变量展开。
 - 类型校验由 `serviceConfigSchema.parse()` 完成。非法值必须在边界处失败，禁止在后续模块内部使用 `as ServiceConfig` 逃过校验。
 - preflight 属于“运行前环境校验”，与 schema 校验分层处理。schema 负责结构和值类型；preflight 负责文件系统、git repo、必需认证材料等宿主条件。
-- 当前 preflight 最低要求包括：`tracker.kind` 非空、`tracker.apiKey` 非空、cnb 模式下 `endpoint/projectSlug` 非空、`codebuddy.command` 非空、`workspace.root` 存在。
+- 当前 preflight 最低要求包括：`tracker.kind` 非空、`tracker.apiKey` 非空、cnb 模式下 `endpoint/projectSlug` 非空、`workspace.root` 存在；仅在 `worker.kind === 'ssh'` 时要求 `codebuddy.command` 非空。
 - 当 `workspace.mode = git-worktree` 时，preflight 还必须校验：`workspace.sourceRoot` 存在且为 git 仓库，且 `workspace.root` 与 `workspace.sourceRoot` 不得相等、不得互相嵌套。
 - reload 失败时，daemon 继续沿用上一份有效的 `tracker/config/promptTemplate`。错误只进入日志与状态面，不得把正在运行的 scheduler 主循环打挂。
 - 配置章节只定义解释规则，不承诺“热更新后立即重建所有运行中的 issue 上下文”；正在运行的 attempt 以启动该 attempt 时拍下的配置快照为准。
@@ -229,12 +228,12 @@
 > subprocess per turn and resumes by `--session-id` / `--resume`. **Local mode
 > (`worker.kind === 'local'`) now satisfies SPEC §10.3 long-lived-thread
 > semantics**: a single `unstable_v2_createSession` is opened on dispatch and
-> reused for every continuation turn within one worker, so the CodeBuddy CLI
-> subprocess stays alive across turns. The local-mode invariants live in
+> reused for every continuation turn within one worker, so local mode does not
+> spawn a CodeBuddy CLI subprocess. The local-mode invariants live in
 > `openspec/specs/sdk-multi-turn-worker/spec.md`; the §10 contract below
 > applies to SSH only.
 
-- runner 分为两层：`buildCodebuddyCommand()` 负责把类型化配置翻译成 CLI 启动参数；`runCodebuddyTurn()` 负责执行子进程、消费事件流、做 timeout 与错误归一。
+- SSH fallback runner 分为两层：`buildCodebuddyCommand()` 负责把类型化配置翻译成 CLI 启动参数；`runCodebuddyTurn()` 负责执行子进程、消费事件流、做 timeout 与错误归一。local 主路径由 `runIssueWorker()` 持有 SDK session 并复用 `runCodebuddyTurnSdk()` 的 turn adapter。
 - 启动命令固定以 `codebuddy.command` 为基底，并强制附加 `--print --output-format stream-json`，确保 stdout 可被稳定消费。
 - 首轮 attempt 必须显式传入 `--session-id <sessionId>`；continuation attempt 必须传入 `--resume <existingSessionId>`，不得为 continuation 新建会话。
 - runner 必须把以下配置字段翻译到 CLI：`agent.maxTurns`、`codebuddy.permissionMode`、`codebuddy.subagentPermissionMode`、`codebuddy.sandbox`、`codebuddy.tools`、`codebuddy.allowedTools`、`codebuddy.disallowedTools`、`codebuddy.addDirs`、`codebuddy.mcpConfig`、`codebuddy.mcpStrict`、`codebuddy.dangerouslySkipPermissions`。
@@ -249,8 +248,8 @@
 - `assistant -> notification`
 - `message` 与 `file-history-snapshot` 等未升级为领域语义的消息先映射到 `other_message`
 - runner 必须同时监听 stdout 与 stderr。stderr 行要保留到结果对象里，供 scheduler 在失败日志与 retry error 中引用。
-- timeout 语义固定分三类：`readTimeoutMs` 表示“启动后迟迟无任何输出”；`turnTimeoutMs` 表示整轮执行超时；`stallTimeoutMs` 表示已有输出但长时间无新输出。三者都需要通过 kill 子进程触发收口，并映射成可辨识事件。
-- 子进程退出码本身不是唯一真相。scheduler 应优先看归一后的最后领域事件，再结合退出码与 stderr 做 retry 分类。
+- timeout 语义固定分三类：`readTimeoutMs` 表示“启动后迟迟无任何输出”；`turnTimeoutMs` 表示整轮执行超时；`stallTimeoutMs` 表示已有输出但长时间无新输出。SSH fallback 通过 kill 子进程收口；local SDK 路径通过 turn/session adapter 归一为同类事件。
+- SSH fallback 的子进程退出码本身不是唯一真相。scheduler 应优先看归一后的最后领域事件，再结合退出码与 stderr 做 retry 分类。
 - runner 只负责把 provider 事件流压缩为本地事件，不直接做 tracker 写操作，也不直接决定 release/cleanup；这些决策全部留给 scheduler。
 
 ### 2.12 `§11` Token / Runtime / Rate-Limit Accounting
@@ -311,7 +310,7 @@
 **状态**：🟢 已起草
 
 - 本项目默认运行在高信任本地环境。这里的“安全”目标是减少误操作和明显危险配置，不是提供可对抗恶意代码的强隔离边界。
-- trust boundary 固定为：workflow 文件、hooks、CodeBuddy CLI 子进程、agent 生成的 shell/git 操作都应视为高权限执行面；scheduler 只做最小约束，不承诺把它们沙箱化到不可逃逸。
+- trust boundary 固定为：workflow 文件、hooks、CodeBuddy SDK session、可选 CodeBuddy CLI 子进程、agent 生成的 shell/git 操作都应视为高权限执行面；scheduler 只做最小约束，不承诺把它们沙箱化到不可逃逸。
 - secret handling 的最低要求是：认证材料优先来自环境变量或宿主已配置的 CLI 凭据，不写入 runtime snapshot，不主动写入日志，不通过 prompt 模板显式回显。
 - 文件系统安全最低要求包括：workspace path containment、workspace key sanitize、禁止 `workspace.root` 与 `workspace.sourceRoot` 的危险重叠，以及只在 issue 对应 workspace 内启动 agent 进程。
 - hook 风险必须被显式承认：`afterCreate`、`beforeRun`、`afterRun`、`beforeRemove` 都是任意代码执行点。它们只能用于受信任仓库和受信任操作者场景。
@@ -366,7 +365,7 @@
 
 - `Core Conformance` 是当前本地单机实现的必测主线，至少覆盖：`spec` schema、workflow 解析与模板渲染、config 载入与 preflight、workspace create/remove/hook、tracker 归一化、runner 事件映射与 timeout、scheduler startup/reconcile/dispatch/continuation/retry、logging snapshot/status/http api、CLI 生命周期。
 - `Extension Conformance` 覆盖非最小主线但已落地的附加能力，当前至少包括：`git-worktree` 模式、`maxConcurrentAgentsByState`、refresh API、baseline / diff-baseline 脚本。
-- `Real Integration Profile` 用于真实依赖烟测，当前应保留给 CodeBuddy CLI 探针、cnb.cool API 探针，以及最小端到端本地试运行。
+- `Real Integration Profile` 用于真实依赖烟测，当前应保留给 CodeBuddy SDK local worker、SSH CLI fallback 探针、cnb.cool API 探针，以及最小端到端本地试运行。
 - 测试目录应继续镜像 `src/` 结构，确保每个核心模块都能在 `typescript/test/` 下找到一一对应的契约验证文件。
 - 行为性修改默认先补失败测试，再补实现；文档章程中的 contract 变更也应尽量附带对照测试位置，避免章节与代码长期漂移。
 - 对 runner、scheduler、workspace 这类时序敏感模块，优先使用可控 fake CLI、临时目录和可注入时钟/依赖，而不是依赖不稳定的真实外部环境。
@@ -382,7 +381,7 @@
 - 必须具备最小可观测性：结构化日志、runtime snapshot、CLI status、HTTP status API。
 - 必须具备自动化验证：核心模块测试通过，且与当前 contract 对应关系清晰。
 - `RECOMMENDED`：
-- 建议启用 `git-worktree` 隔离、真实 CodeBuddy CLI 探针、真实 cnb tracker 烟测。
+- 建议启用 `git-worktree` 隔离、真实 CodeBuddy SDK/CLI fallback 探针、真实 cnb tracker 烟测。
 - 建议在长期运行前验证 hook 风险边界、坏配置 reload 行为、以及异常退出后的 restart recovery 观测路径。
 - RemoteWorker、Dashboard、更多 tracker writes 策略都属于扩展交付，不属于当前本地 conformance 的 Required 下限。
 
@@ -456,11 +455,11 @@
 - `🟢` **§16 参考算法**：正式正文已补入 startup / tick / reconcile / dispatch / continuation / on-exit 伪代码。
 - `🟢` **§17 测试与验证矩阵**：正式正文已补入 Core / Extension / Real Integration 三档验证矩阵。
 - `🟢` **§18 Implementation Checklist / DoD**：正式正文已补入 REQUIRED / RECOMMENDED 交付门槛。
-- `🟢` **Appendix A SSH Worker Extension**：附录已建立，当前明确其为未来扩展且不污染本地主线。
+- `🟢` **Appendix A SSH Worker Extension**：附录已建立；SSH RemoteWorker 已作为扩展落地，但不污染 local 主线状态机。
 
 ### 2.2 结论
 
-- 本项目方案**仍然可行**，因为核心替换关系没变：`Linear -> cnb`、`Codex app-server -> CodeBuddy CLI/ACP`、`Elixir/OTP -> Node subprocess orchestration`。
+- 本项目方案**仍然可行**，因为核心替换关系没变：`Linear -> cnb`、`Codex app-server -> CodeBuddy Agent SDK local worker / SSH CLI fallback`、`Elixir/OTP -> Node scheduler + async worker orchestration`。
 - 当前正式章节主线已补齐，剩余工作主要是清理迁移补充材料并同步外部引用文档。
 - 当前 `typescript/` 的 M1/M2/M3 主线已完成，接下来的文档工作应集中在安全、参考算法与扩展附录，而不是再重写已落地主线。
 
@@ -490,7 +489,7 @@
   - 目标：覆盖 `WORKFLOW.md` 发现规则、front matter schema、`$VAR` / `~` / 相对路径解析、dynamic reload、preflight validation。
   - 完成标准：能直接指导 `workflow/` 与 `config/` 两个目录实现，不再依赖上游 SPEC 反复查漏。
 - [x] **Task 1.3 — 补 §10 Agent Runner Protocol + §12 Prompt Construction**
-  - 目标：把 CodeBuddy CLI 适配写成正式契约，包括 launch、session、事件映射、approval policy、continuation、prompt retry 语义。
+  - 目标：把 CodeBuddy SDK local worker 与 SSH CLI fallback 写成正式契约，包括 session、事件映射、approval policy、continuation、prompt retry 语义。
   - 完成标准：`runner/` 可以按本地 `PLAN.md` 实现，不必再回退到 spike 文档拼装规则。
 - [x] **Task 1.4 — 补 §13 Logging / Status / Observability**
   - 目标：明确结构化日志字段、snapshot shape、token/runtime/rate-limit 聚合规则、可选 HTTP 扩展边界。
@@ -502,7 +501,7 @@
 #### Phase 2 — 补运行时主干章节（已完成）
 
 - [x] **Task 2.1 — 补 §1 Problem Statement / Project Positioning**
-  - 目标：说明本项目与上游 Symphony、CodeBuddy CLI、cnb tracker 的边界，以及“handoff state 不等于 Done”。
+  - 目标：说明本项目与上游 Symphony、CodeBuddy SDK/CLI fallback、cnb tracker 的边界，以及“handoff state 不等于 Done”。
   - 完成标准：不再只有“TS 参考实现”一句描述，而是有明确问题定义和适用边界。
 - [x] **Task 2.2 — 补 §2 System Overview**
   - 目标：把 components、abstraction levels、external dependencies 三层都写清楚。
@@ -533,14 +532,14 @@
   - 完成标准：核心流程可由伪代码直接映射为 TypeScript 函数骨架。
 - [x] **Task 3.4 — 补 Appendix A SSH Worker Extension 占位**
   - 目标：即便 M4 才实现，也先明确这是 extension，不属于 M1 conformance。
-  - 完成标准：RemoteWorker 的未来边界被写清，不与 LocalWorker 主线混淆。
+  - 完成标准：RemoteWorker 的扩展边界被写清，不与 LocalWorker 主线混淆。
 
 #### Phase 4 — 文档与 roadmap 收尾（避免文档彼此打架）
 
 - [x] **Task 4.1**：同步 `README.md` 的职责边界，去掉 README 承载任务状态与“14 章骨架”心智。
-  - 完成标准：README 中仅保留项目目标 / 定位 / 技术路径 / 快速开始，并明确任务规划统一以 `PLAN.md` 为准。
-- [x] **Task 4.2**：同步 [`docs/references/symphony.md`](./docs/references/symphony.md)，把“借鉴清单”引用改到最新版章节号。
-  - 完成标准：引用的 SPEC 章节编号不再失真。
+  - 完成标准：README 中仅保留项目目标 / 定位 / 技术路径 / 快速开始，并链接到 `ARCHITECTURE.md`、OpenSpec specs 与 `PLAN.md`。
+- [x] **Task 4.2**：以 [`docs/references/symphony-spec.md`](./docs/references/symphony-spec.md) 作为唯一上游 Symphony 规范参考，移除旧版“借鉴清单”文档。
+  - 完成标准：`PLAN.md` 与 OpenSpec 主 specs 直接对齐最新版 SPEC，不再依赖过时解读文档。
 - [x] **Task 4.3**：把 OpenSpec 后续 change 拆分为若干小 change，而不是一次性重写整份 `PLAN.md`。
   - 建议拆分：`draft-plan-state-schema`、`draft-plan-workflow-config`、`draft-plan-runner-contract`、`draft-plan-observability-and-tests`。
   - 完成标准：每个 change 可在 1 个顶层任务内完成并可审查。
@@ -562,8 +561,8 @@
 两份 spike 已纳入 OpenSpec change **`m0-spike-codebuddy-and-cnb`**（见 `openspec/changes/m0-spike-codebuddy-and-cnb/`）。
 详细 proposal / design / tasks / 能力骨架 spec 在 change 目录内维护，本节不重复清单。
 
-- 🟢 **Spike A — CodeBuddy CLI 能力验证** → [`docs/references/codebuddy-cli-capabilities.md`](./docs/references/codebuddy-cli-capabilities.md)（2026-05-01 完成，Verdict 🟢）
-- 🟢 **Spike B — cnb.cool Issue API 验证** → [`docs/references/cnb-issue-api.md`](./docs/references/cnb-issue-api.md)（2026-05-01 完成，Verdict 🟡 带 3 处降级）
+- 🟢 **Spike A — CodeBuddy CLI fallback 能力验证** → [`docs/references/codebuddy-cli-capabilities.md`](./docs/references/codebuddy-cli-capabilities.md)（2026-05-01 完成，Verdict 🟢；当前仅作为 `worker.kind: ssh` fallback 参考，local 主路径已改为 SDK）
+- 🟢 **Spike B — cnb.cool Issue API / CNBTracker 能力验证** → [`docs/references/cnb-issue-api.md`](./docs/references/cnb-issue-api.md)（2026-05-01 完成，Verdict 🟡 带 3 处降级；当前仍支撑 `CNBTracker`，`cnb_api` MCP 仅为未来可选设计）
 
 两份 spike 已完成且 change 已归档，因此 PLAN §4 和 §5 的细化起草条件已经满足。
 
@@ -571,7 +570,7 @@
 
 - 🟢 `SPEC.md` → 重命名并扩写为 `PLAN.md`（本文件）
 - 🟢 `README.md`：已收敛为“项目目标 / 定位 / 技术路径 / 快速开始”，不再承载任务状态
-- 🟡 `docs/references/symphony.md`：已完成“不做 Linear / 分阶段实现”重写；仍需把引用章节号同步到最新版 SPEC
+- 🟢 `docs/references/symphony-spec.md`：作为唯一上游 Symphony 规范快照；旧版 `symphony.md` 解读文档已移除，避免与当前 SDK/CNBTracker 实现状态打架
 
 ### 3.3 已落地的 TypeScript 骨架
 
@@ -583,7 +582,8 @@
   ├── src/
   │   ├── spec/            ← 类型定义 + zod schema（对应 §3）
   │   ├── tracker/         ← CNBTracker + LocalTracker（对应 §4）
-  │   ├── runner/          ← CodeBuddy CLI / ACP 适配层（对应 §10）
+  │   ├── runner/          ← SDK turn adapter + SSH CLI fallback（对应 §10）
+  │   ├── worker/          ← local per-issue SDK session 生命周期
   │   ├── scheduler/       ← poll loop + dispatch（对应 §2）
   │   ├── workspace/       ← per-task 目录 + 三不变量（对应 §7）
   │   ├── workflow/        ← WORKFLOW.md 加载 + 模板渲染（对应 §5）

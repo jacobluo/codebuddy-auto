@@ -8,6 +8,17 @@
 
 ---
 
+## 当前状态（2026-06-13）
+
+本报告是历史 Spike A 的能力基线，**仍保留**，但不再代表默认本地执行路径。
+
+- 当前默认执行路径是 `worker.kind: local`，通过 `@tencent-ai/agent-sdk` 创建长生命周期 SDK session。
+- 本报告主要用于维护 `worker.kind: ssh` 的 CLI fallback：SSH 模式仍通过 CodeBuddy CLI 子进程、`--session-id` / `--resume` 和 `stream-json` 事件流工作。
+- 如果未来移除 SSH worker / CLI fallback，再删除本报告和对应 `codebuddy-cli-integration` spec/code 会更合适。
+- 报告中的 CLI 版本是 `2.93.6`；升级 CodeBuddy CLI 后，应重新跑 spike/probe 再更新这里。
+
+---
+
 ## 摘要（一句话结论）
 
 🟢 **CodeBuddy Code CLI 2.93.6 能充分承接 Symphony §10 Agent Runner Protocol。** Session / resume /
@@ -178,7 +189,7 @@ CLI 内置 **`--acp` Agent Client Protocol** 模式：
 
 ---
 
-## 意外发现：MCP 集成可直接用于 cnb_api 工具
+## 意外发现：MCP 集成可用于未来 cnb_api 工具
 
 `codebuddy --help` 显示：
 ```
@@ -186,14 +197,14 @@ CLI 内置 **`--acp` Agent Client Protocol** 模式：
 --strict-mcp-config          Only use MCP servers from --mcp-config
 ```
 
-Symphony §10.5 的 `linear_graphql` 客户端工具，在本项目里对应 **`cnb_api` MCP server**。  
-PLAN §5 可以直接规定：
+Symphony §10.5 的 `linear_graphql` 客户端工具，如果未来要在本项目里提供 agent-side CNB 写能力，可以对应为 **`cnb_api` MCP server**。当前仓库没有实现该 MCP server；现有主路径是 scheduler 侧 tracker backend。  
+未来设计可以考虑：
 
-- 本项目 runner 启动 CodeBuddy CLI 时传 `--mcp-config path/to/cnb-api-mcp.json`
+- SSH fallback runner 启动 CodeBuddy CLI 时传 `--mcp-config path/to/cnb-api-mcp.json`
 - `cnb-api-mcp.json` 暴露 `issue.comment` / `issue.addLabel` / `issue.removeLabel` / `issue.close` 等工具
 - Agent 在会话里可以直接调 `mcp__cnb_api__comment(...)`
 
-这让 Symphony §10.5 的"client-side tool"扩展在本项目**天然可实现**，不需要自建工具协议层。
+这说明 Symphony §10.5 的"client-side tool"扩展在本项目可实现；是否落地取决于是否需要让 agent 直接写 CNB issue，而不是只通过 orchestrator/tracker 写。
 
 ---
 
@@ -377,7 +388,7 @@ const child = spawn('codebuddy', args, {
 | `--sandbox [url]` | url 可选 | 沙箱运行 | PLAN §8 workflow 配置暴露 |
 | `-y, --dangerously-skip-permissions` | 开关 | 全绕过 | 高信任场景 |
 | `--tools / --allowedTools / --disallowedTools` | 字符串 | 工具白名单 | PLAN §10 preflight 可强制 |
-| `--mcp-config <fileOrString>` | 路径或 JSON | 注入 MCP server | **必用**（cnb_api 工具从这走） |
+| `--mcp-config <fileOrString>` | 路径或 JSON | 注入 MCP server | 可选；未来 `cnb_api` MCP 工具可从这走 |
 | `--strict-mcp-config` | 开关 | 只用 --mcp-config 来源 | 生产环境推荐打开 |
 | `--add-dir <dirs...>` | 路径列表 | 额外可访问目录 | workspace 补充目录 |
 | `--acp` + `--acp-transport` | — | ACP 双向模式 | M3+ 升级候选 |

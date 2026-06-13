@@ -9,6 +9,17 @@
 
 ---
 
+## 当前状态（2026-06-13）
+
+本报告是历史 Spike B 的能力基线，**仍保留**，因为当前 `CNBTracker` 和 `cnb-tracker-backend` spec 仍依赖这些 REST API 行为。
+
+- 当前已落地的是 scheduler 侧 tracker backend：`CnbTracker.fetchCandidateIssues()` / `fetchIssuesByStates()` / `fetchIssueStatesByIds()` / `addLabel()`。
+- 本报告里的 3 个降级仍是实现约束：无 batch-by-id、`labels=` 为 OR 语义、无 issue custom fields。
+- `cnb_api` MCP / agent-side 写工具只是可行性结论和未来设计草案；当前仓库没有实现 `dist/mcp/cnb-api-server.js` 这类 MCP server。
+- 如果未来项目不再支持 CNB tracker backend，再删除本报告和对应 `cnb-tracker-backend` spec/code 会更合适。
+
+---
+
 ## 摘要（一句话结论）
 
 🟡 **cnb.cool Issue API 能承接 Symphony §11 Tracker Integration 契约的核心语义**（按 label 过滤 /
@@ -16,7 +27,7 @@ comment / label / state / assignee 全部原生支持），但**有三处降级*
 （1）**无批量按 id 查询**，tick 内按 N issue 必发 N 次 GET；
 （2）**labels 过滤是 OR 语义**，"含 agent-ready 且不含 skip-agent"必须 orchestrator 侧客户端过滤；
 （3）**无 custom fields** + **无公开 rate-limit header**，Symphony §11 的 `attempt` 等元数据需用 label 前缀约定承载。
-`cnb_api` agent-side MCP 工具天然可落地（经 Spike A 确认 CodeBuddy CLI 支持 `--mcp-config`）。
+`cnb_api` agent-side MCP 工具具备可行性（经 Spike A 确认 CodeBuddy CLI 支持 `--mcp-config`），但当前实现主路径是 scheduler 侧 `CNBTracker`，并未落地 agent-side MCP server。
 
 ---
 
@@ -65,9 +76,9 @@ comment / label / state / assignee 全部原生支持），但**有三处降级*
 | `comment_count` | `comment_count` | 整数 |
 | `blocked_by` | ❌ cnb 无原生依赖；按 **label 前缀约定** `blocked-by:#N` 模拟（见 §3.6） | 符合 `cnb-tracker-backend/spec.md` "Blocker relationship" Requirement |
 
-### §10.5 client-side tool `cnb_api`（替代 Symphony `linear_graphql`）
+### §10.5 client-side tool `cnb_api`（可选设计，当前未实现）
 
-Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提供全部必要的 agent-side 写端点：
+Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提供全部必要的 agent-side 写端点；这些端点目前作为未来 MCP 工具设计依据，而不是当前已交付功能：
 
 | 工具名（拟） | 后端端点 | 状态 |
 |---|---|---|
@@ -123,7 +134,7 @@ Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提
   - `attempt:3`（重试次数）
   - `blocked-by:#102`（阻塞关系；符合 `cnb-tracker-backend/spec.md` 已定义的 Requirement）
   - `agent-status:running` / `agent-status:needs-review`（状态标签，可视化友好）
-  - orchestrator 负责在每次 poll 前后同步这些 label（add/remove），agent 通过 `cnb_api.addLabels/removeLabel` 写
+  - 当前实现由 orchestrator / tracker backend 负责读写必要 label；如果未来实现 `cnb_api` MCP，agent 也可以通过 `cnb_api.addLabels/removeLabel` 写
 
 ### §2.6 Webhook（可行性）
 
@@ -205,9 +216,9 @@ class CnbTracker implements Tracker {
 
 ⚠️ `state_reason` 的完整枚举 cnb 文档未全量列出；M1 实现时增加一个 probe 步骤，调 `PATCH` 故意写错值看 400 消息中的合法值，或者直接穷举常见 GitHub/GitLab 命名去探。
 
-### 3.4 `cnb_api` MCP server 设计
+### 3.4 `cnb_api` MCP server 设计（未来可选）
 
-紧跟 Spike A §"意外发现：MCP 集成" 的结论，规划如下 MCP tool（用 Node MCP SDK 或简单 stdio wrapper 实现）：
+紧跟 Spike A §"意外发现：MCP 集成" 的结论，未来若需要让 agent 直接写 CNB issue，可按如下 MCP tool 方向实现（用 Node MCP SDK 或简单 stdio wrapper）。当前仓库尚未实现该 server：
 
 ```jsonc
 // runner/mcp-config/cnb-api-mcp.json 骨架
@@ -473,4 +484,5 @@ $ curl -sS -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
 
 | 版本 | 日期 | 摘要 |
 |---|---|---|
+| v0.2 | 2026-06-13 | 补充当前状态：报告仍支撑 CNBTracker；`cnb_api` MCP 为未来可选设计，当前未实现 |
 | v0.1 | 2026-05-01 | Spike B 首版落地：20 checks + 裁决表 + 7 条设计建议 + 8 条已知风险 |

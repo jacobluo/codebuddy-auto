@@ -1,8 +1,14 @@
-## ADDED Requirements
+# realtime-event-bus Specification
+
+## Purpose
+
+Defines the in-process event bus used to distribute scheduler, issue, and runtime snapshot events to dashboard and status consumers.
+
+## Requirements
 
 ### Requirement: EventBus emit
 
-EventBus 接受实时事件并分发给所有已注册的订阅者。
+EventBus SHALL accept realtime events and distribute them to all registered subscribers.
 
 #### Scenario: emit an event to all subscribers
 - **WHEN** `eventBus.emit(event)` is called with a valid `DashboardEvent`
@@ -14,7 +20,7 @@ EventBus 接受实时事件并分发给所有已注册的订阅者。
 
 ### Requirement: EventBus subscribe / unsubscribe
 
-Consumers can register and deregister listeners.
+Consumers SHALL be able to register and deregister listeners.
 
 #### Scenario: subscribe returns an unsubscribe function
 - **WHEN** `eventBus.subscribe(listener)` is called
@@ -26,7 +32,7 @@ Consumers can register and deregister listeners.
 
 ### Requirement: EventBus history
 
-EventBus maintains a bounded in-memory history for reconnection replay.
+EventBus SHALL maintain a bounded in-memory history for reconnection replay.
 
 #### Scenario: per-issue history capped at 200 events
 - **WHEN** more than 200 events with the same `issueId` are emitted
@@ -42,7 +48,7 @@ EventBus maintains a bounded in-memory history for reconnection replay.
 
 ### Requirement: DashboardEvent schema
 
-All events flowing through the bus conform to a stable schema.
+All events flowing through the bus MUST conform to a stable schema.
 
 #### Scenario: valid event structure
 - **WHEN** an event is emitted

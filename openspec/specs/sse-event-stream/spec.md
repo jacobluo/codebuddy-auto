@@ -2,9 +2,7 @@
 
 ## Purpose
 Defines the status server's Server-Sent Events endpoint, event envelope, replay behavior, and connection cleanup guarantees for real-time dashboard observability.
-
 ## Requirements
-
 ### Requirement: SSE endpoint availability
 
 The status server SHALL expose an SSE endpoint for real-time event streaming.
@@ -55,3 +53,18 @@ Server resources SHALL be freed when clients disconnect.
 #### Scenario: client disconnects
 - **WHEN** the SSE connection closes (client navigates away / network drop)
 - **THEN** the EventBus subscription is removed and no further writes to that response occur
+
+### Requirement: Progress gate events
+
+The SSE stream SHALL emit issue-scoped events when progress fingerprints are recorded and when an issue becomes stuck.
+
+#### Scenario: progress fingerprint event emitted
+- **WHEN** the runtime records a progress fingerprint for an issue
+- **THEN** connected SSE clients receive an `issue_event`
+- **AND** the event payload identifies the issue and progress-gate event type
+
+#### Scenario: stuck event emitted
+- **WHEN** the runtime marks an issue stuck
+- **THEN** connected SSE clients receive an `issue_event`
+- **AND** the event payload includes the stuck reason
+

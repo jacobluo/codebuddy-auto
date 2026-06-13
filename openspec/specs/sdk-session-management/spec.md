@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines how the CodeBuddy Agent SDK session lifecycle maps to issue lifecycle, including session creation, reuse across continuation turns, destruction on release, tool-call observability via canUseTool, and wall-clock timeout enforcement.
-
 ## Requirements
-
 ### Requirement: Session creation per issue
 
 Each dispatched issue gets a dedicated SDK session that persists across multiple turns. When `worker.kind === 'local'`, this is realized by the per-issue `IssueWorker` (see capability `sdk-multi-turn-worker`), which holds exactly one `Session` for the issue's full lifetime. The SDK CLI subprocess associated with that session MUST remain alive across all continuation turns and MUST be torn down only when the worker exits.
@@ -23,14 +21,24 @@ The system MUST NOT call `query()` once per turn against the same `sessionId`. P
 - **AND** no new SDK session is created for the continuation turn
 - **AND** the underlying CLI subprocess used by the SDK is NOT respawned between turns
 
-#### Scenario: session destroyed on issue release
-- **WHEN** an issue is released (terminal state, reconciliation, finish_label, or maxTurns)
-- **THEN** the associated SDK session is closed via `session.close()` exactly once
-- **AND** the `Session` object and `WorkerHandle` are removed from the runtime state
+### Requirement: session destroyed on worker exit
+
+Each SDK session SHALL be closed when its owning worker exits for any reason, including tracker handoff, inactive issue state, terminal issue state, graceful exit, timeout, failure, abort, or `maxTurns`. Closing the session MUST NOT imply the issue reached successful workflow handoff.
+
+#### Scenario: session closed after finish label
+- **WHEN** a worker observes the configured finish label and exits
+- **THEN** the associated SDK session is closed exactly once
+- **AND** the worker handle is removed from runtime state
+
+#### Scenario: session closed after maxTurns without handoff
+- **WHEN** a worker exits because `agent.maxTurns` was reached
+- **THEN** the associated SDK session is closed exactly once
+- **AND** the finish label is NOT applied automatically
+- **AND** the runtime records the stop reason as `max_turns_reached`
 
 ### Requirement: canUseTool callback
 
-SDK sessions are configured with a `canUseTool` callback for observability and future permission control.
+SDK sessions SHALL be configured with a `canUseTool` callback for observability and future permission control.
 
 #### Scenario: tool calls emitted to EventBus
 - **WHEN** the agent requests a tool call during a session
@@ -49,3 +57,4 @@ SDK sessions are subject to wall-clock timeout independent of SDK internal behav
 - **THEN** the abort controller is signaled
 - **AND** the turn is classified as `turn_timed_out`
 - **AND** the worker exits the loop without starting another turn
+

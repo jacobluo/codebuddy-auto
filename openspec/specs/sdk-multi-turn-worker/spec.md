@@ -3,10 +3,7 @@
 ## Purpose
 
 Defines the per-issue, long-lived async worker that owns a CodeBuddy SDK session for one issue's full lifetime, drives multiple turns via repeated `session.send`/`session.stream`, performs per-turn tracker re-checks, and exits gracefully on terminal state, finish_label, or maxTurns. Realizes Symphony SPEC §7.1 / §10.3 long-lived-thread semantics under `worker.kind === 'local'`.
-
 ## Requirements
-
-
 ### Requirement: Per-issue long-lived worker
 
 When `worker.kind === 'local'`, each dispatched issue SHALL be driven by exactly one in-process async worker that owns a single CodeBuddy SDK session for the entire issue lifetime, and that worker SHALL run multiple turns by repeatedly calling `session.send` and `session.stream` on that same session, so that Symphony SPEC §10.3 ("the app-server subprocess SHOULD remain alive across continuation turns") is satisfied.
@@ -58,25 +55,27 @@ After every successful `turn_completed`, the worker SHALL re-fetch the issue fro
 - The issue carries the `tracker.finishLabel` label.
 - The current `turnCount` has reached `agent.maxTurns`.
 
+Reaching `agent.maxTurns` MUST NOT be treated as successful workflow handoff and MUST NOT automatically apply `tracker.finishLabel`.
+
 #### Scenario: Issue moved to terminal state mid-flight
 - **WHEN** turn N completes successfully
 - **AND** before sending turn N+1 the worker re-fetches the tracker and finds the issue is no longer active
 - **THEN** the worker breaks the loop without sending turn N+1
 - **AND** `session.close()` is called
-- **AND** the `agent-finish` safety-net label is NOT applied (the issue is already past handoff)
+- **AND** the `agent-finish` label is NOT applied
 
 #### Scenario: Agent applied finish_label mid-flight
 - **WHEN** turn N completes successfully
 - **AND** the re-fetched issue contains the configured `tracker.finishLabel`
 - **THEN** the worker breaks the loop without sending turn N+1
-- **AND** the safety-net label is NOT re-applied
+- **AND** the finish label is NOT re-applied
 - **AND** the worker logs `issue_continuation_completed_finish_label`
 
 #### Scenario: maxTurns reached
 - **WHEN** turn N completes and `turnCount === agent.maxTurns`
 - **THEN** the worker breaks the loop
-- **AND** the safety-net label `tracker.finishLabel` IS applied (preserving existing behaviour)
-- **AND** the worker logs `issue_continuation_completed_max_turns`
+- **AND** the finish label is NOT applied
+- **AND** the worker emits or records `max_turns_reached` as a non-handoff stop condition
 
 ### Requirement: Reconcile triggers graceful exit, not in-flight abort
 
@@ -125,3 +124,4 @@ On daemon `SIGINT` / `SIGTERM`, every active worker SHALL be sent an abort signa
 - **THEN** both workers receive `abortController.abort()`
 - **AND** both attempt `session.close()`
 - **AND** the daemon waits up to the grace window before exiting
+
