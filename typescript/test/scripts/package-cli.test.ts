@@ -1,9 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,6 +15,7 @@ const rootPackageJsonPath = path.join(repoRoot, 'package.json');
 const packageJsonPath = path.join(packageRoot, 'package.json');
 const sourceMainPath = path.join(packageRoot, 'src', 'main.ts');
 const builtMainPath = path.join(packageRoot, 'dist', 'src', 'main.js');
+const tempDirs: string[] = [];
 
 const packageJsonSchema = z.object({
   name: z.string(),
@@ -66,6 +68,33 @@ function runRootPnpm(args: string[]): { status: number | null; stdout: string; s
   };
 }
 
+function createWorkflowFixture(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebuddy-auto-built-cli-'));
+  tempDirs.push(dir);
+  const workspaceRoot = path.join(dir, 'workspaces');
+  fs.mkdirSync(workspaceRoot, { recursive: true });
+  const workflowPath = path.join(dir, 'WORKFLOW.md');
+  fs.writeFileSync(workflowPath, [
+    '---',
+    'tracker:',
+    '  kind: local',
+    '  apiKey: token',
+    'workspace:',
+    '  root: ./workspaces',
+    '  source_root: .',
+    '---',
+    'Prompt',
+    '',
+  ].join('\n'), 'utf8');
+  return workflowPath;
+}
+
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 describe('package cli contract', () => {
   it('declares a codebuddy-auto binary that points at the built entry', () => {
     const packageJson = readPackageJson();
@@ -74,13 +103,20 @@ describe('package cli contract', () => {
     expect(packageJson.bin?.['codebuddy-auto']).toBe('./dist/src/main.js');
   });
 
-  it('preserves a node shebang in the built cli entry', () => {
+  it('preserves a node shebang in the built cli entry and runs the built check command', () => {
     expect(fs.readFileSync(sourceMainPath, 'utf8').startsWith('#!/usr/bin/env node\n')).toBe(true);
 
     const buildResult = runPnpm(['run', 'build']);
     expect(buildResult.status).toBe(0);
     expect(buildResult.stderr).toBe('');
     expect(fs.readFileSync(builtMainPath, 'utf8').startsWith('#!/usr/bin/env node\n')).toBe(true);
+
+    const checkResult = spawnSync('node', [builtMainPath, 'check', createWorkflowFixture()], {
+      cwd: packageRoot,
+      encoding: 'utf8',
+    });
+    expect(checkResult.status).toBe(0);
+    expect(checkResult.stderr).toBe('');
   });
 
   it('packs runtime build outputs and operator assets', () => {

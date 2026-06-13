@@ -46,7 +46,13 @@ function isDashboardSnapshot(value: unknown): value is DashboardSnapshot {
 }
 
 function parseSseEnvelope(rawData: string): DashboardSseEnvelope | null {
-  const parsed = JSON.parse(rawData) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawData);
+  } catch {
+    return null;
+  }
+
   if (!isRecord(parsed)) {
     return null;
   }

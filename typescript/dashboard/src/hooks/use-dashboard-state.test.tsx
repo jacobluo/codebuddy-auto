@@ -48,12 +48,16 @@ class FakeEventSource {
   }
 
   emitEvent(type: string, payload: unknown): void {
+    this.emitRawEvent(type, JSON.stringify(payload));
+  }
+
+  emitRawEvent(type: string, data: string): void {
     const listeners = this.listeners.get(type);
     if (!listeners) {
       return;
     }
 
-    const event = { data: JSON.stringify(payload) };
+    const event = { data };
     for (const listener of listeners) {
       listener(event);
     }
@@ -348,5 +352,48 @@ describe('useDashboardState', () => {
     await waitFor(() => {
       expect(screen.getByTestId('selected-events').textContent).toBe('1');
     });
+  });
+
+  it('ignores malformed SSE payloads and events without issue ids', async () => {
+    const bootstrapPayload = createBootstrapPayload();
+    const eventSource = new FakeEventSource('/api/v1/events');
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(bootstrapPayload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    render(
+      <DashboardStateProbe
+        dependencies={{
+          fetchImpl,
+          createEventSource: () => eventSource,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('ready');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'select 1' }));
+
+    await act(async () => {
+      eventSource.emitRawEvent('issue_event', 'not-json');
+      eventSource.emitEvent('state_snapshot', {
+        type: 'state_snapshot',
+        timestamp: '2026-05-23T00:00:05Z',
+        payload: { not: 'a dashboard snapshot' },
+      });
+      eventSource.emitEvent('issue_event', {
+        type: 'issue_event',
+        timestamp: '2026-05-23T00:00:06Z',
+        payload: {
+          event: 'missing_issue_id',
+        },
+      });
+    });
+
+    expect(screen.getByTestId('running-count').textContent).toBe('1');
+    expect(screen.getByTestId('selected-events').textContent).toBe('0');
   });
 });

@@ -24,37 +24,34 @@ function writeIssue(dir: string, name: string, issue: object): void {
   fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(issue, null, 2));
 }
 
+function makeIssue(overrides: Record<string, unknown> = {}): object {
+  return {
+    id: '1',
+    identifier: '#1',
+    title: 'Open',
+    description: null,
+    priority: null,
+    state: 'open',
+    branchName: null,
+    url: null,
+    labels: [],
+    blockedBy: [],
+    createdAt: null,
+    updatedAt: null,
+    ...overrides,
+  };
+}
+
 describe('LocalTracker', () => {
   it('returns candidate issues from configured active states', async () => {
     const dir = createIssueDir();
-    writeIssue(dir, 'open', {
-      id: '1',
-      identifier: '#1',
-      title: 'Open',
-      description: null,
-      priority: null,
-      state: 'open',
-      branchName: null,
-      url: null,
-      labels: [],
-      blockedBy: [],
-      createdAt: null,
-      updatedAt: null,
-    });
-    writeIssue(dir, 'closed', {
+    writeIssue(dir, 'open', makeIssue());
+    writeIssue(dir, 'closed', makeIssue({
       id: '2',
       identifier: '#2',
       title: 'Closed',
-      description: null,
-      priority: null,
       state: 'closed',
-      branchName: null,
-      url: null,
-      labels: [],
-      blockedBy: [],
-      createdAt: null,
-      updatedAt: null,
-    });
+    }));
 
     const tracker = new LocalTracker({ rootDir: dir, activeStates: ['open'] });
     const issues = await tracker.fetchCandidateIssues();
@@ -64,34 +61,17 @@ describe('LocalTracker', () => {
 
   it('filters by state and by id', async () => {
     const dir = createIssueDir();
-    writeIssue(dir, 'a', {
-      id: '1',
-      identifier: '#1',
+    writeIssue(dir, 'a', makeIssue({
       title: 'A',
-      description: null,
-      priority: null,
-      state: 'open',
-      branchName: null,
-      url: null,
       labels: ['agent-ready'],
-      blockedBy: [],
-      createdAt: null,
-      updatedAt: null,
-    });
-    writeIssue(dir, 'b', {
+    }));
+    writeIssue(dir, 'b', makeIssue({
       id: '2',
       identifier: '#2',
       title: 'B',
-      description: null,
-      priority: null,
       state: 'closed',
-      branchName: null,
-      url: null,
       labels: ['done'],
-      blockedBy: [],
-      createdAt: null,
-      updatedAt: null,
-    });
+    }));
 
     const tracker = new LocalTracker({ rootDir: dir, activeStates: ['open'] });
     const closed = await tracker.fetchIssuesByStates(['closed']);
@@ -99,5 +79,27 @@ describe('LocalTracker', () => {
 
     expect(closed.map((issue) => issue.id)).toEqual(['2']);
     expect(stateMap.get('2')).toEqual({ id: '2', state: 'closed', labels: ['done'] });
+  });
+
+  it('ignores non-json files in the local tracker directory', async () => {
+    const dir = createIssueDir();
+    writeIssue(dir, 'open', makeIssue());
+    fs.writeFileSync(path.join(dir, 'README.md'), 'not an issue');
+
+    const tracker = new LocalTracker({ rootDir: dir, activeStates: ['open'] });
+
+    await expect(tracker.fetchCandidateIssues()).resolves.toHaveLength(1);
+  });
+
+  it('rejects invalid issue json with schema diagnostics', async () => {
+    const dir = createIssueDir();
+    writeIssue(dir, 'invalid', {
+      id: 'bad',
+      title: 'Missing required issue fields',
+    });
+
+    const tracker = new LocalTracker({ rootDir: dir, activeStates: ['open'] });
+
+    await expect(tracker.fetchCandidateIssues()).rejects.toThrow(/identifier|state|labels/u);
   });
 });

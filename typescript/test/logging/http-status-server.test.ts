@@ -146,6 +146,11 @@ async function createDashboardFixture(): Promise<() => Promise<void>> {
   };
 }
 
+async function removeDashboardFixture(): Promise<void> {
+  const dashboardRoot = fileURLToPath(new URL('../../dist/dashboard', import.meta.url));
+  await rm(dashboardRoot, { recursive: true, force: true });
+}
+
 function createSseReader(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -260,6 +265,50 @@ describe('startStatusServer', () => {
     } finally {
       await server.close();
       await cleanupFixture();
+    }
+  });
+
+  it('returns clear errors when dashboard assets are missing', async () => {
+    await removeDashboardFixture();
+    const { controller } = createController();
+
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const shellResponse = await fetch(address);
+      expect(shellResponse.status).toBe(503);
+      await expect(shellResponse.json()).resolves.toEqual({
+        error: {
+          code: 'dashboard_assets_missing',
+          message: 'dashboard frontend assets are missing; run the dashboard build first',
+        },
+      });
+
+      const assetResponse = await fetch(`${address}/assets/missing.js`);
+      expect(assetResponse.status).toBe(404);
+      await expect(assetResponse.json()).resolves.toEqual({
+        error: {
+          code: 'not_found',
+          message: 'unsupported route: /assets/missing.js',
+        },
+      });
+    } finally {
+      await server.close();
+      await removeDashboardFixture();
     }
   });
 
@@ -402,6 +451,141 @@ describe('startStatusServer', () => {
           event: 'tool_call',
           tool: 'read_file',
         },
+      });
+
+      await sse.close();
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('filters SSE live events by issueId query parameter', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const eventBus = createEventBus();
+
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      eventBus,
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const sseResponse = await fetch(`${address}/api/v1/events?issueId=1`);
+      expect(sseResponse.status).toBe(200);
+      if (!sseResponse.body) {
+        throw new Error('expected SSE body');
+      }
+
+      const sse = createSseReader(sseResponse.body);
+      eventBus.emit({
+        type: 'issue_event',
+        issueId: '2',
+        timestamp: '2026-05-23T00:00:03Z',
+        payload: { event: 'ignored' },
+      });
+      eventBus.emit({
+        type: 'state_snapshot',
+        timestamp: '2026-05-23T00:00:04Z',
+        payload: { generatedAt: '2026-05-23T00:00:04Z' },
+      });
+      eventBus.emit({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:05Z',
+        payload: { event: 'included' },
+      });
+
+      const issueEvent = await sse.next();
+      expect(issueEvent.event).toBe('issue_event');
+      if (!issueEvent.data) {
+        throw new Error('expected issue event payload');
+      }
+      expect(JSON.parse(issueEvent.data)).toEqual({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:05Z',
+        payload: { event: 'included' },
+      });
+
+      await sse.close();
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('replays SSE history after Last-Event-ID without sending the initial snapshot', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const eventBus = createEventBus();
+
+    eventBus.emit({
+      type: 'issue_event',
+      issueId: '1',
+      timestamp: '2026-05-23T00:00:03Z',
+      payload: { event: 'old' },
+    });
+    eventBus.emit({
+      type: 'issue_event',
+      issueId: '1',
+      timestamp: '2026-05-23T00:00:04Z',
+      payload: { event: 'replay-me' },
+    });
+
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      eventBus,
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const sseResponse = await fetch(`${address}/api/v1/events`, {
+        headers: {
+          'Last-Event-ID': '1',
+        },
+      });
+      expect(sseResponse.status).toBe(200);
+      if (!sseResponse.body) {
+        throw new Error('expected SSE body');
+      }
+
+      const sse = createSseReader(sseResponse.body);
+      const replayedEvent = await sse.next();
+
+      expect(replayedEvent.id).toBe('2');
+      expect(replayedEvent.event).toBe('issue_event');
+      if (!replayedEvent.data) {
+        throw new Error('expected replayed payload');
+      }
+      expect(JSON.parse(replayedEvent.data)).toEqual({
+        type: 'issue_event',
+        issueId: '1',
+        timestamp: '2026-05-23T00:00:04Z',
+        payload: { event: 'replay-me' },
       });
 
       await sse.close();
