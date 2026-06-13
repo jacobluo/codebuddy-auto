@@ -153,7 +153,7 @@ body
     expect(config.workspace.sourceRoot).toBe('/repo');
   });
 
-  it('loads SDK-only codebuddy.model and codebuddy.setting_sources', () => {
+  it('loads codebuddy.model and SDK-only codebuddy.setting_sources', () => {
     const workflow = `---
 codebuddy:
   model: codebuddy-sonnet

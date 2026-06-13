@@ -25,17 +25,81 @@ function getIssueEventTitle(event: DashboardSseEnvelope): string {
 
 function getIssueEventMessage(event: DashboardSseEnvelope): string {
   const payload = getPayloadRecord(event);
-  const message = payload.message;
-  if (typeof message === 'string' && message.length > 0) {
+  const message = getPayloadDisplayValue(payload.message);
+  if (message) {
     return message;
   }
 
-  const tool = payload.tool;
-  if (typeof tool === 'string' && tool.length > 0) {
+  const error = getPayloadDisplayValue(payload.error);
+  if (error) {
+    return error;
+  }
+
+  const reason = getPayloadDisplayValue(payload.reason);
+  if (reason) {
+    return reason;
+  }
+
+  const exitReason = getPayloadDisplayValue(payload.exitReason);
+  if (exitReason) {
+    return exitReason;
+  }
+
+  const tool = getPayloadDisplayValue(payload.tool);
+  if (tool) {
     return tool;
   }
 
+  const timeoutMs = getPayloadDisplayValue(payload.timeoutMs);
+  if (timeoutMs) {
+    return `timeout after ${timeoutMs}ms`;
+  }
+
   return '';
+}
+
+function getPayloadDisplayValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => getPayloadDisplayValue(item)).filter(Boolean).join('; ');
+  }
+
+  return '';
+}
+
+function getIssueEventDetails(event: DashboardSseEnvelope): string[] {
+  const payload = getPayloadRecord(event);
+  const fields: Array<[string, unknown]> = [
+    ['error', payload.error],
+    ['stderr', payload.stderr],
+    ['stdout', payload.stdout],
+    ['exit', payload.exitReason],
+    ['reason', payload.reason],
+    ['timeout', payload.timeoutMs],
+    ['session', payload.sessionId],
+  ];
+
+  const message = getIssueEventMessage(event);
+  const seen = new Set<string>();
+  const details: string[] = [];
+
+  for (const [label, value] of fields) {
+    const display = getPayloadDisplayValue(value);
+    if (!display || display === message || seen.has(`${label}:${display}`)) {
+      continue;
+    }
+    seen.add(`${label}:${display}`);
+    details.push(label === 'timeout' ? `${label}: ${display}ms` : `${label}: ${display}`);
+  }
+
+  return details;
 }
 
 export function LiveEventsPanel({ repoUrl, selectedIssue, selectedIssueEvents }: LiveEventsPanelProps) {
@@ -89,7 +153,12 @@ export function LiveEventsPanel({ repoUrl, selectedIssue, selectedIssueEvents }:
           selectedIssueEvents.map((event, index) => (
             <article className="dashboard-event-card" key={`${event.timestamp}-${index}`}>
               <span className="dashboard-event-type">{getIssueEventTitle(event)}</span>
-              <strong>{getIssueEventMessage(event) || 'event received'}</strong>
+              <div className="dashboard-event-body">
+                <strong>{getIssueEventMessage(event) || 'event received'}</strong>
+                {getIssueEventDetails(event).map((detail) => (
+                  <small className="dashboard-event-detail" key={detail}>{detail}</small>
+                ))}
+              </div>
               <small>{event.timestamp}</small>
             </article>
           ))

@@ -404,22 +404,31 @@ button {
 .dashboard-event-card {
   display: grid;
   grid-template-columns: 124px 1fr auto;
-  align-items: center;
+  align-items: start;
   gap: 10px;
   min-height: 42px;
 }
 
+.dashboard-event-body {
+  min-width: 0;
+}
+
 .dashboard-event-card strong {
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .dashboard-event-card small {
   font-size: 10px;
   white-space: nowrap;
   color: #8491ad;
+}
+
+.dashboard-event-card .dashboard-event-detail {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .dashboard-status-surface.is-error {

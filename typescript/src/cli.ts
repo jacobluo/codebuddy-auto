@@ -12,7 +12,7 @@ import {
   type StatusServerRuntime,
 } from './logging/index.js';
 import { createRuntimeState, runDispatchCycle, startScheduler } from './scheduler/index.js';
-import type { OrchestratorRuntimeState } from './spec/index.js';
+import type { OrchestratorRuntimeState, ServiceConfig } from './spec/index.js';
 
 export interface RunCliDependencies {
   createWorkflowRuntimeSource?: typeof createWorkflowRuntimeSource;
@@ -38,6 +38,7 @@ const runCliOptionsSchema = z.object({
   mode: z.enum(['run-once', 'check', 'daemon', 'status']),
   workflowPath: z.string().min(1),
   reload: z.boolean(),
+  model: z.string().min(1).optional(),
 });
 
 type RunCliOptions = z.infer<typeof runCliOptionsSchema>;
@@ -104,15 +105,31 @@ function parseRunCliOptions(args: string[]): RunCliOptions {
   const remainingArgs = mode === 'run-once' ? args : args.slice(1);
   let workflowPath = DEFAULT_WORKFLOW_PATH;
   let reload = false;
+  let model: string | undefined;
   let sawWorkflowPath = false;
 
-  for (const arg of remainingArgs) {
+  for (let index = 0; index < remainingArgs.length; index += 1) {
+    const arg = remainingArgs[index];
+    if (arg === undefined) {
+      continue;
+    }
+
     if (LEGACY_MODE_FLAGS.has(arg)) {
       throw new Error(`${arg} has been removed; use '${arg.slice(2)}' command instead`);
     }
 
     if (arg === '--reload') {
       reload = true;
+      continue;
+    }
+
+    if (arg === '--model') {
+      const value = remainingArgs[index + 1];
+      if (value === undefined || value.startsWith('-')) {
+        throw new Error('--model requires a value');
+      }
+      model = value;
+      index += 1;
       continue;
     }
 
@@ -136,7 +153,22 @@ function parseRunCliOptions(args: string[]): RunCliOptions {
     mode,
     workflowPath,
     reload,
+    model,
   });
+}
+
+function applyRunCliOverrides(config: ServiceConfig, options: RunCliOptions): ServiceConfig {
+  if (!options.model) {
+    return config;
+  }
+
+  return {
+    ...config,
+    codebuddy: {
+      ...config.codebuddy,
+      model: options.model,
+    },
+  };
 }
 
 async function promptInitOptions(defaults: InitCliPromptDefaults): Promise<InitCliPromptDefaults> {
@@ -342,6 +374,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     }
 
     const runtime = runtimeSource.getCurrent();
+    const runtimeConfig = applyRunCliOverrides(runtime.config, options);
 
     if (options.mode === 'check') {
       logger.info({ workflowPath: runtime.workflowPath }, 'preflight_ok');
@@ -373,7 +406,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
           const currentRuntime = runtimeSource.getCurrent();
           return {
             tracker: currentRuntime.tracker,
-            config: currentRuntime.config,
+            config: applyRunCliOverrides(currentRuntime.config, options),
           };
         },
       };
@@ -388,12 +421,12 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
         if (runtime.config.server.port !== undefined) {
           statusController = createServerStateController({
             state: runtimeState,
-            config: runtime.config,
+            config: runtimeConfig,
             tracker: runtime.tracker,
             getSnapshotJson: () => JSON.stringify(createRuntimeSnapshot(runtimeState)),
             getIssueJson: (identifier) => getIssueStatusJson(runtimeState, identifier),
           });
-          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtime.config, statusController, eventBus);
+          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtimeConfig, statusController, eventBus);
           logger.info(
             {
               workflowPath: runtime.workflowPath,
@@ -405,7 +438,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
 
         scheduler = (dependencies.startScheduler ?? startScheduler)(
           runtime.tracker,
-          runtime.config,
+          runtimeConfig,
           logger,
           schedulerDependencies,
         );
@@ -437,7 +470,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     const dispatchPlan = await runDispatchCycle(
       runtimeState,
       runtime.tracker,
-      runtime.config,
+      runtimeConfig,
       runtime.promptTemplate,
     );
 

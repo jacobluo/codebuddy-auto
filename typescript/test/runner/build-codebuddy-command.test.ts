@@ -72,6 +72,24 @@ describe('buildCodebuddyCommand', () => {
     expect(command.args).not.toContain('--session-id');
   });
 
+  it('passes the configured model to the CLI fallback command', () => {
+    const command = buildCodebuddyCommand({
+      config: {
+        ...DEFAULT_SERVICE_CONFIG,
+        codebuddy: {
+          ...DEFAULT_SERVICE_CONFIG.codebuddy,
+          model: 'codebuddy-opus',
+        },
+      },
+      prompt: 'Implement the issue',
+      sessionId: 'session-1',
+      workspacePath: '/tmp/workspaces/ABC-1',
+    });
+
+    expect(command.args).toContain('--model');
+    expect(command.args).toContain('codebuddy-opus');
+  });
+
   it('splits configured command strings into executable and base args', () => {
     const command = buildCodebuddyCommand({
       config: {

@@ -59,14 +59,16 @@ export const workerConfigSchema = z.object({
  * - `command` — **CLI-only**：仅在 `worker.kind === 'ssh'` 走 CLI subprocess fallback 时使用，
  *   决定通过 `ssh ... <cmd> ...` 拉起的命令。本地 `worker.kind === 'local'` 走 SDK in-process
  *   路径时该字段被忽略。
- * - `model` / `settingSources` — **SDK-only**：仅在 SDK runner 中生效，对应 SDK `query()` 的
- *   `options.model`、`options.settingSources`。CLI fallback 不读取这两个字段。
+ * - `model` — 指定执行模型；本地 SDK worker 映射到 SDK `options.model`，CLI fallback 映射到
+ *   `codebuddy --model`。
+ * - `settingSources` — **SDK-only**：仅在 SDK runner 中生效，对应 SDK `options.settingSources`。
+ *   CLI fallback 不读取该字段。
  * - 其余字段（`permissionMode`、`allowedTools`、`disallowedTools`、`mcpConfig`、`turnTimeoutMs`
  *   ...）在 SDK 与 CLI 两种模式下共用语义，只是底层加载方式不同。
  */
 export const codebuddyConfigSchema = z.object({
   command: z.string(),
-  /** SDK-only: 指定模型，对应 SDK `options.model`。 */
+  /** 指定执行模型；SDK worker 与 CLI fallback 都会读取该字段。 */
   model: z.string().optional(),
   /**
    * SDK-only: 指定 SDK 加载哪些 setting 源，对应 SDK `options.settingSources`。

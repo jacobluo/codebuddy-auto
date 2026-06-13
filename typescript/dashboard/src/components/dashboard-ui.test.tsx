@@ -303,6 +303,36 @@ describe('dashboard UI components', () => {
     expect(screen.getByText('Select an issue to inspect its live event stream.')).toBeTruthy();
   });
 
+  it('renders failure details in the live events panel', () => {
+    const state = createPageState({
+      selectedIssueEvents: [
+        {
+          type: 'issue_event',
+          timestamp: '2026-05-23T00:00:03Z',
+          issueId: '1',
+          payload: {
+            event: 'turn_failed',
+            error: 'SDK stream closed before result',
+            exitReason: 'turn_failed',
+            stderr: 'fatal: authentication failed',
+          },
+        },
+      ],
+    });
+
+    render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={state.selectedIssueEvents}
+      />,
+    );
+
+    expect(screen.getByText('SDK stream closed before result')).toBeTruthy();
+    expect(screen.getByText(/fatal: authentication failed/)).toBeTruthy();
+    expect(screen.queryByText('event received')).toBeNull();
+  });
+
   it('renders the ready dashboard page as a compact shell with a separate toolbar row', () => {
     const state = createPageState();
 

@@ -204,6 +204,39 @@ describe('runCli', () => {
     expect(promptTemplate).toBe('Implement {{ issue.identifier }} with {{ issue.title }}');
   });
 
+  it('overrides the configured model from a run-once CLI option', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      'codebuddy:',
+      '  model: codebuddy-sonnet',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+
+    if (!runDispatchCycleSpy) {
+      throw new Error('runDispatchCycle spy was not initialized');
+    }
+
+    runDispatchCycleSpy.mockResolvedValue({
+      availableSlots: 10,
+      dispatchableIssueIds: [],
+      claimedIssueIds: [],
+    });
+
+    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--model', 'codebuddy-opus'])).resolves.toBe(0);
+
+    const config = (runDispatchCycleSpy.mock.calls[0] as unknown[] | undefined)?.[2] as
+      | { codebuddy?: { model?: string } }
+      | undefined;
+    expect(config?.codebuddy?.model).toBe('codebuddy-opus');
+  });
+
   it('starts the polling scheduler in daemon mode', async () => {
     const workflowPath = createWorkflow([
       '---',
@@ -233,6 +266,38 @@ describe('runCli', () => {
     expect(stop).toHaveBeenCalledTimes(1);
     expect(requestTick).not.toHaveBeenCalled();
     expect(runDispatchCycleSpy).not.toHaveBeenCalled();
+  });
+
+  it('overrides the configured model in daemon mode', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      'codebuddy:',
+      '  model: codebuddy-sonnet',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+    const requestTick = vi.fn(async () => undefined);
+    const stop = vi.fn(async () => undefined);
+    let schedulerConfig: { codebuddy?: { model?: string } } | undefined;
+    const startScheduler = vi.fn((...args: Parameters<typeof schedulerModule.startScheduler>) => {
+      schedulerConfig = args[1];
+      return { requestTick, stop };
+    });
+
+    await expect(
+      runCli(['node', 'codebuddy-auto', 'daemon', workflowPath, '--model', 'codebuddy-opus'], {
+        startScheduler,
+        waitForShutdownSignal: vi.fn(async () => undefined),
+      }),
+    ).resolves.toBe(0);
+
+    expect(schedulerConfig?.codebuddy?.model).toBe('codebuddy-opus');
   });
 
   it('starts and stops the status server in daemon mode when server.port is configured', async () => {

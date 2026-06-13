@@ -54,6 +54,10 @@ export function buildCodebuddyCommand(input: BuildCodebuddyCommandInput): Codebu
 
   args.push('--max-turns', String(input.config.agent.maxTurns));
 
+  if (input.config.codebuddy.model) {
+    args.push('--model', input.config.codebuddy.model);
+  }
+
   if (input.config.codebuddy.permissionMode) {
     args.push('--permission-mode', input.config.codebuddy.permissionMode);
   }

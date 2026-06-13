@@ -56,7 +56,7 @@ describe('serviceConfigSchema', () => {
     }).worker.kind).toBe('ssh');
   });
 
-  it('accepts SDK-only model and settingSources fields', () => {
+  it('accepts model and SDK-only settingSources fields', () => {
     const parsed = serviceConfigSchema.parse({
       ...DEFAULT_SERVICE_CONFIG,
       codebuddy: {
