@@ -69,6 +69,7 @@ export async function runSchedulerOnce(
         config.tracker.terminalStates,
         dependencies.sessionStore,
         dependencies.workerHandleStore,
+        config.tracker.finishLabel ?? tracker.getFinishLabel?.(),
       );
       releasedIssueIds = reconciliation.releasedIssueIds;
 

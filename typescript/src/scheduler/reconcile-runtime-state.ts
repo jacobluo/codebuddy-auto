@@ -31,8 +31,10 @@ export function reconcileRuntimeState(
   terminalStates: string[],
   sessionStore?: SdkSessionStore,
   workerHandleStore?: WorkerHandleStore,
+  finishLabel?: string,
 ): ReconcileRuntimeStateResult {
   const terminalStateSet = new Set(terminalStates.map(normalizeState));
+  const normalizedFinishLabel = finishLabel?.toLowerCase();
   const releasedIssueIds: string[] = [];
   const releasedIssues: ReleasedIssueRuntime[] = [];
   const gracefulExitRequestedIssueIds: string[] = [];
@@ -40,8 +42,11 @@ export function reconcileRuntimeState(
   for (const [issueId, runningEntry] of Object.entries(state.running)) {
     const trackerState = trackerStates.get(issueId);
     const cleanupWorkspace = trackerState !== undefined && terminalStateSet.has(normalizeState(trackerState.state));
+    const hasFinishLabel = trackerState !== undefined
+      && normalizedFinishLabel !== undefined
+      && trackerState.labels.some((label) => label.toLowerCase() === normalizedFinishLabel);
 
-    if (trackerState && !cleanupWorkspace) {
+    if (trackerState && !cleanupWorkspace && !hasFinishLabel) {
       continue;
     }
 

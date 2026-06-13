@@ -108,6 +108,38 @@ describe('reconcileRuntimeState', () => {
     expect(state.claimed.has('2')).toBe(true);
   });
 
+  it('releases active running issues that have the finish label', () => {
+    const state = createState();
+    state.running['finish-1'] = {
+      issue: makeIssue({ id: 'finish-1', identifier: '#finish-1' }),
+      workspacePath: '/tmp/finish-1',
+      sessionId: 'finish-1-turn-1',
+      startedAt: '2026-05-19T00:00:00Z',
+      turnCount: 1,
+      lastEvent: 'turn_completed',
+      lastEventAt: '2026-05-19T00:00:01Z',
+      ...makeRuntimeMetrics(),
+    };
+    state.claimed.add('finish-1');
+
+    const result = reconcileRuntimeState(state, new Map([
+      ['finish-1', { id: 'finish-1', state: 'open', labels: ['agent-finish'] }],
+    ]), ['closed'], undefined, undefined, 'agent-finish');
+
+    expect(result.releasedIssueIds).toEqual(['finish-1']);
+    expect(result.releasedIssues).toEqual([
+      {
+        issueId: 'finish-1',
+        identifier: '#finish-1',
+        workspacePath: '/tmp/finish-1',
+        cleanupWorkspace: false,
+      },
+    ]);
+    expect(state.running['finish-1']).toBeUndefined();
+    expect(state.claimed.has('finish-1')).toBe(false);
+    expect(state.completed.has('finish-1')).toBe(true);
+  });
+
   it('releases running issues missing from the latest tracker snapshot without cleanup', () => {
     const state = createState();
     state.running['3'] = {
