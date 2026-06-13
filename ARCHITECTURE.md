@@ -34,70 +34,95 @@
 
 ## 3. 运行时主流程
 
-启动 `daemon` 后，系统先载入 workflow/config，执行 preflight 和 startup cleanup，然后进入定时 tick。每个 tick 的核心顺序是：
-
-1. 释放已到期且不在运行中的 retry entry。
-2. Reconcile running issue：重新读取 tracker 状态，必要时清理运行态或请求 local worker graceful exit。
-3. Reconcile stuck issue：如果 tracker 已 handoff、inactive、terminal 或不再返回该 issue，则释放本进程内 stuck/progress 记录。
-4. SSH 模式运行 continuation cycle；local 模式跳过，因为 worker 自己持有 SDK session 并连续跑多轮。
-5. Dispatch cycle：按并发上限和候选排序派发 issue。
-
-local 模式 dispatch 后不会等待 worker 完成，而是启动背景 Promise：
+启动 `daemon` 后，系统先载入 workflow/config，执行 preflight 和 startup cleanup，然后进入定时 tick。
 
 ```text
-                    +----------------------+
-       SIGINT/TERM -|   start-scheduler    |
-                    |  (per-process root)  |
-                    +----------+-----------+
+                    ┌──────────────────────┐
+       SIGINT/TERM ─┤   start-scheduler    │
+                    │  (per-process root)  │
+                    └──────────┬───────────┘
                                | tick every polling.intervalMs
-                               v
-                    +----------------------+
-                    |  run-scheduler-once  |
-                    +--+---------+-------+-+
+                               ▼
+                    ┌──────────────────────┐
+                    │  run-scheduler-once  │
+                    └──┬─────────┬───────┬─┘
                        |         |       |
-        +--------------v--+  +---v---+  +v------------------+
-        | release-retry   |  | recon-|  |  run-dispatch-    |
-        | (drop expired   |  | cile  |  |  cycle            |
-        |  retry entries) |  |       |  |                   |
-        +-----------------+  +---+---+  +--+--+-------------+
+        ┌──────────────▼──┐  ┌───▼───┐  ┌▼──────────────────┐
+        │ release-retry   │  │ recon-│  │  run-dispatch-    │
+        │ (drop expired   │  │ cile  │  │  cycle            │
+        │  retry entries) │  │       │  │                   │
+        └─────────────────┘  └───┬───┘  └──┬──┬─────────────┘
                                  |         |  |
-                  workerHandleSt v         |  | kind === local?
+                  workerHandleStore ▼      |  | kind === 'local'?
                                            |  |
-                                           |  +-> dispatch-local-issue
+                                           |  └─► dispatch-local-issue
                                            |        | (background promise)
-                                           |        v
+                                           |        ▼
                                            |    run-issue-worker
                                            |   (SDK session loop)
                                            |
-                                           v kind === ssh only
+                                           ▼ kind === 'ssh' only
                                     run-continuation-cycle
                                     (legacy per-turn CLI)
 ```
 
-local worker 的内部生命周期：
+每个 tick 严格走五步：
+
+1. **Release expired retry claims**：`state.retryAttempts` 中 `dueAtMs <= now` 且不在 `state.running` 的 entry 直接清除，让 issue 重回候选集。
+2. **Reconcile running issues**：用 `tracker.fetchIssueStatesByIds(running)` 拉一批 tracker state，`reconcile-runtime-state` 处理结果：
+   - SSH 模式 / 没有 `WorkerHandle` 的条目：直接从 `state.running` 删除 + 标 `state.completed`，必要时清理 workspace。
+   - local 模式有活 worker 的条目：不删 `state.running`，改为 `workerHandleStore.requestGracefulExit(issueId) = true`。Worker 在下一个 turn 边界自查并退出，避免半截工具调用留下脏状态。
+3. **Reconcile stuck issues**：对不在 running 中的 stuck issue 重新读取 tracker state；如果出现 finish label、离开 active state、进入 terminal state，或 tracker 不再返回，则释放本进程内的 stuck/progress bookkeeping。
+4. **Continuation cycle**：仅在 `worker.kind === 'ssh'` 调用 `run-continuation-cycle`。local 模式不走这条路：worker 自己在内部跑多轮。
+5. **Dispatch cycle**：调用 `run-dispatch-cycle`：先用 `plan-dispatch-cycle` 算 `availableSlots = maxConcurrentAgents - |running|`，按候选 issue 排序后，根据 `worker.kind` 分流：
+   - `local`：`dispatch-local-issue(issue, ...)`，异步启动，不 await。
+   - `ssh`：旧路径，单轮 `runCodebuddyTurn` + 写入 `state.running` + 创建 retry entry。
+
+### 3.1 Local Worker 生命周期
+
+`dispatch-local-issue` 把 issue 准备好后启动一个背景 Promise，scheduler tick 马上返回：
 
 ```text
 dispatch-local-issue(issue)
-  -> createRunAttempt
-  -> before_run hook
-  -> state.running[id] = runningEntry
-  -> state.claimed.add(id)
-  -> eventBus.emit(dispatch_started)
-  -> runIssueWorker(...) in background
-       |
-       | loop while turnCount < agent.maxTurns
-       |   -> check gracefulExitRequested
-       |   -> send initial prompt or continuation guidance
-       |   -> stream SDK session events
-       |   -> fetch latest tracker state
-       |   -> stop on finish_label, inactive issue, no-progress, max turns
-       v
-     classify exit reason
-       -> terminal: drop claimed + add completed
-       -> stuck: drop claimed + state.stuck[id]
-       -> retryable: drop claimed only
-       -> aborted: keep restart-friendly state
+  ├─ createRunAttempt → 工作目录 + 空 RunningEntry
+  ├─ before_run hook  → 失败则 schedule retry
+  ├─ state.running[id] = runningEntry      // 让后续 tick 不再选这个 issue
+  ├─ state.claimed.add(id)
+  ├─ eventBus.emit('dispatch_started')
+  └─ ┌─ runIssueWorker(...) (background)
+     │     │
+     │     │ loop while turnCount < liveConfig.agent.maxTurns:
+     │     │   ┌─ 顶部检查 handle.gracefulExitRequested → 退
+     │     │   ├─ message = turn 1 ? initialPrompt+suffix : continuationGuidance
+     │     │   ├─ session.send(message)
+     │     │   ├─ for await m of session.stream():
+     │     │   │     - system_init → emit session_started
+     │     │   │     - result      → handle.turnCount++; emit turn_completed
+     │     │   ├─ tracker.fetchIssueStatesByIds([id])
+     │     │   │     - finish_label 出现 → exitReason=finish_label_observed
+     │     │   │     - state 不再 active → exitReason=issue_inactive
+     │     │   ├─ record progress fingerprint
+     │     │   │     - repeated >= no_progress_threshold → exitReason=stuck_no_progress
+     │     │   └─ 否则继续下一轮
+     │     │
+     │     │ 退出后:
+     │     │   max_turns_reached → state.stuck[id] = max_turns_reached
+     │     │
+     │     └─ finally: session.close(); handleStore.release(id)
+     │
+     └─ 外层 IIFE finally:
+          - delete state.running[id]
+          - 根据 exitReason 分类:
+              terminal*  → drop claimed + add completed
+              stuck*     → drop claimed + state.stuck[id]
+              retryable* → drop claimed only (下一 tick 可重试)
+              aborted    → 不动 (SIGINT 时为重启留干净状态)
+          - run after_run hook
 ```
+
+`* terminal = finish_label_observed | issue_inactive | graceful_exit_requested`
+`* stuck = max_turns_reached | stuck_no_progress`
+`* retryable = turn_failed | turn_timed_out | startup_failed`
 
 `runIssueWorker` 持有一个 SDK session，在每个 turn 后重新读取 tracker，并根据 finish label、issue state、graceful exit、max turns、progress fingerprint 决定是否继续。
 
@@ -112,31 +137,67 @@ local 是默认和优先路径。SSH 模式用于远端执行环境，仍复用�
 
 ## 5. Issue 生命周期
 
-默认 CNB 标签模型：
+对齐 Symphony agent-driven 完成信号，用标签模拟 Linear 工作流：
 
 ```text
-open + agent-ready -> running -> open + agent-finish -> reviewed/closed
+open + agent-ready  →  处理中  →  open + agent-finish  →  closed
+     (Todo)         (In Progress)      (In Review)        (Done)
 ```
 
-`agent-ready` 是候选标签，`skip-agent` 排除候选，`agent-finish` 是 agent-driven handoff 信号。达到 `agent.max_turns` 不会自动贴 `agent-finish`；系统会把 issue 标记为本进程内 `stuck: max_turns_reached`，等待人工处理或 tracker 状态变化。
+1. 人工贴 `agent-ready` → 成为候选
+2. Scheduler dispatch → 创建 workspace → agent 执行
+3. Agent 修复 → 验证 → commit/push → `cnb issues add-labels --labels agent-finish`
+4. Scheduler 检测到 `agent-finish` → 停止 continuation 并 release
+5. 人工审核合并 → 关闭 issue → reconciliation 清理 workspace
+
+安全边界：每次 continuation 前检查标签；`agent-finish` 只由 agent 在完成验证、commit/push、handoff 准备后主动添加。达到 `maxTurns` 不会自动贴 `agent-finish`，而是记录为 stuck，等待人工处理或 tracker 状态变化。
 
 progress gate 是额外保护层：在 turn 边界计算 workspace/tracker fingerprint，连续 `agent.no_progress_threshold` 次无变化后暂停自动续跑。它不运行目标仓库验证命令，也不写 tracker label。
 
+```yaml
+# WORKFLOW.md front matter
+tracker:
+  candidate_label: agent-ready
+  exclude_label: skip-agent
+  finish_label: agent-finish
+
+agent:
+  max_turns: 30
+  no_progress_threshold: 3
+```
+
+`no_progress_threshold` 表示连续多少次 turn 边界的 progress fingerprint 没变化后，当前进程把 issue 标为 `stuck: no_progress` 并停止自动续跑。默认值是 `3`。它不代表失败验证，也不会写 tracker label。
+
+stuck issue 的处理方式：
+
+1. Dashboard / `codebuddy-auto status` 会显示 stuck reason。
+2. Scheduler 不再自动 dispatch / continue 这个 issue。
+3. 如果 tracker 后续出现 `agent-finish`、issue 离开 active state、进入 terminal state，或 tracker 不再返回该 issue，reconciliation 会按正常 handoff/release 规则释放它。
+
 ## 6. Runtime State
 
-| 字段 | 含义 |
-|---|---|
-| `running` | 当前进程正在处理的 issue |
-| `claimed` | 当前进程已占有的 issue，覆盖 running 与等待 retry 的窗口 |
-| `retryAttempts` | SSH continuation 或失败重试的到期时间与错误摘要 |
-| `completed` | 当前进程观察到已完成 handoff/release 的 issue |
-| `progress` | 最近一次 progress fingerprint |
-| `stuck` | 本进程内暂停自动续跑的 issue 与原因 |
-| `runners` | local 模式 worker handle，用于 graceful exit |
+| 字段 | 谁写 | 谁读 | 作用 |
+|---|---|---|---|
+| `state.running[id]` | dispatch + worker callbacks | plan-dispatch / dashboard / reconcile | 这个 issue 被当前进程占着 |
+| `state.claimed` | dispatch + worker exit | select-dispatch-candidates | 防止 race window 期内重复派发 |
+| `state.completed` | worker exit / reconcile | dashboard | 信息性，不参与调度 |
+| `state.runners[id]` (= WorkerHandle) | worker 入口 register | reconcile / worker turn 顶部 | 协作式 graceful-exit 开关 |
+| `state.retryAttempts[id]` | dispatch failure / SSH continuation | run-scheduler-once / continuation cycle | SSH 路径专用；local 路径不写 |
+| `state.progress[id]` | worker / SSH continuation turn 边界 | dashboard / status | workspace + tracker 指纹，供 no-progress 判断 |
+| `state.stuck[id]` | worker / continuation / maxTurns | scheduler / dashboard / status | 本进程内暂停自动续跑，直到 tracker handoff 或 inactive release |
 
 tracker 是外部 truth source，runtime state 是本进程调度账本。进程重启后的恢复依赖 tracker 状态和 workspace 文件系统，而不是恢复一个精确的内存 session。
 
-## 7. API 与 Dashboard
+## 7. Symphony SPEC 对位
+
+| 章节 | 实现 |
+|---|---|
+| §7.1 worker re-checks tracker each turn | `runIssueWorker` 每个 result 后 `fetchIssueStatesByIds` |
+| §7.3 worker exit + 1s continuation retry | local: 单 worker 跑完整生命周期，无 1s 续跑；SSH: 走 `runContinuationCycle` |
+| §10.3 app-server alive across turns | local: 一次 `unstable_v2_createSession` 串 N 轮；SSH: 每轮新 CLI 子进程 + `--resume` |
+| §13.5 absolute token totals → delta | `dispatch-local-issue.onTurnComplete` 用 `lastReportedTotals` 算 delta |
+
+## 8. API 与 Dashboard
 
 status server 提供两类接口：
 
@@ -145,7 +206,7 @@ status server 提供两类接口：
 
 Dashboard 是观察面，不参与调度决策。SSE event bus 透出 dispatch、session、turn、progress、stuck 等事件，前端只消费这些投影。
 
-## 8. 文档分工
+## 9. 文档分工
 
 | 文档 | 用途 |
 |---|---|
