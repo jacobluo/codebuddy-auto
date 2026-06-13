@@ -171,8 +171,8 @@ agent-finish
 Dashboard：
 
 - `GET /` — 由 status server 托管的 React SPA shell（静态资源来自 `typescript/dist/dashboard`）
-- `GET /api/v1/dashboard/bootstrap` — Dashboard 首屏 bootstrap 数据（配置摘要 + 初始 snapshot + `repoUrl` + `serverTime`）
-- `GET /api/v1/state` / `events` / `<issue>` — 结构化 snapshot / SSE / 单 issue
+- `GET /api/v1/dashboard/bootstrap` — Dashboard 首屏 bootstrap 数据（配置摘要 + 初始 snapshot + `repoUrl` + `serverTime`）。snapshot 会包含 `running`、`retrying`、`progress`、`stuck`、`completedIssueIds`
+- `GET /api/v1/state` / `events` / `<issue>` — 结构化 snapshot / SSE / 单 issue；SSE 会透出 `progress_fingerprint_recorded` 与 `issue_stuck`
 - `POST /api/v1/refresh` — 排队一次额外 tick
 
 前端开发：
@@ -209,7 +209,19 @@ tracker:
   candidate_label: agent-ready
   exclude_label: skip-agent
   finish_label: agent-finish
+
+agent:
+  max_turns: 30
+  no_progress_threshold: 3
 ```
+
+`no_progress_threshold` 表示连续多少次 turn 边界的 progress fingerprint 没变化后，当前进程把 issue 标为 `stuck: no_progress` 并停止自动续跑。默认值是 `3`。它不代表失败验证，也不会写 tracker label。
+
+stuck issue 的处理方式：
+
+1. Dashboard / `codebuddy-auto status` 会显示 stuck reason。
+2. Scheduler 不再自动 dispatch / continue 这个 issue。
+3. 如果 tracker 后续出现 `agent-finish`、issue 离开 active state、进入 terminal state，或 tracker 不再返回该 issue，reconciliation 会按正常 handoff/release 规则释放它。
 
 ## Scheduler ↔ Worker 调用细节
 
@@ -245,14 +257,15 @@ tracker:
 
 ### scheduler tick (run-scheduler-once)
 
-每个 tick 严格走四步：
+每个 tick 严格走五步：
 
 1. **Release expired retry claims** — `state.retryAttempts` 中 `dueAtMs <= now` 且不在 `state.running` 的 entry 直接清除，让 issue 重回候选集。
 2. **Reconcile running issues** — 用 `tracker.fetchIssueStatesByIds(running)` 拉一批 tracker state，`reconcile-runtime-state` 处理结果：
    - SSH 模式 / 没有 `WorkerHandle` 的条目 → 直接从 `state.running` 删除 + 标 `state.completed`，必要时清理 workspace。
    - **Local 模式** 有活 worker 的条目 → 不删 `state.running`，改为 `workerHandleStore.requestGracefulExit(issueId) = true`（cooperative）。Worker 在下一个 turn 边界自查并退出，避免半截工具调用留下脏状态。
-3. **Continuation cycle** — **仅在 `worker.kind === 'ssh'`** 调用 `run-continuation-cycle`。Local 模式不走这条路：worker 自己在内部跑多轮。
-4. **Dispatch cycle** — 调用 `run-dispatch-cycle`：先用 `plan-dispatch-cycle` 算 `availableSlots = maxConcurrentAgents - |running|`，按候选 issue 排序后，根据 `worker.kind` 分流：
+3. **Reconcile stuck issues** — 对不在 running 中的 stuck issue 重新读取 tracker state；如果出现 finish label、离开 active state、进入 terminal state，或 tracker 不再返回，则释放本进程内的 stuck/progress bookkeeping。
+4. **Continuation cycle** — **仅在 `worker.kind === 'ssh'`** 调用 `run-continuation-cycle`。Local 模式不走这条路：worker 自己在内部跑多轮。
+5. **Dispatch cycle** — 调用 `run-dispatch-cycle`：先用 `plan-dispatch-cycle` 算 `availableSlots = maxConcurrentAgents - |running|`，按候选 issue 排序后，根据 `worker.kind` 分流：
    - `local` → `dispatch-local-issue(issue, …)`（异步、不 await）
    - `ssh`   → 旧路径：单轮 `runCodebuddyTurn` + 写入 `state.running` + 创建 retry entry。
 
@@ -279,6 +292,8 @@ dispatch-local-issue(issue)
      │     │   ├─ tracker.fetchIssueStatesByIds([id])
      │     │   │     - finish_label 出现 → exitReason=finish_label_observed
      │     │   │     - state 不再 active → exitReason=issue_inactive
+     │     │   ├─ record progress fingerprint
+     │     │   │     - repeated >= no_progress_threshold → exitReason=stuck_no_progress
      │     │   └─ 否则继续下一轮
      │     │
      │     │ 退出后:
