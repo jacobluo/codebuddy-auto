@@ -3,7 +3,7 @@
 > **Change**: `openspec/changes/m0-spike-codebuddy-and-cnb/`
 > **产出**: 解除 PLAN §5 Agent 协议起草阻塞 + 为 `codebuddy-cli-integration` capability 提供行为输入
 > **采集日期**: 2026-05-01
-> **采集工具**: `scripts/spike-a-probe.sh` + 手工 stream-json 补测
+> **采集方式**: 历史 Spike A probe + 手工 stream-json 补测（原 probe 脚本已移除）
 > **原始数据**: `tmp/spike-a-raw-output.txt`（751 行）+ `tmp/spike-a-stream-json.txt`（4 行 NDJSON）
 
 ---
@@ -271,7 +271,7 @@ const child = spawn('codebuddy', args, {
 | **R2** | 并发同一 session_id 行为未验 | M1 runner 实现 + 压测；推荐用 per-task 独立 session_id 避免 |
 | **R3** | `--output-format stream-json` 下 `file-history-snapshot` 事件占位体积未知 | M1 实测大 session 的事件吞吐 |
 | **R4** | ACP 模式未测 | M3+ 升级前单独做 spike |
-| **R5** | CodeBuddy CLI 版本迭代快（2.93.6），flag 可能变动 | `scripts/spike-a-probe.sh` 可作回归探针，每次大升级重跑 |
+| **R5** | CodeBuddy CLI 版本迭代快（2.93.6），flag 可能变动 | 每次大升级按本文记录的命令重建一次性 probe，并同步更新采集结论 |
 | **R6** | `--permission-mode=plan` 下如何继续 turn（需交互？）未验 | M1 实现 runner 时细探 |
 | **R7** | 工具调用失败时 `permission_denials` 的具体结构未观察到 | 压测时补 |
 

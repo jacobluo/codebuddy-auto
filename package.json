@@ -29,10 +29,7 @@
     "test": "pnpm run test:server && pnpm run test:dashboard",
     "test:server": "cd typescript && vitest run",
     "test:dashboard": "vitest run --config typescript/dashboard/vitest.config.ts --passWithNoTests",
-    "test:watch": "cd typescript && vitest",
-    "baseline": "bash scripts/baseline.sh --include-api-hash",
-    "baseline:no-tests": "bash scripts/baseline.sh --no-tests --include-api-hash",
-    "baseline:diff": "bash scripts/diff-baseline.sh"
+    "test:watch": "cd typescript && vitest"
   },
   "dependencies": {
     "@tencent-ai/agent-sdk": "^0.3.161",

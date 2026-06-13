@@ -54,7 +54,7 @@ codebuddy-auto/
 ├── AGENTS.md                ← 本文件（规约）
 ├── PLAN.md                  ← 项目计划 + 契约主干
 ├── README.md
-├── scripts/                 ← 跨语言的 bash 工具（baseline / diff-baseline）
+├── scripts/                 ← 仓库辅助脚本（当前保留 install-cnb-harness）
 ├── docs/
 │   └── references/          ← 调研材料 / spike 结论
 └── typescript/              ← TS 参考实现

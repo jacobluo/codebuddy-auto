@@ -38,7 +38,7 @@ codebuddy-auto/
 ├── package.json           ← 根目录本地安装入口（bin 指向 typescript/dist）
 ├── examples/workflows/    ← 可复制修改的 WORKFLOW.md 示例
 ├── openspec/specs/        ← 当前可执行能力规范
-├── scripts/               ← baseline.sh / diff-baseline.sh / install-cnb-harness
+├── scripts/               ← install-cnb-harness
 ├── templates/             ← 可安装到业务仓库的 harness 标准模板
 ├── typescript/            ← TypeScript 实现（src/test/dashboard/package.json）
 └── docs/references/       ← 上游/平台调研材料与 spike 结论

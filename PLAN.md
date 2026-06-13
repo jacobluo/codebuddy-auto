@@ -28,7 +28,7 @@
 |---|---|---|---|
 | **M0** | 🟢 已完成 | 18 章 + Appendix A 的差距映射、spike 结论、roadmap 骨架 | 两份 spike 文档 + `PLAN.md` 与最新版 SPEC 的差距分析对齐 |
 | **M1** | 🟢 已完成 | 将 PLAN 中与单机最小调度器直接相关的章节补成可实现契约 | `typescript/` 已闭环单机调度主流程：poll/reconcile/continuation/retry/workspace cleanup/daemon status API |
-| **M2** | 🟢 已完成 | continuation、baseline 闭环、多 turn 相关章节细化 | continuation / multi-turn 主路径、baseline / diff-baseline 脚本闭环、approval/notification 事件映射与自动化测试已补齐 |
+| **M2** | 🟢 已完成 | continuation、多 turn 相关章节细化 | continuation / multi-turn 主路径、approval/notification 事件映射与自动化测试已补齐；早期 baseline 脚本已在后续文档收敛中移除 |
 | **M3** | 🟢 已完成 | 并发调度、git worktree、安全边界进一步细化 | `max_concurrent_agents` 多 issue 并发、per-task git worktree 生命周期、安全 preflight，以及 scheduler 各阶段 partial-failure 容错已完成 |
 | **M4** | 🟢 已完成 | dashboard / remote worker extension 契约补齐 | Dashboard（`GET /` + status API）+ RemoteWorker（`worker.kind: ssh`）已落地 |
 
@@ -364,7 +364,7 @@
 **状态**：🟢 已起草
 
 - `Core Conformance` 是当前本地单机实现的必测主线，至少覆盖：`spec` schema、workflow 解析与模板渲染、config 载入与 preflight、workspace create/remove/hook、tracker 归一化、runner 事件映射与 timeout、scheduler startup/reconcile/dispatch/continuation/retry、logging snapshot/status/http api、CLI 生命周期。
-- `Extension Conformance` 覆盖非最小主线但已落地的附加能力，当前至少包括：`git-worktree` 模式、`maxConcurrentAgentsByState`、refresh API、baseline / diff-baseline 脚本。
+- `Extension Conformance` 覆盖非最小主线但已落地的附加能力，当前至少包括：`git-worktree` 模式、`maxConcurrentAgentsByState`、refresh API。
 - `Real Integration Profile` 用于真实依赖烟测，当前应保留给 CodeBuddy SDK local worker、SSH CLI fallback 探针、cnb.cool API 探针，以及最小端到端本地试运行。
 - 测试目录应继续镜像 `src/` 结构，确保每个核心模块都能在 `typescript/test/` 下找到一一对应的契约验证文件。
 - 行为性修改默认先补失败测试，再补实现；文档章程中的 contract 变更也应尽量附带对照测试位置，避免章节与代码长期漂移。
@@ -593,7 +593,7 @@
   └── test/                ← vitest
   ```
 - 🟢 `typescript/` 已落地最小骨架：`spec / tracker / runner / scheduler / workspace / workflow / config / logging / cli` 均已有源码与基础测试
-- 🟢 `scripts/baseline.sh` 的 `TESTS_DIR` / `API_SRC_DIR` 默认值已从 `python/*` 改为 `typescript/*`
+- 🟢 早期 `scripts/baseline.sh` / `scripts/diff-baseline.sh` 曾用于 M2 基线快照验证，后续已随脚本收敛移除
 - 🟢 `typescript/test/` 已按 `src/` 主要模块镜像分层，具备基础验证矩阵雏形
 
 ### 3.4 M1 结项说明
@@ -644,7 +644,7 @@
 
 | # | 风险 | 缓解 |
 |---|---|---|
-| R1 | CodeBuddy CLI `--resume` / stream-json / ACP 语义随版本演进漂移 | 用 `scripts/spike-a-probe.sh` 做回归探针；M1 固定一版 CLI 行为基线 |
+| R1 | CodeBuddy CLI `--resume` / stream-json / ACP 语义随版本演进漂移 | 按 `docs/references/codebuddy-cli-capabilities.md` 的场景重建一次性 probe；M1 固定一版 CLI 行为基线 |
 | R2 | cnb.cool API 的 batch-by-id / labels 过滤 / custom fields 仍有能力缺口 | 在 §4 正式吸收 3 处降级：并发单查、客户端二次过滤、label 前缀承载元数据 |
 | R3 | 最新版 SPEC 要求的 dynamic reload / observability / test matrix 尚未写入正式契约，且实现也仅到最小骨架 | 先补 `§5/§6/§13/§17/§18`，并同步推进 `typescript/` 的 orchestration / runner 主流程 |
 | R4 | 切 TS 后团队心智成本 | 可控；harness-f1 生态本身也是 Node 主导 |
@@ -662,12 +662,12 @@
 | v0.3 | 2026-05-01 | `AGENTS.md` 重构为项目专属规约一站式文档（§1 技术栈 / §2 编码规范 7 条硬约束 / §3 目录结构 / §4 Skill 规约）；PLAN §3.4 迁移至 AGENTS，通用 LLM 行为规则引用项目级 rule `karpathy-guidelines.mdc`；CLI 入口锁定 commander |
 | v0.4 | 2026-05-01 | `AGENTS.md` §4 重写为"开发工作流（OpenSpec + Superpowers）"融合版：6 条主流程纪律 + skill 速查表 + OpenSpec change 粒度约束 + NOT 清单 + 边界禁用；决定 M1 动工前引入 `@fission-ai/openspec` |
 | v0.5 | 2026-05-01 | `openspec init` 落地；两份 spike 的 design doc 迁移到 `openspec/changes/m0-spike-codebuddy-and-cnb/`（proposal + design + tasks + 两份 skeleton spec）；删除 `docs/plans/2026-05-01-spike-ab-design.md`；AGENTS.md §4.1 豁免清单删除 `docs/plans/` 条目 |
-| v0.6 | 2026-05-01 | Spike A 完成（CodeBuddy CLI 2.93.6 🟢 充分承接 §10）；Spike B 完成（cnb.cool REST API 🟡 承接 §11 带 3 处降级：无 batch-by-id / labels OR-only / 无 custom fields）；`scripts/spike-b-probe.sh` 固化为可回归探针 |
+| v0.6 | 2026-05-01 | Spike A 完成（CodeBuddy CLI 2.93.6 🟢 充分承接 §10）；Spike B 完成（cnb.cool REST API 🟡 承接 §11 带 3 处降级：无 batch-by-id / labels OR-only / 无 custom fields）；当时曾保留 probe 脚本，后续随参考资料收敛移除 |
 | v0.7 | 2026-05-18 | 基于最新版 `symphony/SPEC.md` 重评项目差距：`PLAN.md` 明确标出 18 章 + Appendix A 映射、滞后章节、可执行补齐清单，并同步修正 M0 里程碑、TS 目录骨架与风险表 |
 | v0.8 | 2026-05-19 | README 收敛为项目说明文档；PLAN 将已完成的 M0 文档/骨架事项与仍打开的 M1 缺口分开表述，避免把已落地内容继续记为待办 |
 | v0.9 | 2026-05-23 | M1 运行时闭环完成：daemon status API 接入、scheduler 支持外部 refresh tick、README/PLAN 收口为 M1 已完成并把后续能力移动到 M2/M3/M4 |
-| v1.0 | 2026-05-24 | M2 起步：baseline / diff-baseline 纳入自动化测试并接入 `typescript` 包脚本，README 快速开始同步收口 |
-| v1.1 | 2026-05-24 | runner 细化审批相关事件映射：新增 `notification` / `approval_auto_approved` 语义与对应测试，并补出 `baseline:diff` 包脚本 |
+| v1.0 | 2026-05-24 | M2 起步：当时曾把 baseline / diff-baseline 纳入自动化测试并接入 `typescript` 包脚本，README 快速开始同步收口；该脚本线后续已移除 |
+| v1.1 | 2026-05-24 | runner 细化审批相关事件映射：新增 `notification` / `approval_auto_approved` 语义与对应测试；当时补出过 `baseline:diff` 包脚本，后续已移除 |
 | v1.2 | 2026-05-24 | M2 收口：新增 continuation cycle 行为测试，补齐 multi-turn resume / approval retry 验证，并将里程碑状态切换为 M2 已完成 |
 | v1.3 | 2026-05-25 | M3 预备：dispatch 选择逻辑补齐 `max_concurrent_agents_by_state` 限流实现与测试，收束为 worktree / 更完整并发运行时前的最后单机调度增量 |
 | v1.4 | 2026-05-25 | M3 第一阶段：workspace lifecycle 接入 `git-worktree` 模式、`workspace.source_root` 配置解析、preflight 校验与创建/清理测试，完成 per-task worktree 基础闭环 |

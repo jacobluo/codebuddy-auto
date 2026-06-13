@@ -3,7 +3,7 @@
 > **Change**: `openspec/changes/m0-spike-codebuddy-and-cnb/`
 > **产出**: 解除 PLAN §4 Tracker 契约起草阻塞 + 为 `cnb-tracker-backend` capability 提供行为输入
 > **采集日期**: 2026-05-01
-> **采集工具**: `scripts/spike-b-probe.sh`（可回归运行）
+> **采集方式**: 历史 Spike B probe（原 probe 脚本已移除）
 > **原始数据**: `tmp/spike-b-raw-output.txt`（506 行，21 个 HTTP 响应头 + 响应体）
 > **测试仓库**: `relaxorg/codebuddy-auto`（本项目自身）；测试 fixture（3 个 issue + 2 个 label）留在仓库供后续回归复用
 
@@ -142,7 +142,7 @@ Spike A 已确认 CodeBuddy CLI 支持 `--mcp-config`。本 Spike 确认 cnb 提
 
 ### §2.7 Artifact & evaluation
 
-- ✅ **2.7.1** 本报告 + 原始样本 `tmp/spike-b-raw-output.txt` + 可回归脚本 `scripts/spike-b-probe.sh`
+- ✅ **2.7.1** 本报告 + 原始样本 `tmp/spike-b-raw-output.txt`；如需重新验证，按本文 HTTP 场景重建一次性 probe
 - ✅ **2.7.2** **Verdict**：🟡 **cnb API 能承接 Symphony §11，但有 3 处已量化的降级**（batch-by-id 缺失 / labels OR-only / custom fields 缺失）。详见本报告 §3
 
 ---
