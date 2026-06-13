@@ -11,15 +11,13 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 
 describe('loadServiceConfig', () => {
-  it('keeps checked-in workflow examples rooted at the repository workspace directories', () => {
+  it('keeps checked-in workflow examples rooted at their runtime directories', () => {
     const examples = [
       {
         path: path.join(repoRoot, 'examples/workflows/cnb-generic.WORKFLOW.md'),
-        workspaceRoot: path.join(repoRoot, '.codebuddy-auto/workspaces'),
       },
       {
         path: path.join(repoRoot, 'examples/workflows/symphony_repo_crm.WORKFLOW.md'),
-        workspaceRoot: path.join(repoRoot, '.codebuddy-auto/workspaces'),
       },
     ];
 
@@ -28,8 +26,8 @@ describe('loadServiceConfig', () => {
         CNB_TOKEN: 'token',
       });
 
-      expect(config.workspace.root).toBe(example.workspaceRoot);
-      expect(config.workspace.sourceRoot).toBe(repoRoot);
+      expect(config.workspace.root).toBe(path.join(path.dirname(example.path), '.codebuddy-auto/workspaces'));
+      expect(config.workspace.sourceRoot).toBe(path.dirname(example.path));
     }
   });
 
