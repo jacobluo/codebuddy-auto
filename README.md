@@ -81,8 +81,8 @@ node ../codebuddy-auto/typescript/dist/src/main.js init \
 ```bash
 export CODEBUDDY_API_KEY=...
 export CNB_TOKEN=...
-node ../codebuddy-auto/typescript/dist/src/main.js --check
-node ../codebuddy-auto/typescript/dist/src/main.js --daemon
+node ../codebuddy-auto/typescript/dist/src/main.js check
+node ../codebuddy-auto/typescript/dist/src/main.js daemon
 ```
 
 如果你自己维护私有凭据文件，也可以手动 `source`，但 `codebuddy-auto init` 不会生成或读取 `.env`。
@@ -111,8 +111,8 @@ codebuddy-auto init
 # 编辑 WORKFLOW.md，或初始化时传 --project / --repo-url 直接填好业务仓库
 export CODEBUDDY_API_KEY=...
 export CNB_TOKEN=...
-codebuddy-auto --check
-codebuddy-auto --daemon
+codebuddy-auto check
+codebuddy-auto daemon
 ```
 
 `init` 会在当前目录生成 `WORKFLOW.md`，并创建 `.codebuddy-auto/workspaces/`。不传参数时会在交互式终端询问 project 和 repo URL；非交互环境会生成可编辑占位值。已有 `WORKFLOW.md` 时默认不会覆盖，确认要重建时使用 `codebuddy-auto init --force`。凭据由 shell / CI 环境显式提供，`init` 不生成 `.env`。

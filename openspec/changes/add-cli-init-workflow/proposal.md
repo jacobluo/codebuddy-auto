@@ -7,7 +7,7 @@ Users currently need to know internal example paths, manually create workspace d
 - Add a `codebuddy-auto init` command that initializes the current directory as a scheduler runtime directory.
 - Generate a root-local `WORKFLOW.md` configured for a CNB target repository.
 - Prompt for project slug and repository clone URL when running in an interactive terminal without explicit options.
-- Create the configured workspace root directory so `codebuddy-auto --check` can pass after env variables are loaded.
+- Create the configured workspace root directory so `codebuddy-auto check` can pass after env variables are loaded.
 - Refuse to overwrite existing files unless `--force` is provided.
 - Do not generate or load `.env`; credentials remain externally managed by the shell or CI environment.
 - Update README guidance to use the init-first flow.

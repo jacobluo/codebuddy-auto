@@ -187,6 +187,44 @@ function createSseReader(stream: ReadableStream<Uint8Array>) {
 }
 
 describe('startStatusServer', () => {
+  it('reports a clear error when the configured dashboard port is already in use', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+
+    const firstServer = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+    );
+
+    try {
+      const address = firstServer.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+      const port = Number.parseInt(new URL(address).port, 10);
+
+      await expect(startStatusServer(
+        {
+          ...DEFAULT_SERVICE_CONFIG,
+          server: {
+            host: '127.0.0.1',
+            port,
+          },
+        },
+        controller,
+      )).rejects.toThrow(`dashboard server port 127.0.0.1:${port} is already in use`);
+    } finally {
+      await firstServer.close();
+      await cleanupFixture();
+    }
+  });
+
   it('serves the dashboard SPA shell and static assets from disk', async () => {
     const cleanupFixture = await createDashboardFixture();
     const { controller } = createController();

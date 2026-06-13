@@ -111,7 +111,6 @@ describe('root package entrypoint contract', () => {
     expect(packageJson.scripts?.build).toBe('pnpm run build:server && pnpm run build:dashboard && pnpm run build:assets');
     expect(packageJson.scripts?.check).toBe('pnpm run check:server && pnpm run check:dashboard');
     expect(packageJson.scripts?.test).toBe('pnpm run test:server && pnpm run test:dashboard');
-    expect(packageJson.dependencies?.commander).toBeDefined();
     expect(packageJson.dependencies?.zod).toBeDefined();
   });
 

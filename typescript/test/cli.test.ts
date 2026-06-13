@@ -152,19 +152,21 @@ describe('runCli', () => {
       '',
     ].join('\n'));
 
-    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--check'])).resolves.toBe(0);
+    await expect(runCli(['node', 'codebuddy-auto', 'check', workflowPath])).resolves.toBe(0);
   });
 
   it('returns 1 when the workflow is missing', async () => {
-    await expect(runCli(['node', 'codebuddy-auto', '/missing/WORKFLOW.md', '--check'])).resolves.toBe(1);
+    await expect(runCli(['node', 'codebuddy-auto', 'check', '/missing/WORKFLOW.md'])).resolves.toBe(1);
   });
 
-  it('rejects incompatible check and daemon flags before loading the workflow', async () => {
+  it('rejects legacy top-level mode flags before loading the workflow', async () => {
     const createWorkflowRuntimeSource = vi.fn();
 
-    await expect(runCli(['node', 'codebuddy-auto', 'WORKFLOW.md', '--check', '--daemon'], {
-      createWorkflowRuntimeSource,
-    })).resolves.toBe(1);
+    for (const flag of ['--check', '--daemon', '--status']) {
+      await expect(runCli(['node', 'codebuddy-auto', flag], {
+        createWorkflowRuntimeSource,
+      })).resolves.toBe(1);
+    }
 
     expect(createWorkflowRuntimeSource).not.toHaveBeenCalled();
   });
@@ -219,7 +221,7 @@ describe('runCli', () => {
     const waitForShutdownSignal = vi.fn(async () => undefined);
 
     await expect(
-      runCli(['node', 'codebuddy-auto', workflowPath, '--daemon'], {
+      runCli(['node', 'codebuddy-auto', 'daemon', workflowPath], {
         startScheduler,
         waitForShutdownSignal,
       }),
@@ -284,7 +286,7 @@ describe('runCli', () => {
     });
 
     await expect(
-      runCli(['node', 'codebuddy-auto', workflowPath, '--daemon'], {
+      runCli(['node', 'codebuddy-auto', 'daemon', workflowPath], {
         createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
         startScheduler,
         startStatusServer,
@@ -302,6 +304,40 @@ describe('runCli', () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it('does not start the scheduler when the status server fails to bind', async () => {
+    const workflowPath = createWorkflow([
+      '---',
+      'tracker:',
+      '  kind: local',
+      '  apiKey: token',
+      'workspace:',
+      '  root: .',
+      'server:',
+      '  port: 4317',
+      '---',
+      'Prompt',
+      '',
+    ].join('\n'));
+    const requestTick = vi.fn(async () => undefined);
+    const stop = vi.fn(async () => undefined);
+    const startScheduler = vi.fn(() => ({ requestTick, stop }));
+    const startStatusServer = vi.fn(async () => {
+      throw new Error('dashboard server port 127.0.0.1:4317 is already in use');
+    });
+
+    await expect(
+      runCli(['node', 'codebuddy-auto', 'daemon', workflowPath], {
+        startScheduler,
+        startStatusServer,
+        waitForShutdownSignal: vi.fn(async () => undefined),
+      }),
+    ).resolves.toBe(1);
+
+    expect(startStatusServer).toHaveBeenCalledTimes(1);
+    expect(startScheduler).not.toHaveBeenCalled();
+    expect(stop).not.toHaveBeenCalled();
+  });
+
   it('prints a human-readable runtime status snapshot', async () => {
     const workflowPath = createWorkflow([
       '---',
@@ -316,7 +352,7 @@ describe('runCli', () => {
     ].join('\n'));
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
-    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--status'])).resolves.toBe(0);
+    await expect(runCli(['node', 'codebuddy-auto', 'status', workflowPath])).resolves.toBe(0);
 
     expect(stdoutWrite).toHaveBeenCalledWith(expect.stringContaining('counts: running=0 retrying=0 claimed=0 completed=0'));
     stdoutWrite.mockRestore();
@@ -361,7 +397,7 @@ describe('runCli', () => {
       })),
     };
 
-    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--check', '--reload'], {
+    await expect(runCli(['node', 'codebuddy-auto', 'check', workflowPath, '--reload'], {
       createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
     })).resolves.toBe(0);
 
@@ -419,7 +455,7 @@ describe('runCli', () => {
       };
     });
 
-    await expect(runCli(['node', 'codebuddy-auto', workflowPath, '--daemon', '--reload'], {
+    await expect(runCli(['node', 'codebuddy-auto', 'daemon', workflowPath, '--reload'], {
       createWorkflowRuntimeSource: vi.fn(async () => runtimeSource),
       startScheduler,
       waitForShutdownSignal: vi.fn(async () => undefined),

@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { createInterface } from 'node:readline/promises';
 import { z } from 'zod';
 
@@ -35,7 +34,18 @@ const initCliOptionsSchema = z.object({
   force: z.boolean(),
 });
 
+const runCliOptionsSchema = z.object({
+  mode: z.enum(['run-once', 'check', 'daemon', 'status']),
+  workflowPath: z.string().min(1),
+  reload: z.boolean(),
+});
+
+type RunCliOptions = z.infer<typeof runCliOptionsSchema>;
+
 const DEFAULT_INIT_PROJECT = 'your-org/your-repo';
+const DEFAULT_WORKFLOW_PATH = 'WORKFLOW.md';
+const LEGACY_MODE_FLAGS = new Set(['--check', '--daemon', '--status']);
+const MODE_COMMANDS = new Set(['check', 'daemon', 'status']);
 
 function defaultRepoUrlForProject(project: string): string {
   return `https://cnb.cool/${project}.git`;
@@ -79,6 +89,54 @@ function parseInitCliOptions(args: string[]): z.infer<typeof initCliOptionsSchem
   }
 
   return initCliOptionsSchema.parse(options);
+}
+
+function parseRunCliOptions(args: string[]): RunCliOptions {
+  const firstArg = args[0];
+
+  if (firstArg !== undefined && LEGACY_MODE_FLAGS.has(firstArg)) {
+    throw new Error(`${firstArg} has been removed; use '${firstArg.slice(2)}' command instead`);
+  }
+
+  const mode = firstArg !== undefined && MODE_COMMANDS.has(firstArg)
+    ? firstArg as 'check' | 'daemon' | 'status'
+    : 'run-once';
+  const remainingArgs = mode === 'run-once' ? args : args.slice(1);
+  let workflowPath = DEFAULT_WORKFLOW_PATH;
+  let reload = false;
+  let sawWorkflowPath = false;
+
+  for (const arg of remainingArgs) {
+    if (LEGACY_MODE_FLAGS.has(arg)) {
+      throw new Error(`${arg} has been removed; use '${arg.slice(2)}' command instead`);
+    }
+
+    if (arg === '--reload') {
+      reload = true;
+      continue;
+    }
+
+    if (arg.startsWith('-')) {
+      throw new Error(`unknown option: ${arg}`);
+    }
+
+    if (sawWorkflowPath) {
+      throw new Error(`unexpected argument: ${arg}`);
+    }
+
+    workflowPath = arg;
+    sawWorkflowPath = true;
+  }
+
+  if (mode === 'status' && reload) {
+    throw new Error('--reload is not supported for status');
+  }
+
+  return runCliOptionsSchema.parse({
+    mode,
+    workflowPath,
+    reload,
+  });
 }
 
 async function promptInitOptions(defaults: InitCliPromptDefaults): Promise<InitCliPromptDefaults> {
@@ -265,36 +323,11 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
   if (argv[2] === 'init') {
     return runInitCommand(argv, dependencies);
   }
-
-  const program = new Command();
-
-  program
-    .name('codebuddy-auto')
-    .argument('[workflowPath]', 'path to WORKFLOW.md', 'WORKFLOW.md')
-    .option('--check', 'load workflow and config, then exit')
-    .option('--status', 'print a human-readable runtime status snapshot and exit')
-    .option('--reload', 'reload workflow/config from disk before running the requested action')
-    .option('--daemon', 'start polling scheduler and return after bootstrap')
-    .addHelpText('after', [
-      '',
-      'Commands:',
-      '  init --project <slug> --repo-url <url>  initialize WORKFLOW.md in the current directory',
-    ].join('\n'))
-    .allowExcessArguments(false);
-
-  program.parse(argv);
-
-  const workflowPath = program.args[0] ?? 'WORKFLOW.md';
-  const options = program.opts<{ check?: boolean; status?: boolean; reload?: boolean; daemon?: boolean }>();
   const logger = createLogger();
 
   try {
-    if (Number(options.check === true) + Number(options.status === true) + Number(options.daemon === true) > 1) {
-      logger.error({ error: '--check, --status, and --daemon are mutually exclusive' }, 'startup_failed');
-      return 1;
-    }
-
-    const runtimeSource = await (dependencies.createWorkflowRuntimeSource ?? createWorkflowRuntimeSource)(workflowPath);
+    const options = parseRunCliOptions(argv.slice(2));
+    const runtimeSource = await (dependencies.createWorkflowRuntimeSource ?? createWorkflowRuntimeSource)(options.workflowPath);
 
     if (options.reload) {
       const reload = await runtimeSource.reload();
@@ -310,47 +343,43 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
 
     const runtime = runtimeSource.getCurrent();
 
-    if (options.check) {
+    if (options.mode === 'check') {
       logger.info({ workflowPath: runtime.workflowPath }, 'preflight_ok');
       return 0;
     }
 
-    if (options.status) {
+    if (options.mode === 'status') {
       const snapshot = createRuntimeSnapshot(createRuntimeState());
       process.stdout.write(formatRuntimeStatus(snapshot));
       return 0;
     }
 
-    if (options.daemon) {
+    if (options.mode === 'daemon') {
       const runtimeState = createRuntimeState();
       const eventBus = createEventBus();
-      const scheduler = (dependencies.startScheduler ?? startScheduler)(
-        runtime.tracker,
-        runtime.config,
-        logger,
-        {
-          state: runtimeState,
-          eventBus,
-          getTickContext: async () => {
-            if (options.reload) {
-              const reload = await runtimeSource.reload();
-              if (!reload.ok) {
-                for (const error of reload.errors) {
-                  logger.error({ error, workflowPath: reload.workflowPath }, 'reload_failed');
-                }
+      const schedulerDependencies = {
+        state: runtimeState,
+        eventBus,
+        getTickContext: async () => {
+          if (options.reload) {
+            const reload = await runtimeSource.reload();
+            if (!reload.ok) {
+              for (const error of reload.errors) {
+                logger.error({ error, workflowPath: reload.workflowPath }, 'reload_failed');
               }
             }
+          }
 
-            const currentRuntime = runtimeSource.getCurrent();
-            return {
-              tracker: currentRuntime.tracker,
-              config: currentRuntime.config,
-            };
-          },
+          const currentRuntime = runtimeSource.getCurrent();
+          return {
+            tracker: currentRuntime.tracker,
+            config: currentRuntime.config,
+          };
         },
-      );
+      };
 
       let stopRefreshLoop = false;
+      let scheduler: ReturnType<typeof startScheduler> | null = null;
       let statusServer: StatusServerRuntime | null = null;
       let refreshLoop: Promise<void> | null = null;
       let statusController: ReturnType<typeof createServerStateController> | null = null;
@@ -365,7 +394,6 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
             getIssueJson: (identifier) => getIssueStatusJson(runtimeState, identifier),
           });
           statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtime.config, statusController, eventBus);
-          refreshLoop = runStatusRefreshLoop(scheduler, statusController, () => stopRefreshLoop);
           logger.info(
             {
               workflowPath: runtime.workflowPath,
@@ -373,6 +401,16 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
             },
             'status_server_started',
           );
+        }
+
+        scheduler = (dependencies.startScheduler ?? startScheduler)(
+          runtime.tracker,
+          runtime.config,
+          logger,
+          schedulerDependencies,
+        );
+        if (statusController) {
+          refreshLoop = runStatusRefreshLoop(scheduler, statusController, () => stopRefreshLoop);
         }
 
         logger.info({ workflowPath: runtime.workflowPath }, 'scheduler_started');
@@ -386,8 +424,10 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
           await refreshLoop;
         }
         await stopStatusServer(statusServer, runtime.workflowPath, logger);
-        await scheduler.stop();
-        logger.info({ workflowPath: runtime.workflowPath }, 'scheduler_stopped');
+        if (scheduler) {
+          await scheduler.stop();
+          logger.info({ workflowPath: runtime.workflowPath }, 'scheduler_stopped');
+        }
       }
 
       return 0;

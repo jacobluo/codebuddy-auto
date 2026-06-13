@@ -35,7 +35,7 @@ The target business repository keeps its own agent instructions and CNB issue te
 
 1. Implement `init` as a Commander subcommand.
 
-   Alternative considered: add `--init` as a top-level flag. A subcommand is clearer because initialization is not a scheduler run mode and should not interact with `--check`, `--daemon`, or workflow path arguments.
+   Alternative considered: add `--init` as a top-level flag. A subcommand is clearer because initialization is not a scheduler run mode and should not interact with scheduler mode commands or workflow path arguments.
 
 2. Generate `WORKFLOW.md` in the current working directory.
 

@@ -9,7 +9,7 @@ The CLI SHALL provide an `init` command that initializes the current working dir
 - **WHEN** the user runs `codebuddy-auto init`
 - **THEN** the system MUST create `WORKFLOW.md` in the current directory
 - **AND** the generated workflow MUST contain editable placeholder values for `tracker.projectSlug` and the target repository clone URL
-- **AND** the generated workflow MUST use root-local workspace paths suitable for running `codebuddy-auto --check` from the same directory after required environment variables are loaded
+- **AND** the generated workflow MUST use root-local workspace paths suitable for running `codebuddy-auto check` from the same directory after required environment variables are loaded
 
 #### Scenario: Interactive initialization asks for project options
 
@@ -24,7 +24,7 @@ The CLI SHALL provide an `init` command that initializes the current working dir
 - **THEN** the system MUST create `WORKFLOW.md` in the current directory
 - **AND** the generated workflow MUST configure `tracker.projectSlug` as `relaxorg/symphony_repo_crm`
 - **AND** the generated workflow MUST clone `https://cnb.cool/relaxorg/symphony_repo_crm.git` in `hooks.after_create`
-- **AND** the generated workflow MUST use root-local workspace paths suitable for running `codebuddy-auto --check` from the same directory
+- **AND** the generated workflow MUST use root-local workspace paths suitable for running `codebuddy-auto check` from the same directory
 
 #### Scenario: Create workspace root
 

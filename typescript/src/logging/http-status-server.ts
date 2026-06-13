@@ -175,6 +175,10 @@ function resolveDashboardStaticRoot(): string {
   return path.resolve(moduleDir, DASHBOARD_STATIC_ROOT_CANDIDATES[0]);
 }
 
+function isListenError(error: unknown): error is { code?: unknown } {
+  return typeof error === 'object' && error !== null && 'code' in error;
+}
+
 function resolveDashboardAssetPath(dashboardRoot: string, pathname: string): string | null {
   const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\//u, '');
   const absolutePath = path.resolve(dashboardRoot, relativePath);
@@ -349,13 +353,20 @@ export async function startStatusServer(
     }));
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server.off('error', reject);
-      resolve();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
-  });
+  } catch (error) {
+    if (isListenError(error) && error.code === 'EADDRINUSE') {
+      throw new Error(`dashboard server port ${host}:${port} is already in use; stop the existing process or set server.port to another value (0 picks an available port)`);
+    }
+    throw error;
+  }
 
   return {
     address(): string | null {
