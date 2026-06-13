@@ -41,6 +41,7 @@ codebuddy:
 
 hooks:
   after_create: |
+    git clone https://cnb.cool/relaxorg/symphony_repo_crm.git .
     npm install
     npx playwright install chromium
   before_run: |
@@ -65,13 +66,13 @@ Description:
 
 ## Operating Rules
 
-1. Read `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/symphony-harness.md`, and the nearest feature files before editing.
-2. Confirm the issue has the scheduler label `agent-ready`, then identify the task type: `agent-ready:ui-bug`, `agent-ready:small-feature`, `agent-ready:test`, `agent-ready:cleanup`, or `agent-ready:docs`.
+1. Read available project guidance before editing, especially `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/symphony-harness.md`, and the nearest feature files.
+2. Confirm the issue has the scheduler label `agent-ready`, then read the `Task type` field from the issue description. Treat it as one of: `agent-ready:ui-bug`, `agent-ready:small-feature`, `agent-ready:test`, `agent-ready:cleanup`, or `agent-ready:docs`.
 3. Keep changes focused on the issue. Do not perform broad refactors.
 4. For behavior changes, write or update tests before implementation.
 5. Prefer feature-local files under `src/features/<feature>` before editing `src/shared`.
 6. Run the smallest useful verification while iterating.
-7. Run `./scripts/verify` before handoff unless the issue is docs-only.
+7. Run the commands from the issue's `Verification` field before handoff; if missing, run `npm run verify` unless the issue is docs-only.
 8. For UI changes, capture or describe the checked viewport and changed screen.
 9. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
 10. After verified handoff, add the `agent-finish` label only when the work is ready for human review.

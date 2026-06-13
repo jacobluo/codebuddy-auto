@@ -1,15 +1,23 @@
 {
-  "name": "@codebuddy-auto/typescript",
+  "name": "@relaxorg/codebuddy-auto",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "codebuddy-auto": "./dist/src/main.js"
+  },
+  "files": [
+    "dist/",
+    ".env.example"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm run build:server && pnpm run build:dashboard",
+    "build": "pnpm run build:server && pnpm run build:dashboard && pnpm run build:assets",
     "build:server": "tsc -p tsconfig.json",
     "build:dashboard": "vite build --config dashboard/vite.config.ts",
+    "build:assets": "rm -rf dist/examples dist/templates && mkdir -p dist && cp -R ../examples dist/examples && cp -R ../templates dist/templates",
     "check": "pnpm run check:server && pnpm run check:dashboard",
     "check:server": "tsc -p tsconfig.json --noEmit",
     "check:dashboard": "tsc -p dashboard/tsconfig.json --noEmit",

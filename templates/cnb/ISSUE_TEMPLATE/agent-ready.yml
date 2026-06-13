@@ -1,0 +1,52 @@
+name: Agent-ready task
+description: A small task intended for codebuddy-auto execution.
+title: "[agent] "
+labels: ["agent-ready"]
+body:
+  - type: dropdown
+    id: task_type
+    attributes:
+      label: Task type
+      description: Select the closest task category for the agent.
+      options:
+        - agent-ready:ui-bug
+        - agent-ready:small-feature
+        - agent-ready:test
+        - agent-ready:cleanup
+        - agent-ready:docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is wrong or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should be true after the task is complete?
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands, screens, and checks the agent should run.
+      value: |
+        - npm run verify
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Relevant files, screenshots, constraints, or context.
+    validations:
+      required: false

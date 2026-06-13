@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    echo "usage: scripts/install-cnb-harness [--overwrite] <target-repo>" >&2
+}
+
+OVERWRITE=0
+TARGET_REPO=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --overwrite)
+            OVERWRITE=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo "install-cnb-harness: unknown argument: $1" >&2
+            usage
+            exit 2
+            ;;
+        *)
+            if [[ -n "$TARGET_REPO" ]]; then
+                echo "install-cnb-harness: multiple target repositories provided" >&2
+                usage
+                exit 2
+            fi
+            TARGET_REPO="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$TARGET_REPO" ]]; then
+    usage
+    exit 2
+fi
+
+if [[ ! -d "$TARGET_REPO" ]]; then
+    echo "install-cnb-harness: target repository is not a directory: $TARGET_REPO" >&2
+    exit 2
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SOURCE_TEMPLATE="$ROOT_DIR/templates/cnb/ISSUE_TEMPLATE/agent-ready.yml"
+TARGET_DIR="$TARGET_REPO/.cnb/ISSUE_TEMPLATE"
+TARGET_TEMPLATE="$TARGET_DIR/agent-ready.yml"
+
+if [[ ! -f "$SOURCE_TEMPLATE" ]]; then
+    echo "install-cnb-harness: source template not found: $SOURCE_TEMPLATE" >&2
+    exit 1
+fi
+
+if [[ -e "$TARGET_TEMPLATE" && "$OVERWRITE" != "1" ]]; then
+    echo "install-cnb-harness: target already exists: $TARGET_TEMPLATE" >&2
+    echo "install-cnb-harness: rerun with --overwrite to replace it" >&2
+    exit 1
+fi
+
+mkdir -p "$TARGET_DIR"
+cp "$SOURCE_TEMPLATE" "$TARGET_TEMPLATE"
+
+echo "Installed CNB harness template: $TARGET_TEMPLATE"

@@ -33,8 +33,11 @@
 ```
 codebuddy-auto/
 ├── PLAN.md                ← 项目计划 + 语言无关契约主干
-├── scripts/               ← baseline.sh / diff-baseline.sh
-├── typescript/            ← TypeScript 参考实现（src/test/package.json）
+├── package.json           ← 根目录本地安装入口（bin 指向 typescript/dist）
+├── examples/workflows/    ← 可复制修改的 WORKFLOW.md 示例
+├── scripts/               ← baseline.sh / diff-baseline.sh / install-cnb-harness
+├── templates/             ← 可安装到业务仓库的 harness 标准模板
+├── typescript/            ← TypeScript 实现（src/test/dashboard/package.json）
 └── docs/references/       ← Symphony / cnb issue API 解读
 ```
 
@@ -53,19 +56,89 @@ codebuddy-auto/
 ## 快速开始
 
 ```bash
-cd typescript
 pnpm install
-cp .env.example .env             # 填入 CODEBUDDY_API_KEY、CNB_TOKEN 等
-cp WORKFLOW.example.md WORKFLOW.md   # 改 projectSlug、clone 地址、prompt
+cp typescript/.env.example .env             # 填入 CODEBUDDY_API_KEY、CNB_TOKEN 等
+cp examples/workflows/cnb-generic.WORKFLOW.md WORKFLOW.md   # 改 projectSlug、clone 地址、prompt
 
 set -a; source .env; set +a
 pnpm build
-node dist/src/main.js WORKFLOW.md --daemon
+node typescript/dist/src/main.js WORKFLOW.md --daemon
 ```
 
 > Prompt 中务必包含 `{{ issue.description }}`，否则 agent 拿不到正文。
 
 调度器只会捞取 **open + `agent-ready` 标签** 的 issue。
+
+## 本地安装 CLI
+
+不发布到 npm registry 时，也可以从源码安装成本机命令；不需要 NPM 账号。
+
+```bash
+git clone https://cnb.cool/relaxorg/codebuddy-auto.git
+cd codebuddy-auto
+pnpm install
+pnpm build
+pnpm setup          # 首次使用 pnpm 全局命令时需要；执行后重开 shell 或 source ~/.zshrc
+pnpm link --global
+```
+
+安装后可直接运行：
+
+```bash
+codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --check
+codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --daemon
+```
+
+如果 `pnpm link --global` 报 `ERR_PNPM_NO_GLOBAL_BIN_DIR`，说明本机还没有 pnpm 全局 bin 目录。执行 `pnpm setup` 后重开 shell，再运行 `pnpm link --global`。
+
+也可以不用 pnpm 全局 link，直接从源码目录安装到 npm 的全局 prefix：
+
+```bash
+cd codebuddy-auto
+pnpm build
+npm install -g .
+```
+
+或者打成本地 tarball 再安装：
+
+```bash
+cd codebuddy-auto
+pnpm build
+pnpm pack
+npm install -g ./relaxorg-codebuddy-auto-0.1.0.tgz
+```
+
+当前包仍保留 `"private": true`，目的是允许本地 `link/pack`，同时避免误发布到 npm registry。
+
+## CNB Issue Harness
+
+`codebuddy-auto` 维护标准 CNB issue template，但 CNB 只会读取业务仓库里的模板。把模板安装到业务仓库：
+
+```bash
+./scripts/install-cnb-harness ../symphony_repo_crm
+```
+
+这会写入：
+
+```text
+../symphony_repo_crm/.cnb/ISSUE_TEMPLATE/agent-ready.yml
+```
+
+默认不会覆盖已有模板；要刷新为标准模板：
+
+```bash
+./scripts/install-cnb-harness --overwrite ../symphony_repo_crm
+```
+
+业务仓库需要先创建这些 CNB labels：
+
+```text
+agent-ready
+skip-agent
+agent-finish
+```
+
+其中 `agent-ready` 是 scheduler 候选标签；issue 表单里的 `Task type` 是给 agent 读的任务分类，不是调度标签。更多说明见 [`docs/cnb-harness.md`](./docs/cnb-harness.md)。
 
 Dashboard：
 
@@ -77,7 +150,6 @@ Dashboard：
 前端开发：
 
 ```bash
-cd typescript
 pnpm run dev:dashboard
 # 默认代理到 http://127.0.0.1:4317
 # 如 status server 监听其他地址，可用 DASHBOARD_PROXY_TARGET 覆盖
