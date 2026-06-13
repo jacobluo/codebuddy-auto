@@ -14,9 +14,9 @@ polling:
   interval_ms: 30000
 
 workspace:
-  root: ./.codebuddy-auto/workspaces
+  root: ../../.codebuddy-auto/workspaces
   mode: directory
-  source_root: .
+  source_root: ../..
 
 server:
   host: 127.0.0.1

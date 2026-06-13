@@ -9,9 +9,9 @@ tracker:
 polling:
   interval_ms: 30000
 workspace:
-  root: ./.codebuddy-auto/workspaces
+  root: ../../.codebuddy-auto/workspaces
   mode: directory
-  source_root: .
+  source_root: ../..
 hooks:
   timeout_ms: 120000
   before_run: |

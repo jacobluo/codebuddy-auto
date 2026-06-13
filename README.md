@@ -89,6 +89,14 @@ codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --check
 codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --daemon
 ```
 
+CNB workflow 运行前需要让 token 进入当前 shell，并先创建 workspace 根目录：
+
+```bash
+set -a; source .env; set +a
+mkdir -p .codebuddy-auto/workspaces
+codebuddy-auto examples/workflows/symphony_repo_crm.WORKFLOW.md --check
+```
+
 如果 `pnpm link --global` 报 `ERR_PNPM_NO_GLOBAL_BIN_DIR`，说明本机还没有 pnpm 全局 bin 目录。执行 `pnpm setup` 后重开 shell，再运行 `pnpm link --global`。
 
 也可以不用 pnpm 全局 link，直接从源码目录安装到 npm 的全局 prefix：

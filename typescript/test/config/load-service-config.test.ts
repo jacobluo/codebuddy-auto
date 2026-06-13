@@ -1,10 +1,42 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { loadServiceConfig } from '../../src/config/index.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..', '..', '..');
+
 describe('loadServiceConfig', () => {
+  it('keeps checked-in workflow examples rooted at the repository workspace directories', () => {
+    const examples = [
+      {
+        path: path.join(repoRoot, 'examples/workflows/cnb-generic.WORKFLOW.md'),
+        workspaceRoot: path.join(repoRoot, '.codebuddy-auto/workspaces'),
+      },
+      {
+        path: path.join(repoRoot, 'examples/workflows/symphony_repo_crm.WORKFLOW.md'),
+        workspaceRoot: path.join(repoRoot, '.codebuddy-auto/workspaces'),
+      },
+      {
+        path: path.join(repoRoot, 'examples/workflows/local-dashboard-demo.WORKFLOW.md'),
+        workspaceRoot: path.join(repoRoot, '.demo-workspaces'),
+      },
+    ];
+
+    for (const example of examples) {
+      const config = loadServiceConfig(fs.readFileSync(example.path, 'utf8'), example.path, {
+        CNB_TOKEN: 'token',
+      });
+
+      expect(config.workspace.root).toBe(example.workspaceRoot);
+      expect(config.workspace.sourceRoot).toBe(repoRoot);
+    }
+  });
+
   it('applies defaults when front matter is absent', () => {
     const config = loadServiceConfig('Prompt body only', '/tmp/project/WORKFLOW.md', {});
 

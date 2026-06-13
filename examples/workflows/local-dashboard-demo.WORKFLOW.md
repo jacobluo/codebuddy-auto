@@ -7,9 +7,9 @@ tracker:
 polling:
   interval_ms: 30000
 workspace:
-  root: ./.demo-workspaces
+  root: ../../.demo-workspaces
   mode: directory
-  source_root: .
+  source_root: ../..
 hooks:
   timeout_ms: 120000
 server:
