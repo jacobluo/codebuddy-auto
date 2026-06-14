@@ -338,3 +338,5 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 | PR / handoff 状态观测 | Dashboard 不只看到 agent turn，还能看到分支、PR、CI 和交接状态 |
 | 远端 worker / 多主机容量管理 | 把单机 daemon 扩展成更接近生产的 worker pool |
 | 更细的 retry 和失败分类 | 区分 SDK 错误、hook 错误、认证错误、测试失败和无进展，减少人工排查成本 |
+
+代码仓库：[https://cnb.cool/relaxorg/codebuddy-auto](https://cnb.cool/relaxorg/codebuddy-auto)
