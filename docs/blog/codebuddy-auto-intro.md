@@ -332,7 +332,6 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 
 当前这版更适合单机调度：一个 `codebuddy-auto daemon` 进程，连接一个 cnb.cool 项目，按标签捞取候选 issue，用本地 CodeBuddy SDK worker 执行任务，并通过 Dashboard 观察运行状态。
 
-如果继续向 Symphony 靠近，优先补的不是“在 `AGENTS.md` 里写多个虚拟角色”，而是把调度层的任务表达补完整：
 
 | 方向 | 为什么重要 |
 |---|---|
@@ -343,4 +342,3 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 | 远端 worker / 多主机容量管理 | 把单机 daemon 扩展成更接近生产的 worker pool |
 | 更细的 retry 和失败分类 | 区分 SDK 错误、hook 错误、认证错误、测试失败和无进展，减少人工排查成本 |
 
-但当前闭环已经能验证一个判断：agent 要稳定参与工程流程，除了模型，还需要调度、状态、失败暴露、目标 repo harness 和交接机制。`codebuddy-auto` 做的就是把这些事情先串起来。
