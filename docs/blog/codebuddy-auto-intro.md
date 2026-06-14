@@ -245,22 +245,27 @@ issue 描述本身建议至少包含这些内容：
 
 ## 10. 如何快速运行
 
-从源码构建：
+从源码安装 CLI：
 
 ```bash
+git clone https://cnb.cool/relaxorg/codebuddy-auto.git
+cd codebuddy-auto
 pnpm install
 pnpm build
+npm install -g .
 ```
 
-创建独立运行目录：
+创建独立运行目录，并生成 `WORKFLOW.md`：
 
 ```bash
 mkdir -p ../codebuddy-auto-runner
 cd ../codebuddy-auto-runner
-node ../codebuddy-auto/typescript/dist/src/main.js init \
+codebuddy-auto init \
   --project your-org/your-repo \
   --repo-url https://cnb.cool/your-org/your-repo.git
 ```
+
+`WORKFLOW.md` 是调度器的运行策略入口，可以按目标仓库自定义。常见需要改的内容包括：tracker 项目和标签、workspace 准备方式、clone / install / verify hook、agent prompt、并发数、模型、`agent.max_turns`、`codebuddy.sdk_max_turns` 等。业务仓库的 README、AGENTS.md、测试命令和 issue 模板越清楚，这里的 prompt 和 hooks 就越容易稳定生效。
 
 导出必要环境变量：
 
@@ -274,17 +279,11 @@ export CNB_PASSWORD=...
 检查并启动：
 
 ```bash
-node ../codebuddy-auto/typescript/dist/src/main.js check
-node ../codebuddy-auto/typescript/dist/src/main.js daemon
+codebuddy-auto check
+codebuddy-auto daemon
 ```
 
 临时指定模型：
-
-```bash
-node ../codebuddy-auto/typescript/dist/src/main.js daemon --model opus
-```
-
-如果已经本地安装 CLI，也可以直接使用：
 
 ```bash
 codebuddy-auto daemon --model opus
