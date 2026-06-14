@@ -265,7 +265,7 @@ codebuddy-auto init \
   --repo-url https://cnb.cool/your-org/your-repo.git
 ```
 
-`WORKFLOW.md` 是调度器的运行策略入口，可以按目标仓库自定义。常见需要改的内容包括：tracker 项目和标签、workspace 准备方式、clone / install / verify hook、agent prompt、并发数、模型、`agent.max_turns`、`codebuddy.sdk_max_turns` 等。业务仓库的 README、AGENTS.md、测试命令和 issue 模板越清楚，这里的 prompt 和 hooks 就越容易稳定生效。
+`WORKFLOW.md` 是调度器的运行策略入口，可以按目标仓库自定义。常见需要改的内容包括：tracker 项目和标签、workspace 准备方式、clone / install / verify hook、agent prompt、并发数、模型、`agent.max_turns`、`codebuddy.sdk_max_turns` 等。`WORKFLOW.md` 负责告诉 agent 如何进入任务、准备 workspace 和完成交接；但它依赖业务仓库提供清晰的 README、AGENTS.md、测试命令和 issue 模板。目标仓库越清楚，agent 越少靠猜，自动执行越稳定。
 
 导出必要环境变量：
 
