@@ -44,11 +44,11 @@ codebuddy:
 hooks:
   after_create: |
     git clone https://cnb.cool/your-org/your-repo.git .
-    npm install
+    # Add repository-specific setup here, for example dependency install or tool bootstrap.
   before_run: |
     git status --short
   after_run: |
-    npm run verify || true
+    # Add repository-specific post-run checks here when useful.
   timeout_ms: 300000
 ---
 
@@ -73,7 +73,7 @@ Description:
 4. For behavior changes, write or update tests before implementation.
 5. Prefer feature-local files before editing shared or cross-cutting modules.
 6. Run the smallest useful verification while iterating.
-7. Run the commands from the issue's `Verification` field before handoff; if missing, run `npm run verify` unless the issue is docs-only.
+7. Run the commands from the issue's `Verification` field before handoff; if missing, infer the appropriate verification from repository docs and explain what you ran.
 8. For UI changes, capture or describe the checked viewport and changed screen.
 9. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
 10. After verified handoff, add the `agent-finish` label only when the work is ready for human review.

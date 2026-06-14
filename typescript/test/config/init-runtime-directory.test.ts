@@ -68,6 +68,8 @@ describe('initRuntimeDirectory', () => {
     expect(template).toContain('agent-ready:ui-bug');
     expect(template).toContain("issue's `Verification` field");
     expect(template).toContain('UI evidence for visual changes');
+    expect(template).not.toContain('npm install');
+    expect(template).not.toContain('npm run verify');
     expect(template).not.toContain('docs/symphony-harness.md');
     expect(template).not.toContain('src/features/<feature>');
   });

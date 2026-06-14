@@ -174,11 +174,11 @@ workspace:
 hooks:
   after_create: |
     git clone https://cnb.cool/your-org/your-repo.git .
-    npm install
+    # 按业务仓库补充依赖安装或环境准备命令
   before_run: |
     git status --short
   after_run: |
-    npm run verify || true
+    # 按业务仓库补充验证或清理命令
 ```
 
 **Progress Gate 边界**：progress gate 不替代测试，也不替代 CI。它只处理明显空转：连续几轮 turn 后，workspace 和 tracker 都没有可观察变化，就把 issue 标记为 stuck，停止自动续跑，让维护者介入。
@@ -234,7 +234,7 @@ issue 描述本身建议至少包含这些内容：
 | `Task type` | 选择最接近的任务类型，例如 `agent-ready:ui-bug`、`agent-ready:small-feature`、`agent-ready:test`、`agent-ready:cleanup`、`agent-ready:docs` |
 | `Problem` | 说明当前哪里不对、缺什么、用户看到的问题是什么 |
 | `Expected behavior` | 写清任务完成后应该满足的状态，最好能被人工或测试验证 |
-| `Verification` | 列出 agent 应该运行的命令、需要检查的页面或关键场景；模板默认示例是 `npm run verify` |
+| `Verification` | 列出 agent 应该运行的命令、需要检查的页面或关键场景；不同技术栈可以写不同验证方式 |
 | `Notes` | 补充相关文件、截图、约束、历史背景或不能改的边界 |
 
 这些字段不只是表单整洁问题。Agent 真正执行时，通常会先读 issue，再结合仓库里的 README、AGENTS.md、WORKFLOW.md 和测试命令做计划。如果 issue 只有标题，agent 很容易把问题理解得过宽；如果 issue 写清 problem、expected behavior 和 verification，agent 才能把“做完了”落到可检查的结果上。
