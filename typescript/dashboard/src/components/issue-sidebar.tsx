@@ -1,13 +1,34 @@
 import { formatCompactNumber, formatDuration, formatClockTime } from '../lib/dashboard-format.js';
-import type { DashboardSnapshot } from '../lib/dashboard-types.js';
+import type { DashboardHistoricalIssue, DashboardSnapshot } from '../lib/dashboard-types.js';
 
 interface IssueSidebarProps {
   snapshot: DashboardSnapshot;
   selectedIssueId: string | null;
+  historicalIssues?: DashboardHistoricalIssue[];
+  historyStatus?: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  historyError?: string | null;
   onSelectIssue: (issueId: string) => void;
 }
 
-export function IssueSidebar({ snapshot, selectedIssueId, onSelectIssue }: IssueSidebarProps) {
+function getActiveIssueIds(snapshot: DashboardSnapshot): Set<string> {
+  return new Set([
+    ...snapshot.running.map((issue) => issue.issueId),
+    ...snapshot.retrying.map((issue) => issue.issueId),
+    ...snapshot.stuck.map((issue) => issue.issueId),
+  ]);
+}
+
+export function IssueSidebar({
+  snapshot,
+  selectedIssueId,
+  historicalIssues = [],
+  historyStatus = 'idle',
+  historyError = null,
+  onSelectIssue,
+}: IssueSidebarProps) {
+  const activeIssueIds = getActiveIssueIds(snapshot);
+  const visibleHistoricalIssues = historicalIssues.filter((issue) => !activeIssueIds.has(issue.issueId));
+
   return (
     <aside className="dashboard-panel dashboard-issue-sidebar">
       <div className="dashboard-panel-heading">
@@ -81,6 +102,36 @@ export function IssueSidebar({ snapshot, selectedIssueId, onSelectIssue }: Issue
           </div>
         </section>
       ) : null}
+
+      <section className="dashboard-history-section">
+        <h3>History</h3>
+        {historyStatus === 'loading' ? (
+          <p className="dashboard-empty-copy">Loading historical issues…</p>
+        ) : historyStatus === 'unavailable' || historyStatus === 'error' ? (
+          <p className="dashboard-empty-copy">{historyError ?? 'Historical issue history is unavailable.'}</p>
+        ) : visibleHistoricalIssues.length === 0 ? (
+          <p className="dashboard-empty-copy">No historical issues yet.</p>
+        ) : (
+          <div className="dashboard-issue-list dashboard-history-list">
+            {visibleHistoricalIssues.map((issue) => (
+              <button
+                key={issue.issueId}
+                className="dashboard-issue-card dashboard-history-card"
+                type="button"
+                aria-pressed={selectedIssueId === issue.issueId}
+                onClick={() => onSelectIssue(issue.issueId)}
+              >
+                <span className="dashboard-issue-state is-history">history</span>
+                <strong>{issue.identifier}</strong>
+                <span>{issue.title}</span>
+                <small>
+                  {issue.sessionCount} session · {issue.transcriptEventCount} transcript · {issue.dashboardEventCount} events
+                </small>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
     </aside>
   );
 }

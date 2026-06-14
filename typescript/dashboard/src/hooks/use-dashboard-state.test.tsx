@@ -156,12 +156,21 @@ function DashboardStateProbe({ dependencies }: { dependencies: DashboardRuntimeD
       <div data-testid="running-count">{state.snapshot?.counts.running ?? 'none'}</div>
       <div data-testid="selected-issue">{state.selectedIssueId ?? 'none'}</div>
       <div data-testid="selected-events">{state.selectedIssueEvents.length}</div>
+      <div data-testid="history-status">{state.historyStatus}</div>
+      <div data-testid="history-error">{state.historyError ?? 'none'}</div>
+      <div data-testid="historical-issues">{state.historicalIssues.map((issue) => issue.issueId).join(',')}</div>
+      <div data-testid="selected-kind">{state.selectedIssue?.kind ?? 'none'}</div>
       <button type="button" onClick={() => void state.triggerRefresh()}>
         trigger refresh
       </button>
       {issueIds.map((issueId) => (
         <button key={issueId} type="button" onClick={() => state.selectIssue(issueId)}>
           select {issueId}
+        </button>
+      ))}
+      {state.historicalIssues.map((issue) => (
+        <button key={issue.issueId} type="button" onClick={() => state.selectIssue(issue.issueId)}>
+          select historical {issue.issueId}
         </button>
       ))}
     </div>
@@ -178,6 +187,12 @@ describe('useDashboardState', () => {
     const bootstrapPayload = createBootstrapPayload();
     const eventSources: FakeEventSource[] = [];
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({ issues: [], nextAfter: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
       expect(String(input)).toContain('/api/v1/dashboard/bootstrap');
       return new Response(JSON.stringify(bootstrapPayload), {
         status: 200,
@@ -204,7 +219,7 @@ describe('useDashboardState', () => {
 
     expect(screen.getByTestId('running-count').textContent).toBe('1');
     expect(screen.getByTestId('connection').textContent).toBe('connecting');
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(eventSources).toHaveLength(1);
     expect(eventSources[0]?.url).toBe('/api/v1/events');
   });
@@ -281,6 +296,12 @@ describe('useDashboardState', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes('/api/v1/dashboard/bootstrap')) {
         return new Response(JSON.stringify(bootstrapPayload), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(input).includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({ issues: [], nextAfter: null }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -388,6 +409,12 @@ describe('useDashboardState', () => {
           headers: { 'content-type': 'application/json' },
         });
       }
+      if (url.includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({ issues: [], nextAfter: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
       if (url.includes('/api/v1/issues/1/transcript')) {
         return new Response(JSON.stringify({ issueId: '1', events: [], nextAfter: null }), {
           status: 200,
@@ -417,6 +444,150 @@ describe('useDashboardState', () => {
       expect(screen.getByTestId('selected-events').textContent).toBe('1');
     });
     expect(fetchImpl).toHaveBeenCalledWith('/api/v1/events/history?issueId=1&limit=200');
+  });
+
+  it('loads historical issues, deduplicates active issues, and selects historical detail', async () => {
+    const bootstrapPayload = createBootstrapPayload();
+    const eventSource = new FakeEventSource('/api/v1/events');
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/dashboard/bootstrap')) {
+        return new Response(JSON.stringify(bootstrapPayload), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({
+          nextAfter: null,
+          issues: [
+            {
+              issueId: '1',
+              identifier: '#1',
+              title: 'Issue One',
+              lastObservedAt: '2026-05-23T00:00:10.000Z',
+              sessionCount: 1,
+              transcriptEventCount: 2,
+              dashboardEventCount: 1,
+              source: 'transcript',
+            },
+            {
+              issueId: '4',
+              identifier: '#4',
+              title: '历史任务',
+              lastObservedAt: '2026-05-23T00:00:09.000Z',
+              sessionCount: 1,
+              transcriptEventCount: 1,
+              dashboardEventCount: 1,
+              source: 'transcript',
+            },
+          ],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/events/history')) {
+        return new Response(JSON.stringify({
+          nextAfter: 9,
+          events: [
+            {
+              id: 9,
+              type: 'issue_event',
+              timestamp: '2026-05-23T00:00:09.000Z',
+              issueId: '4',
+              payload: { event: 'turn_completed' },
+            },
+          ],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/issues/4/transcript')) {
+        return new Response(JSON.stringify({
+          issueId: '4',
+          nextAfter: 1,
+          events: [
+            {
+              id: 1,
+              sessionId: 1,
+              issueId: '4',
+              turnIndex: 1,
+              sequence: 1,
+              role: 'assistant',
+              eventType: 'message',
+              text: '历史 transcript',
+              payload: { type: 'assistant' },
+              createdAt: '2026-05-23T00:00:09.000Z',
+            },
+          ],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    render(
+      <DashboardStateProbe
+        dependencies={{
+          fetchImpl,
+          createEventSource: () => eventSource,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('history-status').textContent).toBe('ready');
+    });
+    expect(screen.getByTestId('historical-issues').textContent).toBe('4');
+
+    fireEvent.click(screen.getByRole('button', { name: 'select historical 4' }));
+    expect(screen.getByTestId('selected-kind').textContent).toBe('historical');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-events').textContent).toBe('1');
+    });
+  });
+
+  it('keeps history errors scoped while dashboard remains ready', async () => {
+    const bootstrapPayload = createBootstrapPayload();
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/dashboard/bootstrap')) {
+        return new Response(JSON.stringify(bootstrapPayload), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({
+          error: {
+            code: 'issue_history_unavailable',
+            message: 'transcript store is disabled',
+          },
+        }), { status: 503 });
+      }
+      return new Response('nope', { status: 404 });
+    });
+
+    render(
+      <DashboardStateProbe
+        dependencies={{
+          fetchImpl,
+          createEventSource: () => new FakeEventSource('/api/v1/events'),
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('ready');
+      expect(screen.getByTestId('history-status').textContent).toBe('unavailable');
+    });
+    expect(screen.getByTestId('history-error').textContent).toBe('transcript store is disabled');
   });
 
   it('ignores malformed SSE payloads and events without issue ids', async () => {

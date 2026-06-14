@@ -36,7 +36,10 @@ function createFakeTranscriptStore(): TranscriptStore {
     listEvents: vi.fn(() => []),
     recordDashboardEvent: vi.fn((input) => input),
     listDashboardEvents: vi.fn(() => []),
+    listHistoricalIssues: vi.fn(() => []),
+    hasIssueHistory: vi.fn(() => false),
     getLatestDashboardEventId: vi.fn(() => 0),
+    getNextTurnIndex: vi.fn(() => 1),
     close: vi.fn(),
   };
 }

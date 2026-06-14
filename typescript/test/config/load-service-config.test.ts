@@ -155,11 +155,12 @@ body
     expect(config.workspace.sourceRoot).toBe('/repo');
   });
 
-  it('loads codebuddy.model and SDK-only codebuddy.setting_sources', () => {
+  it('loads codebuddy.model and SDK-only codebuddy.setting_sources plus sdk_max_turns', () => {
     const workflow = `---
 codebuddy:
   model: codebuddy-sonnet
   setting_sources: [user, project]
+  sdk_max_turns: 64
 ---
 body
 `;
@@ -168,6 +169,7 @@ body
 
     expect(config.codebuddy.model).toBe('codebuddy-sonnet');
     expect(config.codebuddy.settingSources).toEqual(['user', 'project']);
+    expect(config.codebuddy.sdkMaxTurns).toBe(64);
   });
 
   it('loads transcript persistence overrides', () => {

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -135,6 +138,42 @@ function createPageState(overrides: Partial<DashboardPageState> = {}): Dashboard
       completedIssueIds: ['8', '9', '10', '11'],
     },
     selectedIssueId: '1',
+    selectedIssue: {
+      kind: 'running',
+      issue: {
+        issueId: '1',
+        identifier: '#1',
+        title: 'Issue One',
+        sessionId: 'session-1',
+        turnCount: 1,
+        lastEvent: 'turn_completed',
+        lastEventAt: '2026-05-23T00:00:01Z',
+        secondsRunning: 82,
+        workspacePath: '/tmp/_1',
+        tokenUsage: {
+          inputTokens: 400,
+          outputTokens: 1100,
+          totalTokens: 1500,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          creditCost: 0,
+        },
+      },
+    },
+    historicalIssues: [
+      {
+        issueId: '4',
+        identifier: '#4',
+        title: '历史任务',
+        lastObservedAt: '2026-05-23T00:00:09.000Z',
+        sessionCount: 1,
+        transcriptEventCount: 2,
+        dashboardEventCount: 3,
+        source: 'transcript',
+      },
+    ],
+    historyStatus: 'ready',
+    historyError: null,
     selectedIssueEvents: [
       {
         type: 'issue_event',
@@ -203,6 +242,15 @@ function createPageState(overrides: Partial<DashboardPageState> = {}): Dashboard
 }
 
 describe('dashboard UI components', () => {
+  it('keeps long event type labels from overlapping event body text', () => {
+    const stylesPath = path.join(process.cwd(), 'typescript/dashboard/src/styles.css');
+    const styles = readFileSync(stylesPath, 'utf8');
+
+    expect(styles).toContain('grid-template-columns: minmax(0, clamp(');
+    expect(styles).toContain('overflow-wrap: anywhere;');
+    expect(styles).toContain('word-break: break-word;');
+  });
+
   it('renders the dashboard header as a compact topbar', () => {
     render(<DashboardHeader />);
 
@@ -268,6 +316,9 @@ describe('dashboard UI components', () => {
       <IssueSidebar
         snapshot={state.snapshot!}
         selectedIssueId={state.selectedIssueId}
+        historicalIssues={state.historicalIssues}
+        historyStatus={state.historyStatus}
+        historyError={state.historyError}
         onSelectIssue={state.onSelectIssue}
       />,
     );
@@ -276,9 +327,42 @@ describe('dashboard UI components', () => {
     expect(selectedIssue.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText('Completed')).toBeTruthy();
     expect(screen.getByText('#11')).toBeTruthy();
+    expect(screen.getByText('History')).toBeTruthy();
+    expect(screen.getByText('历史任务')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /#2/i }));
     expect(state.onSelectIssue).toHaveBeenCalledWith('2');
+
+    fireEvent.click(screen.getByRole('button', { name: /#4/i }));
+    expect(state.onSelectIssue).toHaveBeenCalledWith('4');
+  });
+
+  it('renders historical issue unavailable state and deduplicates active issues', () => {
+    const state = createPageState();
+    render(
+      <IssueSidebar
+        snapshot={state.snapshot!}
+        selectedIssueId={state.selectedIssueId}
+        historicalIssues={[
+          {
+            issueId: '1',
+            identifier: '#1',
+            title: 'Issue One history duplicate',
+            lastObservedAt: '2026-05-23T00:00:10.000Z',
+            sessionCount: 1,
+            transcriptEventCount: 1,
+            dashboardEventCount: 1,
+            source: 'transcript',
+          },
+        ]}
+        historyStatus="unavailable"
+        historyError="transcript store is disabled"
+        onSelectIssue={state.onSelectIssue}
+      />,
+    );
+
+    expect(screen.getAllByRole('button', { name: /#1/i })).toHaveLength(1);
+    expect(screen.getByText('transcript store is disabled')).toBeTruthy();
   });
 
   it('renders stuck issues with their stuck reason', () => {
@@ -304,6 +388,9 @@ describe('dashboard UI components', () => {
       <IssueSidebar
         snapshot={snapshot}
         selectedIssueId={state.selectedIssueId}
+        historicalIssues={[]}
+        historyStatus="ready"
+        historyError={null}
         onSelectIssue={state.onSelectIssue}
       />,
     );
@@ -345,6 +432,35 @@ describe('dashboard UI components', () => {
       />,
     );
     expect(screen.getByText('Select an issue to inspect its live event stream.')).toBeTruthy();
+  });
+
+  it('renders historical issue detail without active-only workspace metadata', () => {
+    const state = createPageState();
+    render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.historicalIssues[0]!}
+        selectedIssueEvents={[
+          {
+            id: 9,
+            type: 'issue_event',
+            timestamp: '2026-05-23T00:00:09Z',
+            issueId: '4',
+            payload: { event: 'turn_completed' },
+          },
+        ]}
+        transcriptEvents={[]}
+        transcriptStatus="ready"
+        transcriptError={null}
+        onRefreshTranscript={state.onRefreshTranscript}
+      />,
+    );
+
+    expect(screen.getByRole('heading', { name: '#4' })).toBeTruthy();
+    expect(screen.getByText('历史任务')).toBeTruthy();
+    expect(screen.getByText('history · transcript')).toBeTruthy();
+    expect(screen.queryByText(/workspace ·/i)).toBeNull();
+    expect(screen.getByRole('link', { name: 'open issue' }).getAttribute('href')).toBe('https://cnb.cool/repo/demo/-/issues/4');
   });
 
   it('switches between live events and persisted transcript rows', () => {
@@ -465,6 +581,37 @@ describe('dashboard UI components', () => {
 
     expect(screen.getByText('SDK stream closed before result')).toBeTruthy();
     expect(screen.getByText(/fatal: authentication failed/)).toBeTruthy();
+    expect(screen.queryByText('event received')).toBeNull();
+  });
+
+  it('renders nested raw failure reasons in the live events panel', () => {
+    const state = createPageState({
+      selectedIssueEvents: [
+        {
+          type: 'issue_event',
+          timestamp: '2026-05-23T00:00:03Z',
+          issueId: '1',
+          payload: {
+            event: 'turn_failed',
+            raw: {
+              type: 'result',
+              is_error: true,
+              errors: ['Max turns (30) exceeded'],
+            },
+          },
+        },
+      ],
+    });
+
+    render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={state.selectedIssueEvents}
+      />,
+    );
+
+    expect(screen.getByText('Max turns (30) exceeded')).toBeTruthy();
     expect(screen.queryByText('event received')).toBeNull();
   });
 

@@ -52,7 +52,9 @@ export function buildCodebuddyCommand(input: BuildCodebuddyCommandInput): Codebu
     args.push('--session-id', input.sessionId);
   }
 
-  args.push('--max-turns', String(input.config.agent.maxTurns));
+  if (input.config.codebuddy.sdkMaxTurns !== undefined) {
+    args.push('--max-turns', String(input.config.codebuddy.sdkMaxTurns));
+  }
 
   if (input.config.codebuddy.model) {
     args.push('--model', input.config.codebuddy.model);

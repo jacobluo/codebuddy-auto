@@ -134,6 +134,22 @@ export interface DashboardEventsHistoryPayload {
   nextAfter: number | null;
 }
 
+export interface DashboardHistoricalIssue {
+  issueId: string;
+  identifier: string;
+  title: string;
+  lastObservedAt: string;
+  sessionCount: number;
+  transcriptEventCount: number;
+  dashboardEventCount: number;
+  source: 'transcript' | 'dashboard_event';
+}
+
+export interface DashboardHistoricalIssuesPayload {
+  issues: DashboardHistoricalIssue[];
+  nextAfter: number | null;
+}
+
 export interface DashboardMessageEventLike {
   data: string;
 }

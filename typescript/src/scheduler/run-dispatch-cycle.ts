@@ -155,6 +155,7 @@ export async function runDispatchCycle(
     }
 
     try {
+      const transcriptTurnIndex = transcriptStore?.getNextTurnIndex(issue.id) ?? 1;
       const sessionId = `${issue.id}-turn-1`;
       const prompt = renderPrompt(promptTemplate, {
         issue,
@@ -170,7 +171,7 @@ export async function runDispatchCycle(
         sdkSessionId: sessionId,
         metadata: {
           issueIdentifier: issue.identifier,
-          turnIndex: 1,
+          turnIndex: transcriptTurnIndex,
         },
       });
       const workerCommand = prepareWorkerCommand(buildCodebuddyCommand({
@@ -228,7 +229,7 @@ export async function runDispatchCycle(
         eventBus,
         transcriptStore,
         transcriptSessionId: transcriptSession?.id,
-        turnIndex: 1,
+        turnIndex: transcriptTurnIndex,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

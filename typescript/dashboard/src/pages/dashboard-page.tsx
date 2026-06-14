@@ -8,11 +8,13 @@ import { formatClockTime, formatUptime } from '../lib/dashboard-format.js';
 import type {
   DashboardBootstrapPayload,
   DashboardConnectionState,
+  DashboardHistoricalIssue,
   DashboardSnapshot,
   DashboardSseEnvelope,
   DashboardStatus,
   DashboardTranscriptEvent,
 } from '../lib/dashboard-types.js';
+import type { DashboardSelectedIssue } from '../hooks/use-dashboard-state.js';
 
 export interface DashboardPageState {
   status: DashboardStatus;
@@ -22,6 +24,10 @@ export interface DashboardPageState {
   bootstrap: DashboardBootstrapPayload | null;
   snapshot: DashboardSnapshot | null;
   selectedIssueId: string | null;
+  selectedIssue: DashboardSelectedIssue | null;
+  historicalIssues: DashboardHistoricalIssue[];
+  historyStatus: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  historyError: string | null;
   selectedIssueEvents: DashboardSseEnvelope[];
   selectedIssueTranscriptEvents: DashboardTranscriptEvent[];
   selectedIssueTranscriptStatus: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
@@ -34,6 +40,9 @@ export interface DashboardPageState {
 }
 
 function getSelectedIssue(state: DashboardPageState) {
+  if (state.selectedIssue) {
+    return state.selectedIssue.issue;
+  }
   if (!state.snapshot || !state.selectedIssueId) {
     return null;
   }
@@ -92,6 +101,9 @@ export function DashboardPage({ state }: { state: DashboardPageState }) {
           <IssueSidebar
             snapshot={state.snapshot}
             selectedIssueId={state.selectedIssueId}
+            historicalIssues={state.historicalIssues}
+            historyStatus={state.historyStatus}
+            historyError={state.historyError}
             onSelectIssue={state.onSelectIssue}
           />
           <LiveEventsPanel

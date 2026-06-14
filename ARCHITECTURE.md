@@ -127,6 +127,8 @@ dispatch-local-issue(issue)
 
 `runIssueWorker` 持有一个 SDK session，在每个 turn 后重新读取 tracker，并根据 finish label、issue state、graceful exit、max turns、progress fingerprint 决定是否继续。
 
+`agent.max_turns` 只限制外层 worker session 内启动/消费的 coding-agent turn 数；不会作为 CodeBuddy SDK/CLI 的内部 `maxTurns` / `--max-turns` 传下去。底层 CodeBuddy 单次执行预算由 `codebuddy.sdk_max_turns` 单独控制，默认值为 `100`。
+
 ## 4. Worker 模式
 
 | 模式 | 入口 | Agent 执行 | continuation |
@@ -165,6 +167,10 @@ tracker:
 agent:
   max_turns: 30
   no_progress_threshold: 3
+
+codebuddy:
+  # CodeBuddy SDK/CLI internal turn budget.
+  sdk_max_turns: 100
 ```
 
 `no_progress_threshold` 表示连续多少次 turn 边界的 progress fingerprint 没变化后，当前进程把 issue 标为 `stuck: no_progress` 并停止自动续跑。默认值是 `3`。它不代表失败验证，也不会写 tracker label。

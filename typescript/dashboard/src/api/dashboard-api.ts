@@ -1,6 +1,7 @@
 import type {
   DashboardBootstrapPayload,
   DashboardEventsHistoryPayload,
+  DashboardHistoricalIssuesPayload,
   DashboardTranscriptPayload,
 } from '../lib/dashboard-types.js';
 
@@ -41,6 +42,12 @@ export interface FetchIssueTranscriptOptions {
 export interface FetchDashboardEventsHistoryOptions {
   apiBaseUrl?: string;
   issueId?: string;
+  after?: number;
+  limit?: number;
+}
+
+export interface FetchHistoricalIssuesOptions {
+  apiBaseUrl?: string;
   after?: number;
   limit?: number;
 }
@@ -110,4 +117,25 @@ export async function fetchDashboardEventsHistory(
   }
 
   return response.json() as Promise<DashboardEventsHistoryPayload>;
+}
+
+export async function fetchHistoricalIssues(
+  fetchImpl: typeof fetch,
+  options: FetchHistoricalIssuesOptions = {},
+): Promise<DashboardHistoricalIssuesPayload> {
+  const params = new URLSearchParams();
+  if (options.after !== undefined) {
+    params.set('after', String(options.after));
+  }
+  if (options.limit !== undefined) {
+    params.set('limit', String(options.limit));
+  }
+
+  const query = params.size > 0 ? `?${params.toString()}` : '';
+  const response = await fetchImpl(withApiBase(options.apiBaseUrl, `/api/v1/issues/history${query}`));
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response, `historical issues failed with status ${response.status}`));
+  }
+
+  return response.json() as Promise<DashboardHistoricalIssuesPayload>;
 }

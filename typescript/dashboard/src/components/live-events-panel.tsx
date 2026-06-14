@@ -3,13 +3,14 @@ import { useState } from 'react';
 import type {
   DashboardRetryingIssue,
   DashboardRunningIssue,
+  DashboardHistoricalIssue,
   DashboardSseEnvelope,
   DashboardStuckIssue,
   DashboardTranscriptEvent,
 } from '../lib/dashboard-types.js';
 import { formatLocalDateTime } from '../lib/dashboard-format.js';
 
-type DashboardSelectableIssue = DashboardRunningIssue | DashboardRetryingIssue | DashboardStuckIssue | null;
+type DashboardSelectableIssue = DashboardRunningIssue | DashboardRetryingIssue | DashboardStuckIssue | DashboardHistoricalIssue | null;
 
 interface LiveEventsPanelProps {
   repoUrl: string | null;
@@ -63,6 +64,21 @@ function getIssueEventMessage(event: DashboardSseEnvelope): string {
     return `timeout after ${timeoutMs}ms`;
   }
 
+  const result = getPayloadDisplayValue(payload.result);
+  if (result) {
+    return result;
+  }
+
+  const errors = getPayloadDisplayValue(payload.errors);
+  if (errors) {
+    return errors;
+  }
+
+  const raw = getPayloadDisplayValue(payload.raw);
+  if (raw) {
+    return raw;
+  }
+
   return '';
 }
 
@@ -77,6 +93,17 @@ function getPayloadDisplayValue(value: unknown): string {
 
   if (Array.isArray(value)) {
     return value.map((item) => getPayloadDisplayValue(item)).filter(Boolean).join('; ');
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const record = value as Record<string, unknown>;
+    const preferredFields = ['message', 'error', 'reason', 'exitReason', 'result', 'errors', 'raw'];
+    for (const field of preferredFields) {
+      const display = getPayloadDisplayValue(record[field]);
+      if (display) {
+        return display;
+      }
+    }
   }
 
   return '';
@@ -140,6 +167,23 @@ function shouldRenderTranscriptEvent(event: DashboardTranscriptEvent): boolean {
   return !(event.role === 'assistant' && event.eventType === 'message' && !hasTranscriptDisplayText(event));
 }
 
+function isHistoricalIssue(issue: Exclude<DashboardSelectableIssue, null>): issue is DashboardHistoricalIssue {
+  return 'lastObservedAt' in issue;
+}
+
+function getWorkspaceLabel(issue: Exclude<DashboardSelectableIssue, null>): string | null {
+  if (isHistoricalIssue(issue)) {
+    return null;
+  }
+  if ('workspacePath' in issue) {
+    return issue.workspacePath;
+  }
+  if ('reason' in issue) {
+    return `stuck · ${issue.reason}`;
+  }
+  return 'retry queue';
+}
+
 export function LiveEventsPanel({
   repoUrl,
   selectedIssue,
@@ -166,11 +210,10 @@ export function LiveEventsPanel({
   }
 
   const issueUrl = repoUrl ? `${repoUrl}/-/issues/${selectedIssue.issueId}` : null;
-  const workspaceLabel = 'workspacePath' in selectedIssue
-    ? selectedIssue.workspacePath
-    : 'reason' in selectedIssue
-      ? `stuck · ${selectedIssue.reason}`
-      : 'retry queue';
+  const workspaceLabel = getWorkspaceLabel(selectedIssue);
+  const historicalLabel = isHistoricalIssue(selectedIssue)
+    ? `history · ${selectedIssue.source === 'dashboard_event' ? 'events' : 'transcript'}`
+    : null;
   const transcriptEventsNewestFirst = sortTranscriptNewestFirst(transcriptEvents.filter(shouldRenderTranscriptEvent));
 
   return (
@@ -203,10 +246,18 @@ export function LiveEventsPanel({
       </div>
       <div className="dashboard-live-meta-strip">
         <span>{repoUrl ? `cnb.cool issue · ${selectedIssue.identifier}` : selectedIssue.identifier}</span>
-        <span className="dashboard-live-meta">
-          <span>workspace · </span>
-          <span>{workspaceLabel}</span>
-        </span>
+        {isHistoricalIssue(selectedIssue) ? (
+          <>
+            <span>{selectedIssue.title}</span>
+            <span className="dashboard-live-meta">{historicalLabel}</span>
+          </>
+        ) : null}
+        {workspaceLabel ? (
+          <span className="dashboard-live-meta">
+            <span>workspace · </span>
+            <span>{workspaceLabel}</span>
+          </span>
+        ) : null}
         {issueUrl ? (
           <a className="dashboard-secondary-link" href={issueUrl} target="_blank" rel="noreferrer">
             open issue

@@ -35,7 +35,7 @@ describe('buildCodebuddyCommand', () => {
         '--session-id',
         'session-1',
         '--max-turns',
-        '20',
+        '100',
         '--permission-mode',
         'default',
         '--subagent-permission-mode',
@@ -116,9 +116,42 @@ describe('buildCodebuddyCommand', () => {
         '--session-id',
         'session-1',
         '--max-turns',
-        '20',
+        '100',
         'Implement the issue',
       ],
     });
+  });
+
+  it('passes --max-turns from codebuddy.sdkMaxTurns instead of agent.maxTurns', () => {
+    const defaultCommand = buildCodebuddyCommand({
+      config: {
+        ...DEFAULT_SERVICE_CONFIG,
+        agent: {
+          ...DEFAULT_SERVICE_CONFIG.agent,
+          maxTurns: 30,
+        },
+      },
+      prompt: 'Implement the issue',
+      sessionId: 'session-1',
+      workspacePath: '/tmp/workspaces/ABC-1',
+    });
+    expect(defaultCommand.args).toContain('--max-turns');
+    expect(defaultCommand.args).toContain('100');
+    expect(defaultCommand.args).not.toContain('30');
+
+    const configuredCommand = buildCodebuddyCommand({
+      config: {
+        ...DEFAULT_SERVICE_CONFIG,
+        codebuddy: {
+          ...DEFAULT_SERVICE_CONFIG.codebuddy,
+          sdkMaxTurns: 64,
+        },
+      },
+      prompt: 'Implement the issue',
+      sessionId: 'session-1',
+      workspacePath: '/tmp/workspaces/ABC-1',
+    });
+    expect(configuredCommand.args).toContain('--max-turns');
+    expect(configuredCommand.args).toContain('64');
   });
 });

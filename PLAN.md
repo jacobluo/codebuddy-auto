@@ -236,7 +236,7 @@
 - SSH fallback runner 分为两层：`buildCodebuddyCommand()` 负责把类型化配置翻译成 CLI 启动参数；`runCodebuddyTurn()` 负责执行子进程、消费事件流、做 timeout 与错误归一。local 主路径由 `runIssueWorker()` 持有 SDK session 并复用 `runCodebuddyTurnSdk()` 的 turn adapter。
 - 启动命令固定以 `codebuddy.command` 为基底，并强制附加 `--print --output-format stream-json`，确保 stdout 可被稳定消费。
 - 首轮 attempt 必须显式传入 `--session-id <sessionId>`；continuation attempt 必须传入 `--resume <existingSessionId>`，不得为 continuation 新建会话。
-- runner 必须把以下配置字段翻译到 CLI：`agent.maxTurns`、`codebuddy.permissionMode`、`codebuddy.subagentPermissionMode`、`codebuddy.sandbox`、`codebuddy.tools`、`codebuddy.allowedTools`、`codebuddy.disallowedTools`、`codebuddy.addDirs`、`codebuddy.mcpConfig`、`codebuddy.mcpStrict`、`codebuddy.dangerouslySkipPermissions`。
+- runner 必须把以下配置字段翻译到 CLI：`codebuddy.sdkMaxTurns`（可选，对应底层 `--max-turns`）、`codebuddy.permissionMode`、`codebuddy.subagentPermissionMode`、`codebuddy.sandbox`、`codebuddy.tools`、`codebuddy.allowedTools`、`codebuddy.disallowedTools`、`codebuddy.addDirs`、`codebuddy.mcpConfig`、`codebuddy.mcpStrict`、`codebuddy.dangerouslySkipPermissions`。`agent.maxTurns` 只限制外层 worker session turn 数，不再透传给 CodeBuddy SDK / CLI。
 - `command.cwd` 固定为 issue 对应的 workspace 路径；runner 不得在仓库根目录直接执行 agent 进程。
 - stdout 协议固定为逐行 NDJSON。每行都要先 `JSON.parse()`，再经 zod union 校验；不匹配 schema 的行统一映射为 `malformed` 事件，而不是直接崩溃整个 attempt。
 - 当前标准事件映射如下：

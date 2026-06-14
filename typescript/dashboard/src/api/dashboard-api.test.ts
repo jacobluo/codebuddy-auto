@@ -3,12 +3,14 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   fetchDashboardBootstrap,
   fetchDashboardEventsHistory,
+  fetchHistoricalIssues,
   fetchIssueTranscript,
   requestDashboardRefresh,
 } from './dashboard-api.js';
 import type {
   DashboardBootstrapPayload,
   DashboardEventsHistoryPayload,
+  DashboardHistoricalIssuesPayload,
   DashboardTranscriptPayload,
 } from '../lib/dashboard-types.js';
 
@@ -178,5 +180,46 @@ describe('dashboard api client', () => {
     }), { status: 503 }));
 
     await expect(fetchDashboardEventsHistory(unavailableFetch, { issueId: '1' })).rejects.toThrow('transcript store is disabled');
+  });
+
+  it('fetches historical issue summaries with pagination parameters', async () => {
+    const payload: DashboardHistoricalIssuesPayload = {
+      nextAfter: 1,
+      issues: [
+        {
+          issueId: '4',
+          identifier: '#4',
+          title: '历史任务',
+          lastObservedAt: '2026-06-13T10:00:00.000Z',
+          sessionCount: 1,
+          transcriptEventCount: 2,
+          dashboardEventCount: 3,
+          source: 'transcript',
+        },
+      ],
+    };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await expect(fetchHistoricalIssues(fetchImpl, {
+      apiBaseUrl: '/dashboard',
+      after: 2,
+      limit: 20,
+    })).resolves.toEqual(payload);
+
+    expect(fetchImpl).toHaveBeenCalledWith('/dashboard/api/v1/issues/history?after=2&limit=20');
+  });
+
+  it('surfaces unavailable historical issue responses', async () => {
+    const unavailableFetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'issue_history_unavailable',
+        message: 'transcript store is disabled',
+      },
+    }), { status: 503 }));
+
+    await expect(fetchHistoricalIssues(unavailableFetch)).rejects.toThrow('transcript store is disabled');
   });
 });

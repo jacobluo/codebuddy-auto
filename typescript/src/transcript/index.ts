@@ -43,6 +43,15 @@ const dashboardEventLogRowSchema = z.object({
   payload_json: z.string(),
 });
 
+const historicalIssueSummaryRowSchema = z.object({
+  issue_id: z.string(),
+  title: z.string().nullable(),
+  last_observed_at: z.string(),
+  session_count: z.number(),
+  transcript_event_count: z.number(),
+  dashboard_event_count: z.number(),
+});
+
 export type TranscriptProvider = z.infer<typeof transcriptProviderSchema>;
 export type TranscriptRole = z.infer<typeof transcriptRoleSchema>;
 
@@ -122,13 +131,32 @@ export interface DashboardEventLogListOptions {
   limit?: number;
 }
 
+export interface HistoricalIssueSummary {
+  issueId: string;
+  identifier: string;
+  title: string;
+  lastObservedAt: string;
+  sessionCount: number;
+  transcriptEventCount: number;
+  dashboardEventCount: number;
+  source: 'transcript' | 'dashboard_event';
+}
+
+export interface HistoricalIssueListOptions {
+  after?: number;
+  limit?: number;
+}
+
 export interface TranscriptStore {
   recordSession(input: TranscriptSessionInput): TranscriptSession;
   recordEvent(input: TranscriptEventInput): TranscriptEvent;
   listEvents(issueId: string, options?: TranscriptListOptions): TranscriptEvent[];
   recordDashboardEvent(input: DashboardEventLogInput): DashboardEventLogEntry;
   listDashboardEvents(options?: DashboardEventLogListOptions): DashboardEventLogEntry[];
+  listHistoricalIssues(options?: HistoricalIssueListOptions): HistoricalIssueSummary[];
+  hasIssueHistory(issueId: string): boolean;
   getLatestDashboardEventId(): number;
+  getNextTurnIndex(issueId: string): number;
   close(): void;
 }
 
@@ -200,6 +228,26 @@ function mapDashboardEvent(row: unknown): DashboardEventLogEntry {
     timestamp: parsed.timestamp,
     issueId: parsed.issue_id ?? undefined,
     payload: parsePayload(parsed.payload_json),
+  };
+}
+
+function createFallbackIdentifier(issueId: string): string {
+  return issueId.startsWith('#') ? issueId : `#${issueId}`;
+}
+
+function mapHistoricalIssueSummary(row: unknown): HistoricalIssueSummary {
+  const parsed = historicalIssueSummaryRowSchema.parse(row);
+  const identifier = createFallbackIdentifier(parsed.issue_id);
+  const title = parsed.title && parsed.title.trim().length > 0 ? parsed.title : identifier;
+  return {
+    issueId: parsed.issue_id,
+    identifier,
+    title,
+    lastObservedAt: parsed.last_observed_at,
+    sessionCount: parsed.session_count,
+    transcriptEventCount: parsed.transcript_event_count,
+    dashboardEventCount: parsed.dashboard_event_count,
+    source: parsed.session_count > 0 || parsed.transcript_event_count > 0 ? 'transcript' : 'dashboard_event',
   };
 }
 
@@ -351,6 +399,94 @@ class SqliteTranscriptStore implements TranscriptStore {
     return parsed.latest_id;
   }
 
+  getNextTurnIndex(issueId: string): number {
+    const row = this.database
+      .prepare(
+        `SELECT COALESCE(MAX(turn_index), 0) + 1 AS next_turn_index
+         FROM transcript_events
+         WHERE issue_id = ? AND turn_index IS NOT NULL`,
+      )
+      .get(issueId);
+    const parsed = z.object({ next_turn_index: z.number() }).parse(row);
+    return parsed.next_turn_index;
+  }
+
+  listHistoricalIssues(options: HistoricalIssueListOptions = {}): HistoricalIssueSummary[] {
+    const after = options.after ?? 0;
+    const limit = options.limit ?? 50;
+    const rows = this.database
+      .prepare(
+        `WITH issue_ids AS (
+           SELECT issue_id FROM transcript_sessions
+           UNION
+           SELECT issue_id FROM transcript_events
+           UNION
+           SELECT issue_id FROM dashboard_events WHERE issue_id IS NOT NULL
+         ),
+         session_counts AS (
+           SELECT
+             issue_id,
+             COUNT(*) AS session_count,
+             MAX(issue_title) AS title,
+             MAX(updated_at) AS latest_session_at
+           FROM transcript_sessions
+           GROUP BY issue_id
+         ),
+         transcript_counts AS (
+           SELECT
+             issue_id,
+             COUNT(*) AS transcript_event_count,
+             MAX(created_at) AS latest_transcript_at
+           FROM transcript_events
+           GROUP BY issue_id
+         ),
+         dashboard_counts AS (
+           SELECT
+             issue_id,
+             COUNT(*) AS dashboard_event_count,
+             MAX(timestamp) AS latest_dashboard_at
+           FROM dashboard_events
+           WHERE issue_id IS NOT NULL
+           GROUP BY issue_id
+         ),
+         summaries AS (
+           SELECT
+             issue_ids.issue_id,
+             session_counts.title,
+             MAX(
+               COALESCE(session_counts.latest_session_at, ''),
+               COALESCE(transcript_counts.latest_transcript_at, ''),
+               COALESCE(dashboard_counts.latest_dashboard_at, '')
+             ) AS last_observed_at,
+             COALESCE(session_counts.session_count, 0) AS session_count,
+             COALESCE(transcript_counts.transcript_event_count, 0) AS transcript_event_count,
+             COALESCE(dashboard_counts.dashboard_event_count, 0) AS dashboard_event_count
+           FROM issue_ids
+           LEFT JOIN session_counts ON session_counts.issue_id = issue_ids.issue_id
+           LEFT JOIN transcript_counts ON transcript_counts.issue_id = issue_ids.issue_id
+           LEFT JOIN dashboard_counts ON dashboard_counts.issue_id = issue_ids.issue_id
+         )
+         SELECT * FROM summaries
+         ORDER BY last_observed_at DESC, issue_id ASC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(limit, after);
+    return rows.map((row) => mapHistoricalIssueSummary(row));
+  }
+
+  hasIssueHistory(issueId: string): boolean {
+    const row = this.database
+      .prepare(
+        `SELECT 1 AS found
+         WHERE EXISTS (SELECT 1 FROM transcript_sessions WHERE issue_id = ?)
+            OR EXISTS (SELECT 1 FROM transcript_events WHERE issue_id = ?)
+            OR EXISTS (SELECT 1 FROM dashboard_events WHERE issue_id = ?)
+         LIMIT 1`,
+      )
+      .get(issueId, issueId, issueId);
+    return row !== undefined;
+  }
+
   close(): void {
     this.database.close();
   }
@@ -428,7 +564,19 @@ class DisabledTranscriptStore implements TranscriptStore {
     throw new TranscriptStoreUnavailableError();
   }
 
+  listHistoricalIssues(): HistoricalIssueSummary[] {
+    throw new TranscriptStoreUnavailableError();
+  }
+
+  hasIssueHistory(): boolean {
+    throw new TranscriptStoreUnavailableError();
+  }
+
   getLatestDashboardEventId(): number {
+    throw new TranscriptStoreUnavailableError();
+  }
+
+  getNextTurnIndex(): number {
     throw new TranscriptStoreUnavailableError();
   }
 

@@ -122,6 +122,7 @@ export async function runContinuationCycle(
     }
 
     const nextTurnCount = runningEntry.turnCount + 1;
+    const transcriptTurnIndex = transcriptStore?.getNextTurnIndex(issueId) ?? nextTurnCount;
     const issueLogger = createIssueLogger(logger, {
       issueId,
       issueIdentifier: runningEntry.issue.identifier,
@@ -152,7 +153,7 @@ export async function runContinuationCycle(
         sdkSessionId: runningEntry.sessionId ?? sessionId,
         metadata: {
           issueIdentifier: runningEntry.issue.identifier,
-          turnIndex: nextTurnCount,
+          turnIndex: transcriptTurnIndex,
         },
       });
       const turnResult = await runCodebuddyTurn({
@@ -171,7 +172,7 @@ export async function runContinuationCycle(
         eventBus,
         transcriptStore,
         transcriptSessionId: transcriptSession?.id,
-        turnIndex: nextTurnCount,
+        turnIndex: transcriptTurnIndex,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

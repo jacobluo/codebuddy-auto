@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchDashboardBootstrap,
   fetchDashboardEventsHistory,
+  fetchHistoricalIssues,
   fetchIssueTranscript,
   requestDashboardRefresh,
 } from '../api/dashboard-api.js';
@@ -11,12 +12,22 @@ import type {
   DashboardBootstrapPayload,
   DashboardConnectionState,
   DashboardEventSourceLike,
+  DashboardHistoricalIssue,
   DashboardRuntimeDependencies,
+  DashboardRunningIssue,
+  DashboardRetryingIssue,
   DashboardSnapshot,
   DashboardSseEnvelope,
   DashboardStatus,
+  DashboardStuckIssue,
   DashboardTranscriptEvent,
 } from '../lib/dashboard-types.js';
+
+export type DashboardSelectedIssue =
+  | { kind: 'running'; issue: DashboardRunningIssue }
+  | { kind: 'retrying'; issue: DashboardRetryingIssue }
+  | { kind: 'stuck'; issue: DashboardStuckIssue }
+  | { kind: 'historical'; issue: DashboardHistoricalIssue };
 
 interface DashboardState {
   status: DashboardStatus;
@@ -24,6 +35,10 @@ interface DashboardState {
   snapshot: DashboardSnapshot | null;
   connectionState: DashboardConnectionState;
   selectedIssueId: string | null;
+  selectedIssue: DashboardSelectedIssue | null;
+  historicalIssues: DashboardHistoricalIssue[];
+  historyStatus: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  historyError: string | null;
   selectedIssueEvents: DashboardSseEnvelope[];
   selectedIssueTranscriptEvents: DashboardTranscriptEvent[];
   selectedIssueTranscriptStatus: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
@@ -136,6 +151,27 @@ function mergeIssueEventHistory(
   };
 }
 
+function isHistoricalIssuesPayload(value: unknown): value is { issues: DashboardHistoricalIssue[] } {
+  return isRecord(value) && Array.isArray(value.issues);
+}
+
+function getActiveIssueIds(snapshot: DashboardSnapshot | null): Set<string> {
+  const activeIds = new Set<string>();
+  if (!snapshot) {
+    return activeIds;
+  }
+  for (const issue of snapshot.running) {
+    activeIds.add(issue.issueId);
+  }
+  for (const issue of snapshot.retrying) {
+    activeIds.add(issue.issueId);
+  }
+  for (const issue of snapshot.stuck) {
+    activeIds.add(issue.issueId);
+  }
+  return activeIds;
+}
+
 export function useDashboardState(dependencies: DashboardRuntimeDependencies = {}): DashboardState {
   const fetchImpl = dependencies.fetchImpl ?? fetch;
   const createEventSource = dependencies.createEventSource ?? createBrowserEventSource;
@@ -146,6 +182,9 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [connectionState, setConnectionState] = useState<DashboardConnectionState>('connecting');
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [historicalIssuesRaw, setHistoricalIssuesRaw] = useState<DashboardHistoricalIssue[]>([]);
+  const [historyStatus, setHistoryStatus] = useState<'idle' | 'loading' | 'ready' | 'unavailable' | 'error'>('idle');
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [eventsByIssueId, setEventsByIssueId] = useState<Record<string, DashboardSseEnvelope[]>>({});
   const [transcriptEventsByIssueId, setTranscriptEventsByIssueId] = useState<Record<string, DashboardTranscriptEvent[]>>({});
   const [transcriptStatusByIssueId, setTranscriptStatusByIssueId] = useState<Record<string, 'loading' | 'ready' | 'unavailable' | 'error'>>({});
@@ -200,6 +239,23 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
     }
   }, [apiBaseUrl, fetchImpl]);
 
+  const loadHistoricalIssues = useCallback(async () => {
+    setHistoryStatus('loading');
+    setHistoryError(null);
+    try {
+      const payload = await fetchHistoricalIssues(fetchImpl, { apiBaseUrl, limit: 100 });
+      if (!isHistoricalIssuesPayload(payload)) {
+        throw new Error('historical issue response was invalid');
+      }
+      setHistoricalIssuesRaw(payload.issues);
+      setHistoryStatus('ready');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Historical issue request failed.';
+      setHistoryStatus(/unavailable|disabled/i.test(message) ? 'unavailable' : 'error');
+      setHistoryError(message);
+    }
+  }, [apiBaseUrl, fetchImpl]);
+
   const refreshSelectedTranscript = useCallback(async () => {
     if (!selectedIssueId) {
       return;
@@ -224,6 +280,10 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
 
         setBootstrap(nextBootstrap);
         setSnapshot(nextBootstrap.snapshot);
+        await loadHistoricalIssues();
+        if (disposed) {
+          return;
+        }
         setStatus('ready');
 
         eventSource = createEventSource(getDashboardEventsUrl(apiBaseUrl));
@@ -280,7 +340,7 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
       disposed = true;
       eventSource?.close();
     };
-  }, [apiBaseUrl, createEventSource, fetchImpl, retryToken]);
+  }, [apiBaseUrl, createEventSource, fetchImpl, loadHistoricalIssues, retryToken]);
 
   const selectedIssueEvents = useMemo(() => {
     if (!selectedIssueId) {
@@ -288,6 +348,36 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
     }
     return eventsByIssueId[selectedIssueId] ?? [];
   }, [eventsByIssueId, selectedIssueId]);
+
+  const historicalIssues = useMemo(() => {
+    const activeIssueIds = getActiveIssueIds(snapshot);
+    return historicalIssuesRaw.filter((issue) => !activeIssueIds.has(issue.issueId));
+  }, [historicalIssuesRaw, snapshot]);
+
+  const selectedIssue = useMemo((): DashboardSelectedIssue | null => {
+    if (!snapshot || !selectedIssueId) {
+      return selectedIssueId
+        ? historicalIssues
+          .map((issue): DashboardSelectedIssue => ({ kind: 'historical', issue }))
+          .find((entry) => entry.issue.issueId === selectedIssueId) ?? null
+        : null;
+    }
+
+    const running = snapshot.running.find((issue) => issue.issueId === selectedIssueId);
+    if (running) {
+      return { kind: 'running', issue: running };
+    }
+    const retrying = snapshot.retrying.find((issue) => issue.issueId === selectedIssueId);
+    if (retrying) {
+      return { kind: 'retrying', issue: retrying };
+    }
+    const stuck = snapshot.stuck.find((issue) => issue.issueId === selectedIssueId);
+    if (stuck) {
+      return { kind: 'stuck', issue: stuck };
+    }
+    const historical = historicalIssues.find((issue) => issue.issueId === selectedIssueId);
+    return historical ? { kind: 'historical', issue: historical } : null;
+  }, [historicalIssues, selectedIssueId, snapshot]);
 
   useEffect(() => {
     if (!selectedIssueId || status !== 'ready') {
@@ -318,6 +408,10 @@ export function useDashboardState(dependencies: DashboardRuntimeDependencies = {
     snapshot,
     connectionState,
     selectedIssueId,
+    selectedIssue,
+    historicalIssues,
+    historyStatus,
+    historyError,
     selectedIssueEvents,
     selectedIssueTranscriptEvents,
     selectedIssueTranscriptStatus: selectedIssueId ? transcriptStatusByIssueId[selectedIssueId] ?? 'idle' : 'idle',

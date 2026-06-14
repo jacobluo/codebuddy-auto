@@ -164,8 +164,20 @@ function createRecordingTranscriptStore(): {
     listDashboardEvents() {
       return [];
     },
+    listHistoricalIssues() {
+      return [];
+    },
+    hasIssueHistory() {
+      return false;
+    },
     getLatestDashboardEventId() {
       return 0;
+    },
+    getNextTurnIndex(issueId: string) {
+      const turnIndexes = events
+        .filter((event) => event.issueId === issueId && event.turnIndex !== undefined)
+        .map((event) => event.turnIndex ?? 0);
+      return Math.max(0, ...turnIndexes) + 1;
     },
     close() {
       return;
@@ -235,6 +247,58 @@ describe('runIssueWorker — happy path (3.1)', () => {
       [2, 'user', 'prompt', expect.stringContaining('continuation turn 2')],
       [2, 'assistant', 'message', 'turn two answer'],
       [2, 'result', 'turn_completed', undefined],
+    ]);
+  });
+
+  it('continues transcript turn indexes after a previous session for the same issue', async () => {
+    const issue = makeIssue();
+    const transcript = createRecordingTranscriptStore();
+    const previousSession = transcript.store.recordSession({
+      issueId: issue.id,
+      issueTitle: issue.title,
+      workspacePath: '/tmp/fake/issue-6',
+      provider: 'sdk',
+    });
+    transcript.store.recordEvent({
+      sessionId: previousSession.id,
+      issueId: issue.id,
+      turnIndex: 1,
+      sequence: 1,
+      role: 'user',
+      eventType: 'prompt',
+      text: 'previous attempt',
+      payload: { prompt: 'previous attempt' },
+    });
+
+    const result = await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6-retry',
+      config: makeConfig({ maxTurns: 1 }),
+      tracker: makeTracker().tracker,
+      handleStore: createWorkerHandleStore(),
+      createSession: withFake({
+        sessionId: 'sess-retry-transcript',
+        turns: [
+          {
+            messages: [
+              systemInit('sess-retry-transcript'),
+              assistantText('sess-retry-transcript', 'retry answer'),
+              resultSuccess('sess-retry-transcript'),
+            ],
+          },
+        ],
+      }),
+      transcriptStore: transcript.store,
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(result.turnCount).toBe(1);
+    expect(transcript.events.map((event) => [event.turnIndex, event.role, event.eventType])).toEqual([
+      [1, 'user', 'prompt'],
+      [2, 'user', 'prompt'],
+      [2, 'runtime', 'session_started'],
+      [2, 'assistant', 'message'],
+      [2, 'result', 'turn_completed'],
     ]);
   });
 

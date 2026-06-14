@@ -5,6 +5,7 @@ import { DEFAULT_SERVICE_CONFIG, serviceConfigSchema } from '../../src/spec/inde
 describe('serviceConfigSchema', () => {
   it('accepts the default config', () => {
     expect(serviceConfigSchema.parse(DEFAULT_SERVICE_CONFIG)).toEqual(DEFAULT_SERVICE_CONFIG);
+    expect(DEFAULT_SERVICE_CONFIG.codebuddy.sdkMaxTurns).toBe(100);
   });
 
   it('rejects invalid concurrency values', () => {
@@ -63,10 +64,12 @@ describe('serviceConfigSchema', () => {
         ...DEFAULT_SERVICE_CONFIG.codebuddy,
         model: 'codebuddy-sonnet',
         settingSources: ['user', 'project'],
+        sdkMaxTurns: 64,
       },
     });
     expect(parsed.codebuddy.model).toBe('codebuddy-sonnet');
     expect(parsed.codebuddy.settingSources).toEqual(['user', 'project']);
+    expect(parsed.codebuddy.sdkMaxTurns).toBe(64);
   });
 
   it('accepts transcript persistence settings', () => {
@@ -90,6 +93,18 @@ describe('serviceConfigSchema', () => {
         codebuddy: {
           ...DEFAULT_SERVICE_CONFIG.codebuddy,
           settingSources: ['user', 1],
+        },
+      }),
+    ).toThrow();
+  });
+
+  it('rejects non-positive SDK max turn values', () => {
+    expect(() =>
+      serviceConfigSchema.parse({
+        ...DEFAULT_SERVICE_CONFIG,
+        codebuddy: {
+          ...DEFAULT_SERVICE_CONFIG.codebuddy,
+          sdkMaxTurns: 0,
         },
       }),
     ).toThrow();

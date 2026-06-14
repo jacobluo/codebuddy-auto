@@ -29,8 +29,11 @@ export function createSdkSession(opts: CreateSessionOptions): Session {
   const options: SessionOptions = {
     cwd,
     permissionMode: (config.codebuddy.permissionMode as SessionOptions['permissionMode']) ?? 'bypassPermissions',
-    maxTurns: config.agent.maxTurns,
   };
+
+  if (config.codebuddy.sdkMaxTurns !== undefined) {
+    options.maxTurns = config.codebuddy.sdkMaxTurns;
+  }
 
   if (config.codebuddy.model && config.codebuddy.model.length > 0) {
     options.model = config.codebuddy.model;

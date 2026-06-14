@@ -68,6 +68,8 @@ export const workerConfigSchema = z.object({
  *   `codebuddy --model`。
  * - `settingSources` — **SDK-only**：仅在 SDK runner 中生效，对应 SDK `options.settingSources`。
  *   CLI fallback 不读取该字段。
+ * - `sdkMaxTurns` — **SDK/CLI agent-internal budget**：默认 100。单独传给底层
+ *   CodeBuddy `maxTurns` / `--max-turns`，让 `agent.maxTurns` 只表达外层 worker session turn 上限。
  * - 其余字段（`permissionMode`、`allowedTools`、`disallowedTools`、`mcpConfig`、`turnTimeoutMs`
  *   ...）在 SDK 与 CLI 两种模式下共用语义，只是底层加载方式不同。
  */
@@ -80,6 +82,7 @@ export const codebuddyConfigSchema = z.object({
    * 例如 `['user', 'project']`。CLI fallback 不读取该字段。
    */
   settingSources: z.array(z.string()).optional(),
+  sdkMaxTurns: z.number().int().positive().optional(),
   permissionMode: z.string().optional(),
   subagentPermissionMode: z.string().optional(),
   sandbox: z.string().optional(),
@@ -148,6 +151,7 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
   codebuddy: {
     command: 'codebuddy',
+    sdkMaxTurns: 100,
     dangerouslySkipPermissions: false,
     mcpStrict: true,
     turnTimeoutMs: 3_600_000,

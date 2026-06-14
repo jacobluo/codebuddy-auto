@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { ServiceConfig } from '../spec/index.js';
-import { TranscriptStoreUnavailableError, type TranscriptEvent, type TranscriptStore } from '../transcript/index.js';
+import { TranscriptStoreUnavailableError, type HistoricalIssueSummary, type TranscriptEvent, type TranscriptStore } from '../transcript/index.js';
 import type { DashboardEvent, EventBus } from './event-bus.js';
 import type { ServerStateController } from './server-state.js';
 
@@ -55,6 +55,11 @@ interface TranscriptResponsePayload {
 
 interface DashboardEventsHistoryPayload {
   events: DashboardSseEnvelope[];
+  nextAfter: number | null;
+}
+
+interface HistoricalIssuesPayload {
+  issues: HistoricalIssueSummary[];
   nextAfter: number | null;
 }
 
@@ -278,6 +283,43 @@ export async function startStatusServer(
       return;
     }
 
+    if (method === 'GET' && pathname === '/api/v1/issues/history') {
+      if (!transcriptStore) {
+        respondJson(response, 503, JSON.stringify({
+          error: {
+            code: 'issue_history_unavailable',
+            message: 'transcript store is not configured',
+          },
+        }));
+        return;
+      }
+
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const after = parsePositiveIntegerQuery(url.searchParams.get('after'), 0);
+      const limit = Math.min(parsePositiveIntegerQuery(url.searchParams.get('limit'), 50), 200);
+
+      try {
+        const issues = transcriptStore.listHistoricalIssues({ after, limit });
+        const payload: HistoricalIssuesPayload = {
+          issues,
+          nextAfter: issues.length > 0 ? after + issues.length : null,
+        };
+        respondJson(response, 200, JSON.stringify(payload));
+      } catch (error) {
+        if (error instanceof TranscriptStoreUnavailableError) {
+          respondJson(response, 503, JSON.stringify({
+            error: {
+              code: 'issue_history_unavailable',
+              message: error.message,
+            },
+          }));
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
     if (method === 'GET' && pathname.startsWith('/api/v1/issues/') && pathname.endsWith('/transcript')) {
       if (!transcriptStore) {
         respondJson(response, 503, JSON.stringify({
@@ -298,7 +340,7 @@ export async function startStatusServer(
 
       try {
         const events = transcriptStore.listEvents(issueId, { after, limit });
-        if (events.length === 0 && controller.getIssue(issueId) === null) {
+        if (events.length === 0 && controller.getIssue(issueId) === null && !transcriptStore.hasIssueHistory(issueId)) {
           respondJson(response, 404, JSON.stringify({
             error: {
               code: 'transcript_not_found',

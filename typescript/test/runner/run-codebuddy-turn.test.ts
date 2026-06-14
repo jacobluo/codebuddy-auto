@@ -54,8 +54,20 @@ function createRecordingTranscriptStore(): {
       listDashboardEvents() {
         return [];
       },
+      listHistoricalIssues() {
+        return [];
+      },
+      hasIssueHistory() {
+        return false;
+      },
       getLatestDashboardEventId() {
         return 0;
+      },
+      getNextTurnIndex(issueId: string) {
+        const turnIndexes = events
+          .filter((event) => event.issueId === issueId && event.turnIndex !== undefined)
+          .map((event) => event.turnIndex ?? 0);
+        return Math.max(0, ...turnIndexes) + 1;
       },
       close() {
         return;

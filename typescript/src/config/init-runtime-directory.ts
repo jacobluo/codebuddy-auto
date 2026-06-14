@@ -67,6 +67,7 @@ worker:
 
 codebuddy:
   command: codebuddy
+  sdk_max_turns: 100
   permission_mode: bypassPermissions
   turn_timeout_ms: 3600000
   read_timeout_ms: 15000

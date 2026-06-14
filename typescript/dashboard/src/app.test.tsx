@@ -142,12 +142,21 @@ describe('App', () => {
   it('loads bootstrap data, renders the dashboard, and displays live issue events', async () => {
     installEventSource();
     const bootstrapPayload = createBootstrapPayload();
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(bootstrapPayload), {
-      status: 200,
-      headers: {
-        'content-type': 'application/json',
-      },
-    }));
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({ issues: [], nextAfter: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify(bootstrapPayload), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+        },
+      });
+    });
     vi.stubGlobal('fetch', fetchImpl);
 
     render(<App />);
@@ -189,14 +198,24 @@ describe('App', () => {
   it('renders initialization errors and retries bootstrap loading', async () => {
     installEventSource();
     const bootstrapPayload = createBootstrapPayload();
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response('nope', { status: 503 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(bootstrapPayload), {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (fetchImpl.mock.calls.length === 1) {
+        return new Response('nope', { status: 503 });
+      }
+      if (url.includes('/api/v1/issues/history')) {
+        return new Response(JSON.stringify({ issues: [], nextAfter: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify(bootstrapPayload), {
         status: 200,
         headers: {
           'content-type': 'application/json',
         },
-      }));
+      });
+    });
     vi.stubGlobal('fetch', fetchImpl);
 
     render(<App />);
@@ -211,7 +230,7 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'codebuddy-auto dashboard' })).toBeTruthy();
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(eventSources).toHaveLength(1);
   });
 });

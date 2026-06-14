@@ -280,6 +280,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         issueIdentifier: input.issue.identifier,
       },
     });
+    const transcriptFirstTurnIndex = input.transcriptStore?.getNextTurnIndex(input.issue.id) ?? 1;
 
     const baseInitialPrompt = input.initialPrompt
       ?? `Work on ${input.issue.identifier}: ${input.issue.title}.`;
@@ -308,7 +309,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
       const message = handle.turnCount === 0
         ? initialPrompt
         : renderContinuation(handle.turnCount + 1);
-      const turnIndex = handle.turnCount + 1;
+      const turnIndex = transcriptFirstTurnIndex + handle.turnCount;
       let transcriptSequence = 0;
       const recordTranscriptEvent = (
         role: 'system' | 'user' | 'assistant' | 'tool' | 'result' | 'error' | 'runtime',

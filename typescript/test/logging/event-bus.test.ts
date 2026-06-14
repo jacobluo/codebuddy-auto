@@ -28,8 +28,17 @@ function createPersistentEventStoreFixture(initialEvents: DashboardEventLogEntry
       );
       return filtered.slice(0, limit);
     },
+    listHistoricalIssues() {
+      return [];
+    },
+    hasIssueHistory() {
+      return false;
+    },
     getLatestDashboardEventId(): number {
       return dashboardEvents.at(-1)?.id ?? 0;
+    },
+    getNextTurnIndex(): number {
+      return 1;
     },
     close() {
       return;

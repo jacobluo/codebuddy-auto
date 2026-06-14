@@ -248,7 +248,8 @@ button {
 }
 
 .dashboard-panel-heading h2,
-.dashboard-completed-strip h3 {
+.dashboard-completed-strip h3,
+.dashboard-history-section h3 {
   margin: 0;
   font-size: 18px;
 }
@@ -316,10 +317,29 @@ button {
   color: #ffaaa5;
 }
 
+.dashboard-issue-state.is-history {
+  background: rgba(143, 211, 255, 0.12);
+  color: #9dd9ff;
+}
+
 .dashboard-completed-strip {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(105, 130, 206, 0.34);
+}
+
+.dashboard-history-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(105, 130, 206, 0.34);
+}
+
+.dashboard-history-list {
+  margin-top: 8px;
+}
+
+.dashboard-history-card {
+  background: #10192d;
 }
 
 .dashboard-completed-strip div {
@@ -345,10 +365,16 @@ button {
 
 .dashboard-event-type {
   display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
   color: #20d6d2;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .dashboard-toolbar {
@@ -429,7 +455,7 @@ button {
 
 .dashboard-event-card {
   display: grid;
-  grid-template-columns: 124px 1fr auto;
+  grid-template-columns: minmax(0, clamp(140px, 18vw, 260px)) minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px;
   min-height: 42px;
@@ -480,5 +506,15 @@ button {
 @media (max-width: 980px) {
   .dashboard-content-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-event-card {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-event-card small {
+    white-space: normal;
   }
 }

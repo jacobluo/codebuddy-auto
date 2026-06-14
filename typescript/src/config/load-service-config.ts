@@ -246,6 +246,9 @@ export function loadServiceConfig(
   if (settingSources) {
     codebuddy.settingSources = settingSources;
   }
+  if (typeof codebuddyOverrides.sdk_max_turns === 'number') {
+    codebuddy.sdkMaxTurns = codebuddyOverrides.sdk_max_turns;
+  }
   if (typeof codebuddyOverrides.subagent_permission_mode === 'string') {
     codebuddy.subagentPermissionMode = codebuddyOverrides.subagent_permission_mode;
   }

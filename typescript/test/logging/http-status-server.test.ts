@@ -9,6 +9,7 @@ import { DEFAULT_SERVICE_CONFIG, type Issue, type OrchestratorRuntimeState } fro
 import {
   type DashboardEventLogEntry,
   type DashboardEventLogInput,
+  type HistoricalIssueSummary,
   createDisabledTranscriptStore,
   type TranscriptEvent,
   type TranscriptEventInput,
@@ -201,8 +202,59 @@ function createTranscriptStoreFixture(): TranscriptStore {
         .filter((event) => event.id > after && (!options.issueId || event.issueId === options.issueId))
         .slice(0, limit);
     },
+    listHistoricalIssues(options = {}): HistoricalIssueSummary[] {
+      const after = options.after ?? 0;
+      const limit = options.limit ?? 50;
+      const issueIds = new Set<string>();
+      for (const session of sessions) {
+        issueIds.add(session.issueId);
+      }
+      for (const event of events) {
+        issueIds.add(event.issueId);
+      }
+      for (const event of dashboardEvents) {
+        if (event.issueId) {
+          issueIds.add(event.issueId);
+        }
+      }
+
+      return [...issueIds].map((issueId): HistoricalIssueSummary => {
+        const issueSessions = sessions.filter((session) => session.issueId === issueId);
+        const issueEvents = events.filter((event) => event.issueId === issueId);
+        const issueDashboardEvents = dashboardEvents.filter((event) => event.issueId === issueId);
+        const timestamps = [
+          ...issueSessions.map((session) => session.updatedAt),
+          ...issueEvents.map((event) => event.createdAt),
+          ...issueDashboardEvents.map((event) => event.timestamp),
+        ].sort();
+        const title = issueSessions.at(-1)?.issueTitle ?? `#${issueId}`;
+        return {
+          issueId,
+          identifier: `#${issueId}`,
+          title,
+          lastObservedAt: timestamps.at(-1) ?? '1970-01-01T00:00:00.000Z',
+          sessionCount: issueSessions.length,
+          transcriptEventCount: issueEvents.length,
+          dashboardEventCount: issueDashboardEvents.length,
+          source: issueSessions.length > 0 || issueEvents.length > 0 ? 'transcript' : 'dashboard_event',
+        };
+      })
+        .sort((left, right) => right.lastObservedAt.localeCompare(left.lastObservedAt) || left.issueId.localeCompare(right.issueId))
+        .slice(after, after + limit);
+    },
+    hasIssueHistory(issueId: string): boolean {
+      return sessions.some((session) => session.issueId === issueId)
+        || events.some((event) => event.issueId === issueId)
+        || dashboardEvents.some((event) => event.issueId === issueId);
+    },
     getLatestDashboardEventId(): number {
       return dashboardEvents.at(-1)?.id ?? 0;
+    },
+    getNextTurnIndex(issueId: string): number {
+      const turnIndexes = events
+        .filter((event) => event.issueId === issueId && event.turnIndex !== undefined)
+        .map((event) => event.turnIndex ?? 0);
+      return Math.max(0, ...turnIndexes) + 1;
     },
     close() {
       return;
@@ -257,6 +309,30 @@ function createTranscriptStoreFixture(): TranscriptStore {
     issueId: '1',
     timestamp: '2026-05-23T00:00:08.000Z',
     payload: { event: 'tool_result', ok: true },
+  });
+
+  const historicalSession = store.recordSession({
+    issueId: '4',
+    issueTitle: '历史任务',
+    workspacePath: '/tmp/_4',
+    provider: 'sdk',
+  });
+  store.recordEvent({
+    sessionId: historicalSession.id,
+    issueId: '4',
+    turnIndex: 1,
+    sequence: 1,
+    role: 'assistant',
+    eventType: 'message',
+    text: '历史 transcript',
+    payload: { type: 'assistant' },
+  });
+  store.recordDashboardEvent({
+    id: 9,
+    type: 'issue_event',
+    issueId: '4',
+    timestamp: '2026-05-23T00:00:09.000Z',
+    payload: { event: 'turn_completed' },
   });
   return store;
 }
@@ -565,6 +641,93 @@ describe('startStatusServer', () => {
     }
   });
 
+  it('serves historical issue summaries from the transcript store', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      undefined,
+      createTranscriptStoreFixture(),
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const response = await fetch(`${address}/api/v1/issues/history?limit=1`);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        issues: [
+          {
+            issueId: '4',
+            identifier: '#4',
+            title: '历史任务',
+            lastObservedAt: '2026-05-23T00:00:09.000Z',
+            sessionCount: 1,
+            transcriptEventCount: 1,
+            dashboardEventCount: 1,
+            source: 'transcript',
+          },
+        ],
+        nextAfter: 1,
+      });
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('serves transcripts for historical issues absent from the runtime snapshot', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      undefined,
+      createTranscriptStoreFixture(),
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const response = await fetch(`${address}/api/v1/issues/4/transcript`);
+      expect(response.status).toBe(200);
+      const payload = await response.json();
+      expect(payload).toMatchObject({
+        issueId: '4',
+        events: [
+          {
+            issueId: '4',
+            role: 'assistant',
+            eventType: 'message',
+            text: '历史 transcript',
+          },
+        ],
+      });
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
   it('returns explicit transcript errors for unknown issues and disabled storage', async () => {
     const cleanupFixture = await createDashboardFixture();
     const { controller } = createController();
@@ -599,6 +762,15 @@ describe('startStatusServer', () => {
       await expect(disabledResponse.json()).resolves.toEqual({
         error: {
           code: 'transcript_unavailable',
+          message: 'transcript store is disabled',
+        },
+      });
+
+      const historyResponse = await fetch(`${disabledAddress}/api/v1/issues/history`);
+      expect(historyResponse.status).toBe(503);
+      await expect(historyResponse.json()).resolves.toEqual({
+        error: {
+          code: 'issue_history_unavailable',
           message: 'transcript store is disabled',
         },
       });
