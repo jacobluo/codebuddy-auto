@@ -67,7 +67,7 @@ Description:
 
 ## Operating Rules
 
-1. Read available project guidance before editing, especially `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, and the nearest feature files.
+1. Read available project guidance before editing, especially `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, project-specific rules, validation scripts, and the nearest feature files.
 2. Confirm the issue has the scheduler label `agent-ready`, then read the `Task type` field from the issue description when present. Treat it as one of: `agent-ready:ui-bug`, `agent-ready:small-feature`, `agent-ready:test`, `agent-ready:cleanup`, or `agent-ready:docs`.
 3. Keep changes focused on the issue. Do not perform broad refactors.
 4. For behavior changes, write or update tests before implementation.

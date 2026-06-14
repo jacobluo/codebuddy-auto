@@ -67,6 +67,8 @@ describe('initRuntimeDirectory', () => {
     expect(template).toContain('read the `Task type` field from the issue description');
     expect(template).toContain('agent-ready:ui-bug');
     expect(template).toContain("issue's `Verification` field");
+    expect(template).toContain('project-specific rules');
+    expect(template).toContain('validation scripts');
     expect(template).toContain('UI evidence for visual changes');
     expect(template).not.toContain('npm install');
     expect(template).not.toContain('npm run verify');
