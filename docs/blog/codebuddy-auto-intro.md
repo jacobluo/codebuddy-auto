@@ -43,6 +43,16 @@ OpenAI Symphony 提供的是一套 agent orchestration 思路：issue 是任务�
 
 换句话说，`codebuddy-auto` 不是 Symphony 的移植版，而是一个 TypeScript 参考实现：用 CodeBuddy SDK 和 cnb.cool issue 复现 Symphony 风格的 issue-driven 调度流程。
 
+从核心抽象看，`codebuddy-auto` 已经具备 Symphony 的三元模型：
+
+| 抽象 | 含义 | codebuddy-auto 当前实现 |
+|---|---|---|
+| 多 issue | issue 是调度单位，每个 issue 表示一份独立工作 | 从 CNB tracker 拉取多个 `agent-ready` issue，并按状态、标签和并发限制选择候选 |
+| 多 workspace | workspace 是文件系统隔离边界，每个 issue 在自己的目录里执行 | 每个 issue 映射到独立 workspace，例如 `.codebuddy-auto/workspaces/_11` |
+| 多 agent 并发 | agent 是执行边界，多个 issue 可以同时由不同 agent session 处理 | `agent.max_concurrent_agents` 控制并发数，local worker 为不同 issue 启动独立 CodeBuddy SDK session |
+
+但三元模型成立，不等于完整复刻 Symphony 的生产工作流。当前差异主要在成熟度和表达力上：Symphony 更强调 Linear state machine、issue DAG、blocked task 释放、Codex app-server sandbox 和远端 worker 扩展；`codebuddy-auto` 目前用 CNB issue 状态和标签模拟这些语义，主路径还是单机 daemon + 本地 CodeBuddy SDK worker。
+
 ## 3. 核心设计：Issue 驱动的 Agent Orchestration
 
 在这个模型里，issue 不是单纯的 prompt 输入，而是一个长期存在的状态锚点。
@@ -312,7 +322,9 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 
 ### 从 issue 到 PR
 
-当 agent 完成实现、验证和提交后，会按 workflow 要求进行 handoff，例如打 `agent-finish` 标签、推送分支或创建 PR。后续仍由维护者和 CI 做最终判断。
+最后一步不是“agent 直接完成项目”，而是把 issue 的执行结果交接给维护者。一个顺利的任务通常会产生代码提交、分支或 PR，并在 tracker 中留下 `agent-finish` 这类 handoff 信号。Dashboard 能看到这个链路，但最终是否合入仍由 CI、代码审核和维护者判断。
+
+这也暴露出当前实现和 Symphony 的差距：`codebuddy-auto` 已经能做到多 issue、多 workspace、多 agent session 并发，但还没有把 PR 状态、blocked-by 依赖、子任务生成和多阶段 handoff 做成一等调度能力。
 
 ![Issue 到 PR 的交接结果](../../images/4.issue_to_pr_.png)
 
@@ -320,6 +332,15 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 
 当前这版更适合单机调度：一个 `codebuddy-auto daemon` 进程，连接一个 cnb.cool 项目，按标签捞取候选 issue，用本地 CodeBuddy SDK worker 执行任务，并通过 Dashboard 观察运行状态。
 
-后续可以继续补的方向包括：更细的 retry 分类、更完整的 PR handoff 模板、多进程 claim、远端 worker 管理，以及更贴近生产部署的 profile。
+如果继续向 Symphony 靠近，优先补的不是“在 `AGENTS.md` 里写多个虚拟角色”，而是把调度层的任务表达补完整：
+
+| 方向 | 为什么重要 |
+|---|---|
+| CNB issue 依赖 / blocked-by 语义 | 让复杂任务能拆成 DAG，只有未阻塞的 issue 才被调度 |
+| git worktree / per-issue branch | 比普通目录更强地隔离并发改动，也更接近 PR 工作流 |
+| agent 创建 follow-up issue / 子任务 | 让 plan、开发、验证可以变成 tracker 里的真实任务，而不是一个 prompt 内的角色扮演 |
+| PR / handoff 状态观测 | Dashboard 不只看到 agent turn，还能看到分支、PR、CI 和交接状态 |
+| 远端 worker / 多主机容量管理 | 把单机 daemon 扩展成更接近生产的 worker pool |
+| 更细的 retry 和失败分类 | 区分 SDK 错误、hook 错误、认证错误、测试失败和无进展，减少人工排查成本 |
 
 但当前闭环已经能验证一个判断：agent 要稳定参与工程流程，除了模型，还需要调度、状态、失败暴露、目标 repo harness 和交接机制。`codebuddy-auto` 做的就是把这些事情先串起来。
