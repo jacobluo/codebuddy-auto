@@ -282,7 +282,41 @@ node ../codebuddy-auto/typescript/dist/src/main.js daemon --model opus
 codebuddy-auto daemon --model opus
 ```
 
-## 11. 当前适用场景与后续演进
+## 11. 项目演示
+
+下面是一组从实际流程截取的界面图，展示一个 issue 从创建、进入队列、被 agent 处理，到最终形成 PR 的完整链路。
+
+### 创建 agent-ready issue
+
+维护者在 cnb.cool 创建 issue，按模板填写任务类型、问题描述、期望行为和验证方式。`agent-ready` 标签让调度器可以把它识别为候选任务。
+
+![创建 agent-ready issue](../../images/0.issue_create.png)
+
+### Issue 进入调度队列
+
+Issue 创建后，`codebuddy-auto` 会在后续 tick 中读取 tracker。符合标签、状态和并发限制的任务会被 claim，并分配独立 workspace。
+
+![Issue 进入调度队列](../../images/1.issue_added.png)
+
+### Dashboard 查看实时事件
+
+Dashboard 会显示当前运行中的 issue、worker 状态、SSE 事件流、turn 信息和失败原因。这里可以看到 dispatch、session、turn 等运行事件，便于判断 agent 是否真正开始工作。
+
+![Dashboard 实时事件](../../images/2.issue_processing_event.png)
+
+### 查看完整执行过程
+
+Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关键 runtime payload。相比只看最终状态，它更适合排查“agent 为什么这么改”“在哪一步卡住”这类问题。
+
+![Dashboard transcript 执行过程](../../images/3.issue_processing_log.png)
+
+### 从 issue 到 PR
+
+当 agent 完成实现、验证和提交后，会按 workflow 要求进行 handoff，例如打 `agent-finish` 标签、推送分支或创建 PR。后续仍由维护者和 CI 做最终判断。
+
+![Issue 到 PR 的交接结果](../../images/4.issue_to_pr_.png)
+
+## 12. 当前适用场景与后续演进
 
 当前这版更适合单机调度：一个 `codebuddy-auto daemon` 进程，连接一个 cnb.cool 项目，按标签捞取候选 issue，用本地 CodeBuddy SDK worker 执行任务，并通过 Dashboard 观察运行状态。
 
