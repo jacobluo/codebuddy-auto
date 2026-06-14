@@ -51,8 +51,6 @@ OpenAI Symphony 提供的是一套 agent orchestration 思路：issue 是任务�
 | 多 workspace | workspace 是文件系统隔离边界，每个 issue 在自己的目录里执行 | 每个 issue 映射到独立 workspace，例如 `.codebuddy-auto/workspaces/_11` |
 | 多 agent 并发 | agent 是执行边界，多个 issue 可以同时由不同 agent session 处理 | `agent.max_concurrent_agents` 控制并发数，local worker 为不同 issue 启动独立 CodeBuddy SDK session |
 
-但三元模型成立，不等于完整复刻 Symphony 的生产工作流。当前差异主要在成熟度和表达力上：Symphony 更强调 Linear state machine、issue DAG、blocked task 释放、Codex app-server sandbox 和远端 worker 扩展；`codebuddy-auto` 目前用 CNB issue 状态和标签模拟这些语义，主路径还是单机 daemon + 本地 CodeBuddy SDK worker。
-
 ## 3. 核心设计：Issue 驱动的 Agent Orchestration
 
 在这个模型里，issue 不是单纯的 prompt 输入，而是一个长期存在的状态锚点。
@@ -324,14 +322,13 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 
 最后一步不是“agent 直接完成项目”，而是把 issue 的执行结果交接给维护者。一个顺利的任务通常会产生代码提交、分支或 PR，并在 tracker 中留下 `agent-finish` 这类 handoff 信号。Dashboard 能看到这个链路，但最终是否合入仍由 CI、代码审核和维护者判断。
 
-这也暴露出当前实现和 Symphony 的差距：`codebuddy-auto` 已经能做到多 issue、多 workspace、多 agent session 并发，但还没有把 PR 状态、blocked-by 依赖、子任务生成和多阶段 handoff 做成一等调度能力。
-
 ![Issue 到 PR 的交接结果](../../images/4.issue_to_pr_.png)
 
 ## 12. 当前适用场景与后续演进
 
 当前这版更适合单机调度：一个 `codebuddy-auto daemon` 进程，连接一个 cnb.cool 项目，按标签捞取候选 issue，用本地 CodeBuddy SDK worker 执行任务，并通过 Dashboard 观察运行状态。
 
+从核心模型看，`codebuddy-auto` 已经能做到多 issue、多 workspace、多 agent session 并发；但和 Symphony 的完整生产工作流相比，差距主要还在任务表达、隔离强度和 handoff 观测上。Symphony 更强调 Linear state machine、issue DAG、blocked task 释放、Codex app-server sandbox 和远端 worker 扩展；`codebuddy-auto` 目前用 CNB issue 状态和标签模拟这些语义，主路径还是单机 daemon + 本地 CodeBuddy SDK worker。
 
 | 方向 | 为什么重要 |
 |---|---|
@@ -341,4 +338,3 @@ Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关�
 | PR / handoff 状态观测 | Dashboard 不只看到 agent turn，还能看到分支、PR、CI 和交接状态 |
 | 远端 worker / 多主机容量管理 | 把单机 daemon 扩展成更接近生产的 worker pool |
 | 更细的 retry 和失败分类 | 区分 SDK 错误、hook 错误、认证错误、测试失败和无进展，减少人工排查成本 |
-
