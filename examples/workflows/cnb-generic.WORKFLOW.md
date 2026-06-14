@@ -6,80 +6,81 @@ tracker:
   projectSlug: your-org/your-repo
   activeStates: [open]
   terminalStates: [closed]
+  candidate_label: agent-ready
+  exclude_label: skip-agent
+  finish_label: agent-finish
+
 polling:
   interval_ms: 30000
+
 workspace:
   root: ./.codebuddy-auto/workspaces
   mode: directory
   source_root: .
-hooks:
-  timeout_ms: 120000
-  before_run: |
-    if [ ! -d .git ]; then
-      git clone https://cnb.cool/your-org/your-repo.git .
-    fi
+
 server:
   host: 127.0.0.1
   port: 4317
+
 agent:
   max_concurrent_agents: 1
-  # Total CodeBuddy SDK internal turns the worker is allowed for ONE issue.
-  # The new long-lived worker (sdk-multi-turn-worker) lets the agent run
-  # uninterrupted within this budget. Real demo-mini-crm runs need ~20–30
-  # turns just to read repo + plan + edit + commit + push + open PR + label.
-  # 60 is a comfortable default; raise for issues that need more files
-  # changed; lower if you want a tighter quota and trust the agent.
-  max_turns: 60
+  max_turns: 30
+  no_progress_threshold: 3
   max_retry_backoff_ms: 300000
+
 worker:
   kind: local
+
 codebuddy:
   command: codebuddy
+  sdk_max_turns: 100
   permission_mode: bypassPermissions
   turn_timeout_ms: 3600000
   read_timeout_ms: 15000
   stall_timeout_ms: 300000
   mcp_strict: true
   dangerously_skip_permissions: false
+
+hooks:
+  after_create: |
+    git clone https://cnb.cool/your-org/your-repo.git .
+    npm install
+  before_run: |
+    git status --short
+  after_run: |
+    npm run verify || true
+  timeout_ms: 300000
 ---
 
-You are working on {{ issue.identifier }}: {{ issue.title }}.
+You are working on a cnb.cool issue for `your-org/your-repo`.
 
-Issue details:
+Issue:
+- ID: {{ issue.identifier }}
+- Title: {{ issue.title }}
+- State: {{ issue.state }}
+- Priority: {{ issue.priority }}
+- URL: {{ issue.url }}
+
+Description:
+
 {{ issue.description }}
 
-Repository: your-org/your-repo
-Tracker: cnb.cool
+## Operating Rules
 
-Goals:
-- Read the issue carefully and implement the requested change in the current workspace.
-- Keep edits minimal and consistent with the existing codebase.
-- Run the smallest useful verification for the change before finishing.
+1. Read available project guidance before editing, especially `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, and the nearest feature files.
+2. Confirm the issue has the scheduler label `agent-ready`, then read the task type from the issue description when present.
+3. Keep changes focused on the issue. Do not perform broad refactors.
+4. For behavior changes, write or update tests before implementation.
+5. Run the smallest useful verification while iterating.
+6. Run the verification commands requested by the issue before handoff.
+7. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
+8. Add the `agent-finish` label only after verification passes, changes are committed and pushed, and the work is ready for human review.
 
-Constraints:
-- Work only inside the assigned workspace.
-- Do not change unrelated files.
-- If the issue is blocked or ambiguous, explain the blocker clearly in your final response.
+## Handoff Format
 
-<!--
-Optional: enforce a "commit + PR + agent-finish" handoff.
-Replace `your-org/your-repo` and the target branch as needed.
+When ready for human review, provide:
 
-- After implementation is verified, commit and push to a feature branch
-  named `fix/issue-{{ issue.id }}`.
-- Create a Pull Request:
-    cnb pulls post-pull \
-      --repo your-org/your-repo \
-      --head "fix/issue-{{ issue.id }}" \
-      --base main \
-      --title "fix: {{ issue.title }}" \
-      --body "Closes #{{ issue.id }}"
-- After the PR is created successfully, add the finish label:
-    cnb issues post-issue-labels \
-      --repo your-org/your-repo \
-      --number {{ issue.id }} \
-      --labels agent-finish
-
-cnb API: `--head` = source branch, `--base` = target branch.
-A non-zero cnb CLI exit is a hard failure — do NOT add agent-finish in that case.
--->
+- Summary of changed behavior.
+- Files changed.
+- Verification commands and results.
+- Risks or follow-ups.

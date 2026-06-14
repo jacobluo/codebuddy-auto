@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
@@ -31,94 +32,36 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
-function renderWorkflow(project: string, repoUrl: string): string {
-  return `---
-tracker:
-  kind: cnb
-  endpoint: https://api.cnb.cool
-  apiKey: $CNB_TOKEN
-  projectSlug: ${project}
-  activeStates: [open]
-  terminalStates: [closed]
-  candidate_label: agent-ready
-  exclude_label: skip-agent
-  finish_label: agent-finish
+const GENERIC_WORKFLOW_TEMPLATE = path.join('examples', 'workflows', 'cnb-generic.WORKFLOW.md');
+const DEFAULT_PROJECT_PLACEHOLDER = 'your-org/your-repo';
+const DEFAULT_REPO_URL_PLACEHOLDER = 'https://cnb.cool/your-org/your-repo.git';
 
-polling:
-  interval_ms: 30000
+function templatePathCandidates(): string[] {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
-workspace:
-  root: ./.codebuddy-auto/workspaces
-  mode: directory
-  source_root: .
+  return [
+    path.resolve(moduleDir, '..', '..', GENERIC_WORKFLOW_TEMPLATE),
+    path.resolve(moduleDir, '..', '..', '..', GENERIC_WORKFLOW_TEMPLATE),
+    path.resolve(moduleDir, '..', '..', '..', '..', GENERIC_WORKFLOW_TEMPLATE),
+  ];
+}
 
-server:
-  host: 127.0.0.1
-  port: 4317
+async function readGenericWorkflowTemplate(): Promise<string> {
+  for (const candidate of templatePathCandidates()) {
+    if (await pathExists(candidate)) {
+      return fs.readFile(candidate, 'utf8');
+    }
+  }
 
-agent:
-  max_concurrent_agents: 1
-  max_turns: 30
-  no_progress_threshold: 3
-  max_retry_backoff_ms: 300000
+  throw new Error(`generic workflow template not found: ${GENERIC_WORKFLOW_TEMPLATE}`);
+}
 
-worker:
-  kind: local
+async function renderWorkflow(project: string, repoUrl: string): Promise<string> {
+  const template = await readGenericWorkflowTemplate();
 
-codebuddy:
-  command: codebuddy
-  sdk_max_turns: 100
-  permission_mode: bypassPermissions
-  turn_timeout_ms: 3600000
-  read_timeout_ms: 15000
-  stall_timeout_ms: 300000
-  mcp_strict: true
-  dangerously_skip_permissions: false
-
-hooks:
-  after_create: |
-    git clone ${repoUrl} .
-    npm install
-  before_run: |
-    git status --short
-  after_run: |
-    npm run verify || true
-  timeout_ms: 300000
----
-
-You are working on a cnb.cool issue for \`${project}\`.
-
-Issue:
-- ID: {{ issue.identifier }}
-- Title: {{ issue.title }}
-- State: {{ issue.state }}
-- Priority: {{ issue.priority }}
-- URL: {{ issue.url }}
-
-Description:
-
-{{ issue.description }}
-
-## Operating Rules
-
-1. Read available project guidance before editing, especially \`README.md\`, \`AGENTS.md\`, \`CONTRIBUTING.md\`, and the nearest feature files.
-2. Confirm the issue has the scheduler label \`agent-ready\`, then read the task type from the issue description when present.
-3. Keep changes focused on the issue. Do not perform broad refactors.
-4. For behavior changes, write or update tests before implementation.
-5. Run the smallest useful verification while iterating.
-6. Run the verification commands requested by the issue before handoff.
-7. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
-8. Add the \`agent-finish\` label only after verification passes, changes are committed and pushed, and the work is ready for human review.
-
-## Handoff Format
-
-When ready for human review, provide:
-
-- Summary of changed behavior.
-- Files changed.
-- Verification commands and results.
-- Risks or follow-ups.
-`;
+  return template
+    .replaceAll(DEFAULT_REPO_URL_PLACEHOLDER, repoUrl)
+    .replaceAll(DEFAULT_PROJECT_PLACEHOLDER, project);
 }
 
 export async function initRuntimeDirectory(input: InitRuntimeDirectoryInput): Promise<InitRuntimeDirectoryResult> {
@@ -131,7 +74,7 @@ export async function initRuntimeDirectory(input: InitRuntimeDirectoryInput): Pr
   }
 
   await fs.mkdir(workspaceRoot, { recursive: true });
-  await fs.writeFile(workflowPath, renderWorkflow(parsed.project, parsed.repoUrl), 'utf8');
+  await fs.writeFile(workflowPath, await renderWorkflow(parsed.project, parsed.repoUrl), 'utf8');
 
   return {
     workflowPath,
