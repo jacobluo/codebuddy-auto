@@ -39,6 +39,7 @@ import type { Session } from '@tencent-ai/agent-sdk';
 
 import type { Issue, ServiceConfig, WorkerHandle } from '../spec/index.js';
 import type { Tracker } from '../tracker/index.js';
+import type { TranscriptSession, TranscriptStore } from '../transcript/index.js';
 import type { WorkerHandleStore } from './worker-handle-store.js';
 
 export type IssueWorkerExitReason =
@@ -117,6 +118,8 @@ export interface RunIssueWorkerInput extends IssueWorkerDeps, IssueWorkerCallbac
    * scenarios.
    */
   abortController?: AbortController;
+  /** Optional durable transcript sink for full local SDK conversation history. */
+  transcriptStore?: TranscriptStore;
   /**
    * Optional getter for the live `ServiceConfig`. The worker reads
    * mutable fields (`agent.maxTurns`, `agent.maxRetryBackoffMs`,
@@ -153,6 +156,27 @@ export const INITIAL_PROMPT_SUFFIX = [
 
 function renderContinuation(turnCount: number): string {
   return CONTINUATION_GUIDANCE.replace('{{ turnCount }}', String(turnCount));
+}
+
+function toPayload(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return { value };
+}
+
+function getAssistantText(value: unknown): string | undefined {
+  const raw = toPayload(value);
+  const message = toPayload(raw['message']);
+  const content = message['content'];
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const texts = content
+    .map((entry) => toPayload(entry)['text'])
+    .filter((entry): entry is string => typeof entry === 'string');
+  return texts.length > 0 ? texts.join('\n') : undefined;
 }
 
 interface IssueStateSnapshot {
@@ -219,6 +243,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
   let exitReason: IssueWorkerExitReason = 'turn_failed';
   let errorMessage: string | undefined;
   let sessionIdForResult: string | null = null;
+  let transcriptSession: TranscriptSession | undefined;
 
   try {
     try {
@@ -245,6 +270,16 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
 
     sessionIdForResult = session.sessionId ?? null;
     handle.sessionId = sessionIdForResult;
+    transcriptSession = input.transcriptStore?.recordSession({
+      issueId: input.issue.id,
+      issueTitle: input.issue.title,
+      workspacePath: input.workspacePath,
+      provider: 'sdk',
+      sdkSessionId: sessionIdForResult ?? undefined,
+      metadata: {
+        issueIdentifier: input.issue.identifier,
+      },
+    });
 
     const baseInitialPrompt = input.initialPrompt
       ?? `Work on ${input.issue.identifier}: ${input.issue.title}.`;
@@ -273,6 +308,37 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
       const message = handle.turnCount === 0
         ? initialPrompt
         : renderContinuation(handle.turnCount + 1);
+      const turnIndex = handle.turnCount + 1;
+      let transcriptSequence = 0;
+      const recordTranscriptEvent = (
+        role: 'system' | 'user' | 'assistant' | 'tool' | 'result' | 'error' | 'runtime',
+        eventType: string,
+        payload: Record<string, unknown>,
+        text?: string,
+      ): void => {
+        if (!input.transcriptStore || !transcriptSession) {
+          return;
+        }
+        if (role === 'assistant' && eventType === 'message' && (!text || text.trim().length === 0)) {
+          return;
+        }
+        transcriptSequence += 1;
+        try {
+          input.transcriptStore.recordEvent({
+            sessionId: transcriptSession.id,
+            issueId: input.issue.id,
+            turnIndex,
+            sequence: transcriptSequence,
+            role,
+            eventType,
+            text,
+            payload,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new TranscriptWriteError(message);
+        }
+      };
 
       const turnTimeoutMs = cfg.codebuddy.turnTimeoutMs;
       let timedOut = false;
@@ -285,6 +351,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
       }
 
       try {
+        recordTranscriptEvent('user', 'prompt', { prompt: message }, message);
         await session.send(message);
         let turnDurationMs = 0;
         let turnSessionId: string | undefined;
@@ -303,6 +370,10 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
                 sessionId: sysMsg.session_id ?? handle.sessionId ?? '',
               },
             });
+            recordTranscriptEvent('runtime', 'session_started', toPayload(m));
+          }
+          if (m.type === 'assistant') {
+            recordTranscriptEvent('assistant', 'message', toPayload(m), getAssistantText(m));
           }
           if (m.type === 'result') {
             handle.turnCount += 1;
@@ -331,6 +402,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
               if (!isMaxTurns) {
                 exitReason = 'turn_failed';
                 errorMessage = errs?.join('; ') ?? subtype;
+                recordTranscriptEvent('error', 'turn_failed', toPayload(m), errorMessage);
                 input.onWorkerEvent?.({
                   event: 'turn_failed',
                   payload: { message: errorMessage ?? '' },
@@ -338,6 +410,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
                 throw new TurnFailedError(errorMessage);
               }
             }
+            recordTranscriptEvent('result', 'turn_completed', toPayload(m));
             input.onWorkerEvent?.({
               event: 'turn_completed',
               payload: {
@@ -355,6 +428,20 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
           }
         }
       } catch (err) {
+        if (err instanceof TranscriptWriteError) {
+          exitReason = 'turn_failed';
+          errorMessage = err.message;
+          input.onWorkerEvent?.({
+            event: 'turn_failed',
+            payload: { message: errorMessage },
+          });
+          return {
+            exitReason,
+            turnCount: handle.turnCount,
+            sessionId: sessionIdForResult,
+            errorMessage,
+          };
+        }
         if (err instanceof TurnFailedError) {
           // exitReason + errorMessage already set
           return {
@@ -366,6 +453,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         }
         if (timedOut) {
           exitReason = 'turn_timed_out';
+          recordTranscriptEvent('error', 'turn_timed_out', { timeoutMs: turnTimeoutMs ?? 0 });
           input.onWorkerEvent?.({
             event: 'turn_timed_out',
             payload: { timeoutMs: turnTimeoutMs ?? 0 },
@@ -389,6 +477,7 @@ export async function runIssueWorker(input: RunIssueWorkerInput): Promise<IssueW
         // that is the runner-level error budget's job, not the worker's.
         exitReason = 'turn_failed';
         errorMessage = err instanceof Error ? err.message : String(err);
+        recordTranscriptEvent('error', 'turn_failed', { message: errorMessage ?? '' }, errorMessage);
         input.onWorkerEvent?.({
           event: 'turn_failed',
           payload: { message: errorMessage ?? '' },
@@ -470,5 +559,12 @@ class TurnFailedError extends Error {
   constructor(message?: string) {
     super(message ?? 'turn_failed');
     this.name = 'TurnFailedError';
+  }
+}
+
+class TranscriptWriteError extends Error {
+  constructor(message: string) {
+    super(`transcript write failed: ${message}`);
+    this.name = 'TranscriptWriteError';
   }
 }

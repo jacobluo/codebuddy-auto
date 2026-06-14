@@ -2,6 +2,7 @@ import { getWorkspaceHookScript, runWorkspaceHook } from '../workspace/index.js'
 import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging/index.js';
 import type { OrchestratorRuntimeState } from '../spec/index.js';
 import type { ServiceConfig } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import {
   buildCodebuddyCommand,
   createRunAttempt,
@@ -53,6 +54,7 @@ export interface LocalDispatchDeps {
   handleStore: WorkerHandleStore;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createSession: (opts: CreateSessionOptions) => any;
+  transcriptStore?: TranscriptStore;
   getConfig?: () => ServiceConfig;
 }
 
@@ -70,6 +72,7 @@ export async function runDispatchCycle(
   eventBus?: EventBus,
   sessionStore?: SdkSessionStore,
   localDeps?: LocalDispatchDeps,
+  transcriptStore?: TranscriptStore,
 ): Promise<DispatchCycleResult> {
   const issues = await tracker.fetchCandidateIssues();
   const dispatchPlan = planDispatchCycle(state, issues, config);
@@ -89,6 +92,7 @@ export async function runDispatchCycle(
         logger,
         eventBus,
         createSession: localDeps.createSession,
+        transcriptStore: localDeps.transcriptStore,
         getConfig: localDeps.getConfig,
       });
       if (!dispatched.started) {
@@ -158,6 +162,17 @@ export async function runDispatchCycle(
           turnCount: 1,
         },
       });
+      const transcriptSession = transcriptStore?.recordSession({
+        issueId: issue.id,
+        issueTitle: issue.title,
+        workspacePath: runAttempt.workspacePath,
+        provider: 'cli',
+        sdkSessionId: sessionId,
+        metadata: {
+          issueIdentifier: issue.identifier,
+          turnIndex: 1,
+        },
+      });
       const workerCommand = prepareWorkerCommand(buildCodebuddyCommand({
         config,
         prompt,
@@ -211,6 +226,9 @@ export async function runDispatchCycle(
           ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId: issue.id, payload: evt as unknown as Record<string, unknown> }); }
           : undefined,
         eventBus,
+        transcriptStore,
+        transcriptSessionId: transcriptSession?.id,
+        turnIndex: 1,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

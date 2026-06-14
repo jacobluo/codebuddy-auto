@@ -5,6 +5,12 @@ import { mkdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { runCodebuddyTurn } from '../../src/runner/index.js';
+import type {
+  TranscriptEvent,
+  TranscriptEventInput,
+  TranscriptSessionInput,
+  TranscriptStore,
+} from '../../src/transcript/index.js';
 
 function ensureWorkspaceDir(name: string): string {
   const workspacePath = path.join(os.tmpdir(), name);
@@ -12,7 +18,148 @@ function ensureWorkspaceDir(name: string): string {
   return workspacePath;
 }
 
+function createRecordingTranscriptStore(): {
+  store: TranscriptStore;
+  events: TranscriptEvent[];
+} {
+  const events: TranscriptEvent[] = [];
+  return {
+    events,
+    store: {
+      recordSession(_input: TranscriptSessionInput) {
+        throw new Error('runCodebuddyTurn should record against an existing transcript session');
+      },
+      recordEvent(input: TranscriptEventInput): TranscriptEvent {
+        const event = {
+          id: events.length + 1,
+          sessionId: input.sessionId,
+          issueId: input.issueId,
+          turnIndex: input.turnIndex,
+          sequence: input.sequence,
+          role: input.role,
+          eventType: input.eventType,
+          text: input.text,
+          payload: input.payload,
+          createdAt: '2026-05-31T00:00:00.000Z',
+        };
+        events.push(event);
+        return event;
+      },
+      listEvents(issueId: string): TranscriptEvent[] {
+        return events.filter((event) => event.issueId === issueId);
+      },
+      recordDashboardEvent(input) {
+        return input;
+      },
+      listDashboardEvents() {
+        return [];
+      },
+      getLatestDashboardEventId() {
+        return 0;
+      },
+      close() {
+        return;
+      },
+    },
+  };
+}
+
 describe('runCodebuddyTurn', () => {
+  it('records CLI prompt, parsed events, malformed lines, stderr, and non-zero exit failures', async () => {
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-transcript-failure');
+    const transcript = createRecordingTranscriptStore();
+
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'system',subtype:'init',session_id:'cli-session'}));",
+            "console.log(JSON.stringify({type:'assistant',message:{content:[{type:'text',text:'working'}]}}));",
+            "console.log('not-json');",
+            "process.stderr.write('boom\\n');",
+            'process.exit(7);',
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+      prompt: 'first turn prompt',
+      issueId: 'issue-cli',
+      transcriptStore: transcript.store,
+      transcriptSessionId: 20,
+      turnIndex: 1,
+    });
+
+    expect(result.exitCode).toBe(7);
+    expect(transcript.events.map((event) => [event.role, event.eventType, event.text])).toEqual([
+      ['user', 'prompt', 'first turn prompt'],
+      ['runtime', 'session_started', undefined],
+      ['assistant', 'message', 'working'],
+      ['runtime', 'malformed', 'not-json'],
+      ['runtime', 'stderr', 'boom'],
+      ['error', 'turn_failed', undefined],
+    ]);
+  });
+
+  it('does not persist CLI assistant messages that have no display text', async () => {
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-transcript-empty-assistant');
+    const transcript = createRecordingTranscriptStore();
+
+    await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          [
+            "console.log(JSON.stringify({type:'assistant',message:{content:[{type:'tool_use',name:'Read'}]}}));",
+            "console.log(JSON.stringify({type:'assistant',message:{content:[{type:'text',text:'visible'}]}}));",
+            "console.log(JSON.stringify({type:'result',subtype:'success',is_error:false}));",
+          ].join(''),
+        ],
+        cwd: workspacePath,
+      },
+      prompt: 'first turn prompt',
+      issueId: 'issue-cli',
+      transcriptStore: transcript.store,
+      transcriptSessionId: 20,
+      turnIndex: 1,
+    });
+
+    expect(transcript.events.filter((event) => event.role === 'assistant').map((event) => event.text)).toEqual([
+      'visible',
+    ]);
+  });
+
+  it('records CLI timeout failures', async () => {
+    const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-transcript-timeout');
+    const transcript = createRecordingTranscriptStore();
+
+    const result = await runCodebuddyTurn({
+      command: {
+        command: 'node',
+        args: [
+          '-e',
+          'setTimeout(() => console.log(JSON.stringify({type:"result",subtype:"success",is_error:false})), 1000);',
+        ],
+        cwd: workspacePath,
+      },
+      prompt: 'continue prompt',
+      issueId: 'issue-cli',
+      transcriptStore: transcript.store,
+      transcriptSessionId: 20,
+      turnIndex: 2,
+      turnTimeoutMs: 50,
+    });
+
+    expect(result.exitCode).toBeNull();
+    expect(transcript.events.at(-1)).toMatchObject({
+      role: 'error',
+      eventType: 'turn_timed_out',
+      payload: { timeoutMs: 50 },
+    });
+  });
+
   it('maps CodeBuddy NDJSON output into structured runner events', async () => {
     const workspacePath = ensureWorkspaceDir('codebuddy-auto-runner-success');
     const result = await runCodebuddyTurn({

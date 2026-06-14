@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline/promises';
 import { z } from 'zod';
 
-import { createWorkflowRuntimeSource, initRuntimeDirectory } from './config/index.js';
+import { createWorkflowRuntimeSource, initRuntimeDirectory, type WorkflowRuntimeSource } from './config/index.js';
 import {
   createEventBus,
   createLogger,
@@ -356,10 +356,11 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     return runInitCommand(argv, dependencies);
   }
   const logger = createLogger();
+  let runtimeSource: WorkflowRuntimeSource | null = null;
 
   try {
     const options = parseRunCliOptions(argv.slice(2));
-    const runtimeSource = await (dependencies.createWorkflowRuntimeSource ?? createWorkflowRuntimeSource)(options.workflowPath);
+    runtimeSource = await (dependencies.createWorkflowRuntimeSource ?? createWorkflowRuntimeSource)(options.workflowPath);
 
     if (options.reload) {
       const reload = await runtimeSource.reload();
@@ -388,14 +389,17 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     }
 
     if (options.mode === 'daemon') {
+      const activeRuntimeSource = runtimeSource;
       const runtimeState = createRuntimeState();
-      const eventBus = createEventBus();
+      const eventBus = createEventBus({
+        getDashboardEventStore: () => activeRuntimeSource.getCurrent().transcriptStore,
+      });
       const schedulerDependencies = {
         state: runtimeState,
         eventBus,
         getTickContext: async () => {
           if (options.reload) {
-            const reload = await runtimeSource.reload();
+            const reload = await activeRuntimeSource.reload();
             if (!reload.ok) {
               for (const error of reload.errors) {
                 logger.error({ error, workflowPath: reload.workflowPath }, 'reload_failed');
@@ -403,10 +407,11 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
             }
           }
 
-          const currentRuntime = runtimeSource.getCurrent();
+          const currentRuntime = activeRuntimeSource.getCurrent();
           return {
             tracker: currentRuntime.tracker,
             config: applyRunCliOverrides(currentRuntime.config, options),
+            transcriptStore: currentRuntime.transcriptStore,
           };
         },
       };
@@ -426,7 +431,12 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
             getSnapshotJson: () => JSON.stringify(createRuntimeSnapshot(runtimeState)),
             getIssueJson: (identifier) => getIssueStatusJson(runtimeState, identifier),
           });
-          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(runtimeConfig, statusController, eventBus);
+          statusServer = await (dependencies.startStatusServer ?? startStatusServer)(
+            runtimeConfig,
+            statusController,
+            eventBus,
+            runtime.transcriptStore,
+          );
           logger.info(
             {
               workflowPath: runtime.workflowPath,
@@ -487,5 +497,7 @@ export async function runCli(argv: string[], dependencies: RunCliDependencies = 
     const message = error instanceof Error ? error.message : String(error);
     logger.error({ error: message }, 'startup_failed');
     return 1;
+  } finally {
+    runtimeSource?.close();
   }
 }

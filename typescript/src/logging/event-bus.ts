@@ -1,3 +1,5 @@
+import { TranscriptStoreUnavailableError, type TranscriptStore } from '../transcript/index.js';
+
 export interface DashboardEvent {
   id: number;
   type: 'issue_event' | 'scheduler_event' | 'state_snapshot';
@@ -18,11 +20,13 @@ const DEFAULT_ISSUE_LIMIT = 200;
 export function createEventBus(options?: {
   globalLimit?: number;
   issueLimit?: number;
+  getDashboardEventStore?: () => TranscriptStore | undefined;
 }): EventBus {
   const globalLimit = options?.globalLimit ?? DEFAULT_GLOBAL_LIMIT;
   const issueLimit = options?.issueLimit ?? DEFAULT_ISSUE_LIMIT;
+  const getDashboardEventStore = options?.getDashboardEventStore;
 
-  let nextId = 1;
+  let nextId = getInitialNextId(getDashboardEventStore);
   const globalHistory: DashboardEvent[] = [];
   const issueHistories = new Map<string, DashboardEvent[]>();
   const listeners = new Set<(event: DashboardEvent) => void>();
@@ -30,6 +34,36 @@ export function createEventBus(options?: {
   function trimArray(arr: DashboardEvent[], limit: number): void {
     if (arr.length > limit) {
       arr.splice(0, arr.length - limit);
+    }
+  }
+
+  function getPersistentHistory(issueId?: string, limit?: number): DashboardEvent[] | null {
+    const store = getDashboardEventStore?.();
+    if (!store) {
+      return null;
+    }
+
+    try {
+      const effectiveLimit = limit ?? (issueId ? issueLimit : globalLimit);
+      return store.listDashboardEvents({ issueId, limit: effectiveLimit });
+    } catch (error) {
+      if (error instanceof TranscriptStoreUnavailableError) {
+        return null;
+      }
+      return null;
+    }
+  }
+
+  function persistDashboardEvent(event: DashboardEvent): void {
+    const store = getDashboardEventStore?.();
+    if (!store) {
+      return;
+    }
+
+    try {
+      store.recordDashboardEvent(event);
+    } catch {
+      // Durable dashboard event logging is observability-only; live orchestration must continue.
     }
   }
 
@@ -50,6 +84,8 @@ export function createEventBus(options?: {
         trimArray(issueHistory, issueLimit);
       }
 
+      persistDashboardEvent(event);
+
       for (const listener of listeners) {
         try {
           listener(event);
@@ -67,6 +103,11 @@ export function createEventBus(options?: {
     },
 
     history(issueId?: string, limit?: number): DashboardEvent[] {
+      const persistentHistory = getPersistentHistory(issueId, limit);
+      if (persistentHistory) {
+        return persistentHistory;
+      }
+
       const source = issueId ? (issueHistories.get(issueId) ?? []) : globalHistory;
       if (limit !== undefined && limit < source.length) {
         return source.slice(-limit);
@@ -74,4 +115,20 @@ export function createEventBus(options?: {
       return [...source];
     },
   };
+}
+
+function getInitialNextId(getDashboardEventStore?: () => TranscriptStore | undefined): number {
+  const store = getDashboardEventStore?.();
+  if (!store) {
+    return 1;
+  }
+
+  try {
+    return store.getLatestDashboardEventId() + 1;
+  } catch (error) {
+    if (error instanceof TranscriptStoreUnavailableError) {
+      return 1;
+    }
+    return 1;
+  }
 }

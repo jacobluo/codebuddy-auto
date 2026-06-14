@@ -11,6 +11,7 @@ import type {
   DashboardSnapshot,
   DashboardSseEnvelope,
   DashboardStatus,
+  DashboardTranscriptEvent,
 } from '../lib/dashboard-types.js';
 
 export interface DashboardPageState {
@@ -22,7 +23,11 @@ export interface DashboardPageState {
   snapshot: DashboardSnapshot | null;
   selectedIssueId: string | null;
   selectedIssueEvents: DashboardSseEnvelope[];
+  selectedIssueTranscriptEvents: DashboardTranscriptEvent[];
+  selectedIssueTranscriptStatus: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  selectedIssueTranscriptError: string | null;
   onRefresh: () => void | Promise<void>;
+  onRefreshTranscript: () => void | Promise<void>;
   onRetry: () => void;
   onSelectIssue: (issueId: string) => void;
   nowMs?: number;
@@ -93,6 +98,10 @@ export function DashboardPage({ state }: { state: DashboardPageState }) {
             repoUrl={state.bootstrap.repoUrl}
             selectedIssue={selectedIssue}
             selectedIssueEvents={state.selectedIssueEvents}
+            transcriptEvents={state.selectedIssueTranscriptEvents}
+            transcriptStatus={state.selectedIssueTranscriptStatus}
+            transcriptError={state.selectedIssueTranscriptError}
+            onRefreshTranscript={state.onRefreshTranscript}
           />
         </div>
       </div>

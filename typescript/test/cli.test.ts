@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { DEFAULT_SERVICE_CONFIG } from '../src/spec/index.js';
 import * as schedulerModule from '../src/scheduler/index.js';
+import { createDisabledTranscriptStore } from '../src/transcript/index.js';
 
 const tempDirs: string[] = [];
 let runDispatchCycleSpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -324,6 +325,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1', port: 0 },
+          transcript: { ...DEFAULT_SERVICE_CONFIG.transcript },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
@@ -333,12 +335,14 @@ describe('runCli', () => {
           fetchIssuesByStates: async () => [],
           fetchIssueStatesByIds: async () => new Map(),
         },
+        transcriptStore: createDisabledTranscriptStore(),
       })),
       reload: vi.fn(async () => ({
         ok: true,
         errors: [],
         workflowPath,
       })),
+      close: vi.fn(),
     };
     const requestTick = vi.fn(async () => undefined);
     const stop = vi.fn(async () => undefined);
@@ -368,6 +372,7 @@ describe('runCli', () => {
     const statusServer = await startStatusServer.mock.results[0]?.value;
     expect(statusServer?.close).toHaveBeenCalledTimes(1);
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(runtimeSource.close).toHaveBeenCalledTimes(1);
   });
 
   it('does not start the scheduler when the status server fails to bind', async () => {
@@ -446,6 +451,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
+          transcript: { ...DEFAULT_SERVICE_CONFIG.transcript },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
@@ -455,12 +461,14 @@ describe('runCli', () => {
           fetchIssuesByStates: async () => [],
           fetchIssueStatesByIds: async () => new Map(),
         },
+        transcriptStore: createDisabledTranscriptStore(),
       })),
       reload: vi.fn(async () => ({
         ok: true,
         errors: [],
         workflowPath,
       })),
+      close: vi.fn(),
     };
 
     await expect(runCli(['node', 'codebuddy-auto', 'check', workflowPath, '--reload'], {
@@ -468,6 +476,7 @@ describe('runCli', () => {
     })).resolves.toBe(0);
 
     expect(runtimeSource.reload).toHaveBeenCalledTimes(1);
+    expect(runtimeSource.close).toHaveBeenCalledTimes(1);
   });
 
   it('reloads daemon tick context before each scheduler tick when reload mode is enabled', async () => {
@@ -492,6 +501,7 @@ describe('runCli', () => {
           workspace: { ...DEFAULT_SERVICE_CONFIG.workspace, root: '.' },
           hooks: { timeoutMs: 60000 },
           server: { host: '127.0.0.1' },
+          transcript: { ...DEFAULT_SERVICE_CONFIG.transcript },
           agent: { maxConcurrentAgents: 10, maxTurns: 20, maxRetryBackoffMs: 300000, maxConcurrentAgentsByState: {}, noProgressThreshold: 3 },
           worker: { ...DEFAULT_SERVICE_CONFIG.worker },
           codebuddy: { command: 'codebuddy', dangerouslySkipPermissions: false, mcpStrict: true, turnTimeoutMs: 3600000, readTimeoutMs: 5000, stallTimeoutMs: 300000 },
@@ -501,12 +511,14 @@ describe('runCli', () => {
           fetchIssuesByStates: async () => [],
           fetchIssueStatesByIds: async () => new Map(),
         },
+        transcriptStore: createDisabledTranscriptStore(),
       })),
       reload: vi.fn(async () => ({
         ok: true,
         errors: [],
         workflowPath,
       })),
+      close: vi.fn(),
     };
     const requestTick = vi.fn(async () => undefined);
     const stop = vi.fn(async () => undefined);
@@ -531,5 +543,6 @@ describe('runCli', () => {
     expect(schedulerDependencies?.getTickContext).toBeTypeOf('function');
     await schedulerDependencies?.getTickContext?.();
     expect(runtimeSource.reload).toHaveBeenCalledTimes(2);
+    expect(runtimeSource.close).toHaveBeenCalledTimes(1);
   });
 });

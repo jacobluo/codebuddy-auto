@@ -35,6 +35,11 @@ export const serverConfigSchema = z.object({
   host: z.string(),
 });
 
+export const transcriptConfigSchema = z.object({
+  enabled: z.boolean(),
+  sqlitePath: z.string().min(1),
+});
+
 export const agentConfigSchema = z.object({
   maxConcurrentAgents: z.number().int().positive(),
   maxTurns: z.number().int().positive(),
@@ -96,6 +101,7 @@ export const serviceConfigSchema = z.object({
   workspace: workspaceConfigSchema,
   hooks: hooksConfigSchema,
   server: serverConfigSchema,
+  transcript: transcriptConfigSchema,
   agent: agentConfigSchema,
   worker: workerConfigSchema,
   codebuddy: codebuddyConfigSchema,
@@ -124,6 +130,10 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
   server: {
     host: '127.0.0.1',
+  },
+  transcript: {
+    enabled: true,
+    sqlitePath: '.codebuddy-auto/transcripts.sqlite',
   },
   agent: {
     maxConcurrentAgents: 10,

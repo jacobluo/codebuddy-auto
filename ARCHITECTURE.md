@@ -27,6 +27,7 @@
 | runner | `runner/` | SDK turn adapter 与 SSH/CLI fallback adapter |
 | workspace | `workspace/` | issue workspace 映射、目录创建/复用/移除、git worktree、hooks |
 | progress | `progress/` | workspace/tracker fingerprint 与 no-progress 判断 |
+| transcript | `transcript/` | 本地 SQLite observability store，保存 agent 对话、Dashboard event history 与原始 SDK/CLI payload |
 | logging/status | `logging/` | pino logger、runtime snapshot、HTTP API、SSE event bus |
 | dashboard | `typescript/dashboard/` | React Dashboard，消费 bootstrap/state/events API |
 
@@ -188,6 +189,51 @@ stuck issue 的处理方式：
 
 tracker 是外部 truth source，runtime state 是本进程调度账本。进程重启后的恢复依赖 tracker 状态和 workspace 文件系统，而不是恢复一个精确的内存 session。
 
+### 6.1 Transcript Store
+
+Transcript store 是一个持久化观测面，不是 scheduler runtime state 的恢复机制。它包含两类 durable 数据：完整 agent transcript，以及 Dashboard Events 面板使用的 event history。
+
+```text
+WORKFLOW.md
+  transcript.enabled / sqlite_path
+        │
+        ▼
+createWorkflowRuntimeSource
+  ├─ enabled  → openSqliteTranscriptStore(.codebuddy-auto/transcripts.sqlite)
+  └─ disabled → createDisabledTranscriptStore()
+        │
+        ▼
+runner / worker append transcript events
+        │
+        ▼
+status API / Dashboard Transcript view
+
+eventBus.emit(issue/scheduler/state events)
+        │
+        ▼
+dashboard_events table
+        │
+        ▼
+status API / Dashboard Events history
+```
+
+它保存：
+
+- user prompt：首轮 task prompt 与 continuation prompt
+- assistant message：SDK / CLI stream 中提取到的文本
+- runtime/result/error：session_started、turn_completed、turn_failed、timeout、stderr、malformed line
+- raw payload：SDK message 或 CLI stream-json 的原始 JSON 载荷
+- Dashboard event history：issue_event、scheduler_event、state_snapshot 的 id、timestamp、issueId 与 payload
+
+它不保存、也不恢复：
+
+- `state.running` / `state.claimed` / `state.retryAttempts`
+- live SDK session object
+- worker handle / graceful-exit channel
+- progress gate 的调度决策
+
+因此进程重启后，调度仍以 tracker state + workspace 为准重新判断候选；SQLite 只用于事后查看完整对话过程和 Dashboard event history。transcript 写入失败会让当前 agent turn 明确失败，避免 Dashboard 显示“成功”但缺失关键对话记录；Dashboard event 写入失败不会中断调度或 SSE live delivery。
+
 ## 7. Symphony SPEC 对位
 
 | 章节 | 实现 |
@@ -203,8 +249,10 @@ status server 提供两类接口：
 
 - Dashboard bootstrap：`GET /api/v1/dashboard/bootstrap`
 - 运行态与控制：`GET /api/v1/state`、`GET /api/v1/events`、`GET /api/v1/<issue>`、`POST /api/v1/refresh`
+- Dashboard event history：`GET /api/v1/events/history?issueId=<id>&after=<eventId>&limit=<n>`
+- Transcript：`GET /api/v1/issues/<issueId>/transcript?after=<id>&limit=<n>`
 
-Dashboard 是观察面，不参与调度决策。SSE event bus 透出 dispatch、session、turn、progress、stuck 等事件，前端只消费这些投影。
+Dashboard 是观察面，不参与调度决策。SSE event bus 透出 dispatch、session、turn、progress、stuck 等 live events，并把 Dashboard event history 追加到 SQLite。Events view 初始读取持久化 history 后继续接 SSE；Transcript view 读取 SQLite 中的完整对话事件。两者并列展示：Events 用于实时排障和短期运行轨迹，Transcript 用于查看完整对话历史。
 
 ## 9. 文档分工
 

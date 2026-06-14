@@ -3,6 +3,7 @@ import readline from 'node:readline';
 
 import { z } from 'zod';
 
+import type { TranscriptRole, TranscriptStore } from '../transcript/index.js';
 import type { CodebuddyCommand } from './build-codebuddy-command.js';
 
 const rawSystemInitEventSchema = z.object({
@@ -153,6 +154,11 @@ export type CodebuddyRunnerEvent =
 
 export interface RunCodebuddyTurnInput {
   command: CodebuddyCommand;
+  prompt?: string;
+  issueId?: string;
+  transcriptStore?: TranscriptStore;
+  transcriptSessionId?: number;
+  turnIndex?: number;
   readTimeoutMs?: number;
   turnTimeoutMs?: number;
   stallTimeoutMs?: number;
@@ -323,6 +329,36 @@ function parseEventLine(line: string): CodebuddyRunnerEvent {
 export async function runCodebuddyTurn(
   input: RunCodebuddyTurnInput,
 ): Promise<RunCodebuddyTurnResult> {
+  let transcriptSequence = 0;
+  const recordTranscriptEvent = (
+    role: TranscriptRole,
+    eventType: string,
+    payload: Record<string, unknown>,
+    text?: string,
+  ): void => {
+    if (!input.transcriptStore || input.transcriptSessionId === undefined || !input.issueId) {
+      return;
+    }
+    if (role === 'assistant' && eventType === 'message' && (!text || text.trim().length === 0)) {
+      return;
+    }
+    transcriptSequence += 1;
+    input.transcriptStore.recordEvent({
+      sessionId: input.transcriptSessionId,
+      issueId: input.issueId,
+      turnIndex: input.turnIndex,
+      sequence: transcriptSequence,
+      role,
+      eventType,
+      text,
+      payload,
+    });
+  };
+
+  if (input.prompt) {
+    recordTranscriptEvent('user', 'prompt', { prompt: input.prompt }, input.prompt);
+  }
+
   const child = spawn(input.command.command, input.command.args, {
     cwd: input.command.cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -362,8 +398,34 @@ export async function runCodebuddyTurn(
   stdoutReader.on('line', (line) => {
     markReadable();
     refreshStallTimer();
+    const sanitizedLine = stripTerminalControlSequences(line);
+    let rawPayload: Record<string, unknown> | undefined;
+    try {
+      const parsed = JSON.parse(sanitizedLine) as unknown;
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        rawPayload = parsed as Record<string, unknown>;
+      }
+    } catch {
+      rawPayload = undefined;
+    }
     const event = parseEventLine(line);
     events.push(event);
+    if (event.event === 'session_started') {
+      recordTranscriptEvent('runtime', 'session_started', rawPayload ?? event.payload);
+    } else if (event.event === 'notification') {
+      recordTranscriptEvent('assistant', 'message', event.payload.raw, event.payload.message);
+    } else if (event.event === 'turn_completed') {
+      recordTranscriptEvent('result', 'turn_completed', rawPayload ?? event.payload);
+    } else if (event.event === 'turn_failed') {
+      recordTranscriptEvent('error', 'turn_failed', rawPayload ?? event.payload, event.payload.message);
+    } else if (event.event === 'malformed') {
+      recordTranscriptEvent('runtime', 'malformed', event.payload, event.payload.line);
+    } else {
+      const payload = 'raw' in event.payload && typeof event.payload.raw === 'object' && event.payload.raw !== null
+        ? event.payload.raw as Record<string, unknown>
+        : event.payload;
+      recordTranscriptEvent('runtime', event.event, payload);
+    }
     if (input.onEvent) {
       try {
         input.onEvent(event);
@@ -377,6 +439,7 @@ export async function runCodebuddyTurn(
     markReadable();
     refreshStallTimer();
     stderrLines.push(line);
+    recordTranscriptEvent('runtime', 'stderr', { line }, line);
   });
 
   let timedOut = false;
@@ -437,6 +500,7 @@ export async function runCodebuddyTurn(
   stderrReader.close();
 
   if (timedOut && input.turnTimeoutMs) {
+    recordTranscriptEvent('error', 'turn_timed_out', { timeoutMs: input.turnTimeoutMs });
     return {
       events: [{
         event: 'turn_timed_out',
@@ -450,6 +514,7 @@ export async function runCodebuddyTurn(
   }
 
   if (readTimedOut && input.readTimeoutMs) {
+    recordTranscriptEvent('error', 'turn_read_timed_out', { timeoutMs: input.readTimeoutMs });
     return {
       events: [{
         event: 'turn_read_timed_out',
@@ -463,6 +528,7 @@ export async function runCodebuddyTurn(
   }
 
   if (stalled && input.stallTimeoutMs) {
+    recordTranscriptEvent('error', 'turn_stalled', { timeoutMs: input.stallTimeoutMs });
     return {
       events: [{
         event: 'turn_stalled',
@@ -482,13 +548,15 @@ export async function runCodebuddyTurn(
       || event.event === 'turn_read_timed_out',
   );
   if (!hasTerminalEvent && exitCode !== 0) {
-    events.push({
+    const event: CodebuddyRunnerEvent = {
       event: 'turn_failed',
       payload: {
         exitCode,
         stderr: stderrLines,
       },
-    });
+    };
+    events.push(event);
+    recordTranscriptEvent('error', 'turn_failed', event.payload);
   }
 
   return {

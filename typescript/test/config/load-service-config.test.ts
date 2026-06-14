@@ -42,6 +42,8 @@ describe('loadServiceConfig', () => {
     expect(config.worker.kind).toBe('local');
     expect(config.codebuddy.command).toBe('codebuddy');
     expect(config.server.host).toBe('127.0.0.1');
+    expect(config.transcript.enabled).toBe(true);
+    expect(config.transcript.sqlitePath).toBe(path.resolve('/tmp/project', '.codebuddy-auto/transcripts.sqlite'));
   });
 
   it('resolves env-backed tracker api key and workspace overrides', () => {
@@ -166,5 +168,20 @@ body
 
     expect(config.codebuddy.model).toBe('codebuddy-sonnet');
     expect(config.codebuddy.settingSources).toEqual(['user', 'project']);
+  });
+
+  it('loads transcript persistence overrides', () => {
+    const workflow = `---
+transcript:
+  enabled: false
+  sqlite_path: ./runtime/transcripts.sqlite
+---
+body
+`;
+
+    const config = loadServiceConfig(workflow, '/repo/WORKFLOW.md', {});
+
+    expect(config.transcript.enabled).toBe(false);
+    expect(config.transcript.sqlitePath).toBe(path.resolve('/repo', 'runtime/transcripts.sqlite'));
   });
 });

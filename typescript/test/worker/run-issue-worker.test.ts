@@ -11,11 +11,19 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Issue, ServiceConfig } from '../../src/spec/index.js';
+import type {
+  TranscriptEvent,
+  TranscriptEventInput,
+  TranscriptSession,
+  TranscriptSessionInput,
+  TranscriptStore,
+} from '../../src/transcript/index.js';
 import type { Tracker } from '../../src/tracker/index.js';
 import { runIssueWorker, type IssueWorkerDeps } from '../../src/worker/run-issue-worker.js';
 import { createWorkerHandleStore } from '../../src/worker/worker-handle-store.js';
 import {
   assistantText,
+  assistantToolUse,
   createFakeSdk,
   resultSuccess,
   systemInit,
@@ -106,7 +114,247 @@ function withFake(plan: ScenarioPlan): IssueWorkerDeps['createSession'] {
   return (options) => fake.createSession(options);
 }
 
+function createRecordingTranscriptStore(): {
+  store: TranscriptStore;
+  sessions: TranscriptSession[];
+  events: TranscriptEvent[];
+} {
+  const sessions: TranscriptSession[] = [];
+  const events: TranscriptEvent[] = [];
+  const store: TranscriptStore = {
+    recordSession(input: TranscriptSessionInput): TranscriptSession {
+      const now = '2026-05-31T00:00:00.000Z';
+      const session: TranscriptSession = {
+        id: sessions.length + 1,
+        issueId: input.issueId,
+        issueTitle: input.issueTitle,
+        workspacePath: input.workspacePath,
+        provider: input.provider,
+        sdkSessionId: input.sdkSessionId,
+        status: input.status ?? 'running',
+        metadata: input.metadata ?? {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      sessions.push(session);
+      return session;
+    },
+    recordEvent(input: TranscriptEventInput): TranscriptEvent {
+      const event: TranscriptEvent = {
+        id: events.length + 1,
+        sessionId: input.sessionId,
+        issueId: input.issueId,
+        turnIndex: input.turnIndex,
+        sequence: input.sequence,
+        role: input.role,
+        eventType: input.eventType,
+        text: input.text,
+        payload: input.payload,
+        createdAt: '2026-05-31T00:00:00.000Z',
+      };
+      events.push(event);
+      return event;
+    },
+    listEvents(issueId: string): TranscriptEvent[] {
+      return events.filter((event) => event.issueId === issueId);
+    },
+    recordDashboardEvent(input) {
+      return input;
+    },
+    listDashboardEvents() {
+      return [];
+    },
+    getLatestDashboardEventId() {
+      return 0;
+    },
+    close() {
+      return;
+    },
+  };
+  return { store, sessions, events };
+}
+
 describe('runIssueWorker — happy path (3.1)', () => {
+  it('records initial and continuation prompts plus SDK messages to transcript storage', async () => {
+    const issue = makeIssue();
+    const config = makeConfig({ maxTurns: 3 });
+    const store = createWorkerHandleStore();
+    const transcript = createRecordingTranscriptStore();
+    const trackerHelper = makeTracker({
+      stateSequence: [
+        { state: 'open', labels: ['agent-ready'] },
+        { state: 'open', labels: ['agent-ready', 'agent-finish'] },
+      ],
+    });
+    const plan: ScenarioPlan = {
+      sessionId: 'sess-transcript',
+      turns: [
+        {
+          messages: [
+            systemInit('sess-transcript'),
+            assistantText('sess-transcript', 'turn one answer'),
+            resultSuccess('sess-transcript', 111),
+          ],
+        },
+        {
+          messages: [
+            assistantText('sess-transcript', 'turn two answer'),
+            resultSuccess('sess-transcript', 222),
+          ],
+        },
+      ],
+    };
+
+    const result = await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config,
+      tracker: trackerHelper.tracker,
+      handleStore: store,
+      createSession: withFake(plan),
+      initialPrompt: 'custom first prompt',
+      transcriptStore: transcript.store,
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(result.exitReason).toBe('finish_label_observed');
+    expect(transcript.sessions).toMatchObject([
+      {
+        issueId: issue.id,
+        issueTitle: issue.title,
+        workspacePath: '/tmp/fake/issue-6',
+        provider: 'sdk',
+        sdkSessionId: 'sess-transcript',
+      },
+    ]);
+    expect(transcript.events.map((event) => [event.turnIndex, event.role, event.eventType, event.text])).toEqual([
+      [1, 'user', 'prompt', expect.stringContaining('custom first prompt')],
+      [1, 'runtime', 'session_started', undefined],
+      [1, 'assistant', 'message', 'turn one answer'],
+      [1, 'result', 'turn_completed', undefined],
+      [2, 'user', 'prompt', expect.stringContaining('continuation turn 2')],
+      [2, 'assistant', 'message', 'turn two answer'],
+      [2, 'result', 'turn_completed', undefined],
+    ]);
+  });
+
+  it('does not persist SDK assistant messages without display text', async () => {
+    const issue = makeIssue();
+    const transcript = createRecordingTranscriptStore();
+    const trackerHelper = makeTracker({
+      stateSequence: [
+        { state: 'open', labels: ['agent-ready'] },
+        { state: 'open', labels: ['agent-ready', 'agent-finish'] },
+      ],
+    });
+
+    await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config: makeConfig({ maxTurns: 1 }),
+      tracker: trackerHelper.tracker,
+      handleStore: createWorkerHandleStore(),
+      createSession: withFake({
+        sessionId: 'sess-empty-message',
+        turns: [
+          {
+            messages: [
+              systemInit('sess-empty-message'),
+              assistantToolUse('sess-empty-message', 'Read', { file_path: 'README.md' }),
+              assistantText('sess-empty-message', 'Visible worker answer'),
+              resultSuccess('sess-empty-message'),
+            ],
+          },
+        ],
+      }),
+      initialPrompt: 'custom first prompt',
+      transcriptStore: transcript.store,
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(transcript.events.filter((event) => event.role === 'assistant').map((event) => event.text)).toEqual([
+      'Visible worker answer',
+    ]);
+  });
+
+  it('records SDK failure and timeout terminal events to transcript storage', async () => {
+    const issue = makeIssue();
+    const failureTranscript = createRecordingTranscriptStore();
+    const failureResult = await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config: makeConfig({ maxTurns: 2 }),
+      tracker: makeTracker().tracker,
+      handleStore: createWorkerHandleStore(),
+      createSession: withFake({
+        sessionId: 'sess-fail',
+        turns: [{ messages: [{ ...resultSuccess('sess-fail'), is_error: true, subtype: 'error_during_execution', errors: ['tool failed'] }] }],
+      }),
+      transcriptStore: failureTranscript.store,
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(failureResult.exitReason).toBe('turn_failed');
+    expect(failureTranscript.events.at(-1)).toMatchObject({
+      role: 'error',
+      eventType: 'turn_failed',
+      text: 'tool failed',
+    });
+
+    const timeoutTranscript = createRecordingTranscriptStore();
+    const timeoutResult = await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config: { ...makeConfig({ maxTurns: 2 }), codebuddy: { ...DEFAULT_SERVICE_CONFIG.codebuddy, turnTimeoutMs: 10 } },
+      tracker: makeTracker().tracker,
+      handleStore: createWorkerHandleStore(),
+      createSession: withFake({
+        sessionId: 'sess-timeout',
+        turns: [{ messages: [systemInit('sess-timeout'), assistantText('sess-timeout', 'still running')], hangAfterMessages: true }],
+      }),
+      transcriptStore: timeoutTranscript.store,
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(timeoutResult.exitReason).toBe('turn_timed_out');
+    expect(timeoutTranscript.events.at(-1)).toMatchObject({
+      role: 'error',
+      eventType: 'turn_timed_out',
+      payload: { timeoutMs: 10 },
+    });
+  });
+
+  it('classifies transcript write failures as current-turn failures', async () => {
+    const issue = makeIssue();
+    const store = createRecordingTranscriptStore();
+    store.store.recordEvent = () => {
+      throw new Error('sqlite is read-only');
+    };
+    const workerEvents: Array<{ event: string; payload: Record<string, unknown> }> = [];
+
+    const result = await runIssueWorker({
+      issue,
+      workspacePath: '/tmp/fake/issue-6',
+      config: makeConfig({ maxTurns: 2 }),
+      tracker: makeTracker().tracker,
+      handleStore: createWorkerHandleStore(),
+      createSession: withFake({
+        sessionId: 'sess-write-fail',
+        turns: [{ messages: [systemInit('sess-write-fail'), resultSuccess('sess-write-fail')] }],
+      }),
+      transcriptStore: store.store,
+      onWorkerEvent: (event) => workerEvents.push(event),
+      now: () => new Date('2026-05-31T00:00:00.000Z'),
+    });
+
+    expect(result.exitReason).toBe('turn_failed');
+    expect(result.errorMessage).toContain('transcript write failed: sqlite is read-only');
+    expect(workerEvents.at(-1)).toMatchObject({
+      event: 'turn_failed',
+      payload: { message: 'transcript write failed: sqlite is read-only' },
+    });
+  });
+
   it('agent applies finish_label by turn 5; worker exits without safety-net label', async () => {
     const issue = makeIssue();
     const config = makeConfig({ maxTurns: 20 });

@@ -24,6 +24,7 @@
 import { createIssueLogger, type EventBus, type RuntimeLogger } from '../logging/index.js';
 import type { CodebuddyRunnerEvent } from '../runner/run-codebuddy-turn.js';
 import type { Issue, OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { createRunAttempt } from '../runner/index.js';
 import { createProgressFingerprint, recordProgressFingerprint } from '../progress/index.js';
@@ -42,6 +43,7 @@ export interface DispatchLocalIssueInput {
   promptTemplate: string;
   logger?: RuntimeLogger;
   eventBus?: EventBus;
+  transcriptStore?: TranscriptStore;
   /**
    * Factory for the SDK Session. Production wires this to
    * `createSdkSession(...)`; tests inject a FakeSdk-backed factory.
@@ -142,6 +144,7 @@ export async function dispatchLocalIssue(
         handleStore: input.handleStore,
         createSession: input.createSession,
         initialPrompt,
+        transcriptStore: input.transcriptStore,
         onWorkerEvent: (evt) => {
           if (input.eventBus) {
             input.eventBus.emit({

@@ -1,6 +1,7 @@
 import type { RuntimeLogger, EventBus } from '../logging/index.js';
 import type { SdkSessionStore } from '../runner/index.js';
 import type { ServiceConfig, OrchestratorRuntimeState } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { removeWorkspace } from '../workspace/index.js';
 import type { WorkerHandleStore, CreateSessionOptions } from '../worker/index.js';
@@ -24,6 +25,7 @@ export interface SchedulerOnceDependencies {
   workerHandleStore?: WorkerHandleStore;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createSession?: (opts: CreateSessionOptions) => any;
+  transcriptStore?: TranscriptStore;
   getConfig?: () => ServiceConfig;
 }
 
@@ -130,7 +132,15 @@ export async function runSchedulerOnce(
   // session alive across turns (Symphony §10.3).
   if (config.worker.kind === 'ssh') {
     const continuationRunner = dependencies.runContinuationCycle ?? runContinuationCycle;
-    const continuation = await continuationRunner(state, config, logger, tracker, dependencies.eventBus, dependencies.sessionStore);
+    const continuation = await continuationRunner(
+      state,
+      config,
+      logger,
+      tracker,
+      dependencies.eventBus,
+      dependencies.sessionStore,
+      dependencies.transcriptStore,
+    );
     continuedIssueIds = continuation.continuedIssueIds;
   }
 
@@ -141,6 +151,7 @@ export async function runSchedulerOnce(
     ? {
       handleStore: dependencies.workerHandleStore,
       createSession: dependencies.createSession,
+      transcriptStore: dependencies.transcriptStore,
       getConfig: dependencies.getConfig,
     }
     : undefined;
@@ -153,6 +164,7 @@ export async function runSchedulerOnce(
     dependencies.eventBus,
     dependencies.sessionStore,
     localDeps,
+    dependencies.transcriptStore,
   );
 
   return {

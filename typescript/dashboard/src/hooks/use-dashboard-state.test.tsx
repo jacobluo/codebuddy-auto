@@ -360,6 +360,65 @@ describe('useDashboardState', () => {
     });
   });
 
+  it('loads persisted issue events when selecting an issue', async () => {
+    const bootstrapPayload = createBootstrapPayload();
+    const eventSource = new FakeEventSource('/api/v1/events');
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/dashboard/bootstrap')) {
+        return new Response(JSON.stringify(bootstrapPayload), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/events/history')) {
+        return new Response(JSON.stringify({
+          nextAfter: 7,
+          events: [
+            {
+              id: 7,
+              type: 'issue_event',
+              timestamp: '2026-05-23T00:00:05Z',
+              issueId: '1',
+              payload: { event: 'tool_call', tool: 'read_file' },
+            },
+          ],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/v1/issues/1/transcript')) {
+        return new Response(JSON.stringify({ issueId: '1', events: [], nextAfter: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    render(
+      <DashboardStateProbe
+        dependencies={{
+          fetchImpl,
+          createEventSource: () => eventSource,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('ready');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'select 1' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-events').textContent).toBe('1');
+    });
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/events/history?issueId=1&limit=200');
+  });
+
   it('ignores malformed SSE payloads and events without issue ids', async () => {
     const bootstrapPayload = createBootstrapPayload();
     const eventSource = new FakeEventSource('/api/v1/events');

@@ -1,5 +1,6 @@
 import type { EventBus } from '../logging/event-bus.js';
 import type { ServiceConfig } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import type { CodebuddyCommand } from './build-codebuddy-command.js';
 
 export type { CodebuddyRunnerEvent, RunCodebuddyTurnResult } from './run-codebuddy-turn-cli.js';
@@ -20,6 +21,9 @@ export interface RunCodebuddyTurnInput {
   onEvent?: (event: CodebuddyRunnerEvent) => void;
   eventBus?: EventBus;
   issueId?: string;
+  transcriptStore?: TranscriptStore;
+  transcriptSessionId?: number;
+  turnIndex?: number;
   /**
    * Live SDK session — REQUIRED when `config.worker.kind === 'local'`.
    * The caller (typically `runIssueWorker`) owns its lifecycle.
@@ -46,6 +50,9 @@ export async function runCodebuddyTurn(input: RunCodebuddyTurnInput): Promise<Ru
       onEvent: input.onEvent,
       eventBus: input.eventBus,
       issueId: input.issueId,
+      transcriptStore: input.transcriptStore,
+      transcriptSessionId: input.transcriptSessionId,
+      turnIndex: input.turnIndex,
     });
   }
 
@@ -57,5 +64,10 @@ export async function runCodebuddyTurn(input: RunCodebuddyTurnInput): Promise<Ru
     turnTimeoutMs: input.turnTimeoutMs,
     stallTimeoutMs: input.stallTimeoutMs,
     onEvent: input.onEvent,
+    prompt: input.prompt,
+    issueId: input.issueId,
+    transcriptStore: input.transcriptStore,
+    transcriptSessionId: input.transcriptSessionId,
+    turnIndex: input.turnIndex,
   });
 }

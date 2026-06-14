@@ -103,10 +103,35 @@ export interface DashboardBootstrapPayload {
 }
 
 export interface DashboardSseEnvelope {
+  id?: number;
   type: 'issue_event' | 'scheduler_event' | 'state_snapshot';
   timestamp: string;
   issueId?: string;
   payload: DashboardSnapshot | Record<string, unknown>;
+}
+
+export interface DashboardTranscriptEvent {
+  id: number;
+  sessionId: number;
+  issueId: string;
+  turnIndex?: number;
+  sequence: number;
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'result' | 'error' | 'runtime';
+  eventType: string;
+  text?: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface DashboardTranscriptPayload {
+  issueId: string;
+  events: DashboardTranscriptEvent[];
+  nextAfter: number | null;
+}
+
+export interface DashboardEventsHistoryPayload {
+  events: DashboardSseEnvelope[];
+  nextAfter: number | null;
 }
 
 export interface DashboardMessageEventLike {

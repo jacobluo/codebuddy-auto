@@ -14,6 +14,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Issue, ServiceConfig } from '../../src/spec/index.js';
 import { DEFAULT_SERVICE_CONFIG } from '../../src/spec/index.js';
 import { createRuntimeState, runDispatchCycle } from '../../src/scheduler/index.js';
+import type {
+  TranscriptEvent,
+  TranscriptEventInput,
+  TranscriptSession,
+  TranscriptSessionInput,
+  TranscriptStore,
+} from '../../src/transcript/index.js';
 import type { Tracker } from '../../src/tracker/index.js';
 import { createWorkerHandleStore } from '../../src/worker/index.js';
 import {
@@ -64,6 +71,67 @@ function makeStubTracker(issue: Issue): Tracker {
     },
     getFinishLabel() {
       return 'agent-finish';
+    },
+  };
+}
+
+function createRecordingTranscriptStore(): {
+  store: TranscriptStore;
+  events: TranscriptEvent[];
+} {
+  const sessions: TranscriptSession[] = [];
+  const events: TranscriptEvent[] = [];
+  return {
+    events,
+    store: {
+      recordSession(input: TranscriptSessionInput): TranscriptSession {
+        const now = '2026-05-31T00:00:00.000Z';
+        const session = {
+          id: sessions.length + 1,
+          issueId: input.issueId,
+          issueTitle: input.issueTitle,
+          workspacePath: input.workspacePath,
+          provider: input.provider,
+          sdkSessionId: input.sdkSessionId,
+          status: input.status ?? 'running',
+          metadata: input.metadata ?? {},
+          createdAt: now,
+          updatedAt: now,
+        };
+        sessions.push(session);
+        return session;
+      },
+      recordEvent(input: TranscriptEventInput): TranscriptEvent {
+        const event = {
+          id: events.length + 1,
+          sessionId: input.sessionId,
+          issueId: input.issueId,
+          turnIndex: input.turnIndex,
+          sequence: input.sequence,
+          role: input.role,
+          eventType: input.eventType,
+          text: input.text,
+          payload: input.payload,
+          createdAt: '2026-05-31T00:00:00.000Z',
+        };
+        events.push(event);
+        return event;
+      },
+      listEvents(issueId: string): TranscriptEvent[] {
+        return events.filter((event) => event.issueId === issueId);
+      },
+      recordDashboardEvent(input) {
+        return input;
+      },
+      listDashboardEvents() {
+        return [];
+      },
+      getLatestDashboardEventId() {
+        return 0;
+      },
+      close() {
+        return;
+      },
     },
   };
 }
@@ -134,5 +202,52 @@ describe('runDispatchCycle — local mode (§5.5)', () => {
 
     await Promise.all(r1.workerPromises ?? []);
     expect(sessionsCreated).toEqual([1]);
+  });
+
+  it('passes transcript storage into the local SDK worker', async () => {
+    const workspaceRoot = makeWorkspaceRoot();
+    const issue: Issue = {
+      id: 'iss-transcript',
+      identifier: '#iss-transcript',
+      title: 'Record transcript',
+      description: 'desc',
+      priority: null,
+      state: 'open',
+      branchName: null,
+      url: null,
+      labels: ['agent-ready'],
+      blockedBy: [],
+      createdAt: null,
+      updatedAt: null,
+    };
+    const transcript = createRecordingTranscriptStore();
+    const config = makeConfig(workspaceRoot);
+    const state = createRuntimeState();
+    const handleStore = createWorkerHandleStore();
+    const fake = createFakeSdk({
+      sessionId: 'sess-transcript',
+      turns: [
+        { messages: [systemInit('sess-transcript'), assistantText('sess-transcript', 'stored'), resultSuccess('sess-transcript')] },
+      ],
+    });
+
+    const result = await runDispatchCycle(
+      state,
+      makeStubTracker(issue),
+      config,
+      'Prompt for {{ issue.identifier }}',
+      undefined,
+      undefined,
+      undefined,
+      {
+        handleStore,
+        createSession: (opts) => fake.createSession(opts),
+        transcriptStore: transcript.store,
+      },
+    );
+
+    await Promise.all(result.workerPromises ?? []);
+    expect(transcript.events.map((event) => event.eventType)).toContain('prompt');
+    expect(transcript.events.map((event) => event.text)).toContain('stored');
   });
 });

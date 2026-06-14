@@ -6,6 +6,7 @@ export {
   pollingConfigSchema,
   serviceConfigSchema,
   serverConfigSchema,
+  transcriptConfigSchema,
   trackerConfigSchema,
   workerConfigSchema,
   workspaceConfigSchema,

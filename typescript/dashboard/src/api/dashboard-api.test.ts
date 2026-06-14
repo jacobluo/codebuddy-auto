@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fetchDashboardBootstrap, requestDashboardRefresh } from './dashboard-api.js';
-import type { DashboardBootstrapPayload } from '../lib/dashboard-types.js';
+import {
+  fetchDashboardBootstrap,
+  fetchDashboardEventsHistory,
+  fetchIssueTranscript,
+  requestDashboardRefresh,
+} from './dashboard-api.js';
+import type {
+  DashboardBootstrapPayload,
+  DashboardEventsHistoryPayload,
+  DashboardTranscriptPayload,
+} from '../lib/dashboard-types.js';
 
 function createBootstrapPayload(): DashboardBootstrapPayload {
   return {
@@ -86,5 +95,88 @@ describe('dashboard api client', () => {
     const failingFetch = vi.fn(async () => new Response('nope', { status: 409 }));
 
     await expect(requestDashboardRefresh(failingFetch)).rejects.toThrow('dashboard refresh failed with status 409');
+  });
+
+  it('fetches issue transcript events with pagination parameters', async () => {
+    const payload: DashboardTranscriptPayload = {
+      issueId: '1',
+      nextAfter: 2,
+      events: [
+        {
+          id: 2,
+          sessionId: 1,
+          issueId: '1',
+          turnIndex: 1,
+          sequence: 2,
+          role: 'assistant',
+          eventType: 'message',
+          text: 'hello',
+          payload: { type: 'assistant' },
+          createdAt: '2026-06-13T10:00:00.000Z',
+        },
+      ],
+    };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await expect(fetchIssueTranscript(fetchImpl, 'issue/1', { apiBaseUrl: '/dashboard', after: 1, limit: 20 })).resolves.toEqual(payload);
+
+    expect(fetchImpl).toHaveBeenCalledWith('/dashboard/api/v1/issues/issue%2F1/transcript?after=1&limit=20');
+  });
+
+  it('surfaces unavailable and error transcript responses', async () => {
+    const unavailableFetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'transcript_unavailable',
+        message: 'transcript store is disabled',
+      },
+    }), { status: 503 }));
+
+    await expect(fetchIssueTranscript(unavailableFetch, '1')).rejects.toThrow('transcript store is disabled');
+
+    const failingFetch = vi.fn(async () => new Response('nope', { status: 500 }));
+
+    await expect(fetchIssueTranscript(failingFetch, '1')).rejects.toThrow('issue transcript failed with status 500');
+  });
+
+  it('fetches dashboard event history with optional filters', async () => {
+    const payload: DashboardEventsHistoryPayload = {
+      nextAfter: 8,
+      events: [
+        {
+          id: 8,
+          type: 'issue_event',
+          issueId: '1',
+          timestamp: '2026-06-13T10:00:00.000Z',
+          payload: { event: 'tool_result' },
+        },
+      ],
+    };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await expect(fetchDashboardEventsHistory(fetchImpl, {
+      apiBaseUrl: '/dashboard',
+      issueId: 'issue/1',
+      after: 7,
+      limit: 20,
+    })).resolves.toEqual(payload);
+
+    expect(fetchImpl).toHaveBeenCalledWith('/dashboard/api/v1/events/history?issueId=issue%2F1&after=7&limit=20');
+  });
+
+  it('surfaces unavailable dashboard event history responses', async () => {
+    const unavailableFetch = vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'event_history_unavailable',
+        message: 'transcript store is disabled',
+      },
+    }), { status: 503 }));
+
+    await expect(fetchDashboardEventsHistory(unavailableFetch, { issueId: '1' })).rejects.toThrow('transcript store is disabled');
   });
 });

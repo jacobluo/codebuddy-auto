@@ -98,6 +98,36 @@ node ../codebuddy-auto/typescript/dist/src/main.js daemon --model codebuddy-opus
 
 调度器只会捞取 **open + `agent-ready` 标签** 的 issue。
 
+### Transcript 持久化
+
+默认情况下，agent 对话过程会持久化到运行目录下的 SQLite：
+
+```text
+.codebuddy-auto/transcripts.sqlite
+```
+
+Dashboard 的 issue 详情面板提供 `Events / Transcript` 切换：
+
+- `Events` 先读取 SQLite 中持久化的 issue event 历史，再接入实时 SSE live events
+- `Transcript` 从 SQLite 读取持久化的 user prompt、assistant message、result/error、stderr 与原始 SDK/CLI payload
+
+可在 `WORKFLOW.md` front matter 中调整：
+
+```yaml
+transcript:
+  enabled: true
+  sqlite_path: ./.codebuddy-auto/transcripts.sqlite
+```
+
+`sqlite_path` 相对 `WORKFLOW.md` 所在目录解析。若需要完全关闭本地 transcript：
+
+```yaml
+transcript:
+  enabled: false
+```
+
+关闭后调度仍可运行，但 Dashboard Transcript API 与持久化 Events 历史 API 会返回 unavailable。Transcript 会保存完整 prompt、agent 输出、工具/错误 payload；Events 会保存调度、turn、progress、stuck 等观测事件 payload。这些数据可能包含仓库内容、issue 内容、路径、命令输出或其他敏感信息；请把该 SQLite 文件按运行凭据同等级别保护，不要提交到业务仓库。
+
 ## 本地安装 CLI
 
 不发布到 npm registry 时，也可以从源码安装成本机命令；不需要 NPM 账号。
@@ -184,6 +214,8 @@ Dashboard：
 - `GET /` — 由 status server 托管的 React SPA shell（静态资源来自 `typescript/dist/dashboard`）
 - `GET /api/v1/dashboard/bootstrap` — Dashboard 首屏 bootstrap 数据（配置摘要 + 初始 snapshot + `repoUrl` + `serverTime`）。snapshot 会包含 `running`、`retrying`、`progress`、`stuck`、`completedIssueIds`
 - `GET /api/v1/state` / `events` / `<issue>` — 结构化 snapshot / SSE / 单 issue；SSE 会透出 `progress_fingerprint_recorded` 与 `issue_stuck`
+- `GET /api/v1/events/history` — 读取持久化 Dashboard event history，支持 `issueId` / `after` / `limit`
+- `GET /api/v1/issues/<issueId>/transcript` — 读取该 issue 的持久化 transcript，支持 `after` / `limit`
 - `POST /api/v1/refresh` — 排队一次额外 tick
 
 前端开发：

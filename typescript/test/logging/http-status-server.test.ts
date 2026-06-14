@@ -6,6 +6,16 @@ import { describe, expect, it } from 'vitest';
 
 import { createEventBus, createServerStateController, startStatusServer } from '../../src/logging/index.js';
 import { DEFAULT_SERVICE_CONFIG, type Issue, type OrchestratorRuntimeState } from '../../src/spec/index.js';
+import {
+  type DashboardEventLogEntry,
+  type DashboardEventLogInput,
+  createDisabledTranscriptStore,
+  type TranscriptEvent,
+  type TranscriptEventInput,
+  type TranscriptSession,
+  type TranscriptSessionInput,
+  type TranscriptStore,
+} from '../../src/transcript/index.js';
 import type { Tracker } from '../../src/tracker/index.js';
 
 class NoopTracker implements Tracker {
@@ -125,6 +135,8 @@ function createController() {
     getIssueJson: (identifier) =>
       identifier === '#1'
         ? JSON.stringify({ issueIdentifier: '#1', status: 'running', workspace: { path: '/tmp/_1' } })
+        : identifier === '1'
+          ? JSON.stringify({ issueId: '1', issueIdentifier: '#1', status: 'running', workspace: { path: '/tmp/_1' } })
         : null,
   });
 
@@ -132,6 +144,121 @@ function createController() {
     controller,
     snapshot,
   };
+}
+
+function createTranscriptStoreFixture(): TranscriptStore {
+  const sessions: TranscriptSession[] = [];
+  const events: TranscriptEvent[] = [];
+  const dashboardEvents: DashboardEventLogEntry[] = [];
+  const store: TranscriptStore = {
+    recordSession(input: TranscriptSessionInput): TranscriptSession {
+      const now = '2026-05-23T00:00:00.000Z';
+      const session = {
+        id: sessions.length + 1,
+        issueId: input.issueId,
+        issueTitle: input.issueTitle,
+        workspacePath: input.workspacePath,
+        provider: input.provider,
+        sdkSessionId: input.sdkSessionId,
+        status: input.status ?? 'running',
+        metadata: input.metadata ?? {},
+        createdAt: now,
+        updatedAt: now,
+      };
+      sessions.push(session);
+      return session;
+    },
+    recordEvent(input: TranscriptEventInput): TranscriptEvent {
+      const event = {
+        id: events.length + 1,
+        sessionId: input.sessionId,
+        issueId: input.issueId,
+        turnIndex: input.turnIndex,
+        sequence: input.sequence,
+        role: input.role,
+        eventType: input.eventType,
+        text: input.text,
+        payload: input.payload,
+        createdAt: `2026-05-23T00:00:0${events.length}.000Z`,
+      };
+      events.push(event);
+      return event;
+    },
+    listEvents(issueId: string, options = {}): TranscriptEvent[] {
+      const after = options.after ?? 0;
+      const limit = options.limit ?? 200;
+      return events.filter((event) => event.issueId === issueId && event.id > after).slice(0, limit);
+    },
+    recordDashboardEvent(input: DashboardEventLogInput): DashboardEventLogEntry {
+      const event = { ...input };
+      dashboardEvents.push(event);
+      return event;
+    },
+    listDashboardEvents(options = {}): DashboardEventLogEntry[] {
+      const after = options.after ?? 0;
+      const limit = options.limit ?? 200;
+      return dashboardEvents
+        .filter((event) => event.id > after && (!options.issueId || event.issueId === options.issueId))
+        .slice(0, limit);
+    },
+    getLatestDashboardEventId(): number {
+      return dashboardEvents.at(-1)?.id ?? 0;
+    },
+    close() {
+      return;
+    },
+  };
+
+  const session = store.recordSession({
+    issueId: '1',
+    issueTitle: 'Issue One',
+    workspacePath: '/tmp/_1',
+    provider: 'sdk',
+  });
+  store.recordEvent({
+    sessionId: session.id,
+    issueId: '1',
+    turnIndex: 1,
+    sequence: 1,
+    role: 'user',
+    eventType: 'prompt',
+    text: 'first',
+    payload: { prompt: 'first' },
+  });
+  store.recordEvent({
+    sessionId: session.id,
+    issueId: '1',
+    turnIndex: 1,
+    sequence: 2,
+    role: 'assistant',
+    eventType: 'message',
+    text: 'second',
+    payload: { type: 'assistant' },
+  });
+  store.recordEvent({
+    sessionId: session.id,
+    issueId: '1',
+    turnIndex: 2,
+    sequence: 1,
+    role: 'result',
+    eventType: 'turn_completed',
+    payload: { durationMs: 12 },
+  });
+  store.recordDashboardEvent({
+    id: 7,
+    type: 'issue_event',
+    issueId: '1',
+    timestamp: '2026-05-23T00:00:07.000Z',
+    payload: { event: 'tool_call', tool: 'read_file' },
+  });
+  store.recordDashboardEvent({
+    id: 8,
+    type: 'issue_event',
+    issueId: '1',
+    timestamp: '2026-05-23T00:00:08.000Z',
+    payload: { event: 'tool_result', ok: true },
+  });
+  return store;
 }
 
 async function createDashboardFixture(): Promise<() => Promise<void>> {
@@ -390,6 +517,176 @@ describe('startStatusServer', () => {
     }
   });
 
+  it('serves paginated issue transcript events from the transcript store', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      undefined,
+      createTranscriptStoreFixture(),
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const response = await fetch(`${address}/api/v1/issues/1/transcript?after=1&limit=1`);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        issueId: '1',
+        events: [
+          {
+            id: 2,
+            sessionId: 1,
+            issueId: '1',
+            turnIndex: 1,
+            sequence: 2,
+            role: 'assistant',
+            eventType: 'message',
+            text: 'second',
+            payload: { type: 'assistant' },
+            createdAt: '2026-05-23T00:00:01.000Z',
+          },
+        ],
+        nextAfter: 2,
+      });
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('returns explicit transcript errors for unknown issues and disabled storage', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const config = {
+      ...DEFAULT_SERVICE_CONFIG,
+      server: {
+        host: '127.0.0.1',
+        port: 0,
+      },
+    };
+    const enabledServer = await startStatusServer(config, controller, undefined, createTranscriptStoreFixture());
+    const disabledServer = await startStatusServer(config, controller, undefined, createDisabledTranscriptStore());
+
+    try {
+      const enabledAddress = enabledServer.address();
+      const disabledAddress = disabledServer.address();
+      if (!enabledAddress || !disabledAddress) {
+        throw new Error('expected bound status server addresses');
+      }
+
+      const missingResponse = await fetch(`${enabledAddress}/api/v1/issues/missing/transcript`);
+      expect(missingResponse.status).toBe(404);
+      await expect(missingResponse.json()).resolves.toEqual({
+        error: {
+          code: 'transcript_not_found',
+          message: 'unknown transcript issue: missing',
+        },
+      });
+
+      const disabledResponse = await fetch(`${disabledAddress}/api/v1/issues/1/transcript`);
+      expect(disabledResponse.status).toBe(503);
+      await expect(disabledResponse.json()).resolves.toEqual({
+        error: {
+          code: 'transcript_unavailable',
+          message: 'transcript store is disabled',
+        },
+      });
+    } finally {
+      await enabledServer.close();
+      await disabledServer.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('serves persisted dashboard event history with cursor and issue filters', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      undefined,
+      createTranscriptStoreFixture(),
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const response = await fetch(`${address}/api/v1/events/history?issueId=1&after=7&limit=1`);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        events: [
+          {
+            id: 8,
+            type: 'issue_event',
+            issueId: '1',
+            timestamp: '2026-05-23T00:00:08.000Z',
+            payload: { event: 'tool_result', ok: true },
+          },
+        ],
+        nextAfter: 8,
+      });
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
+  it('returns explicit dashboard event history errors when storage is disabled', async () => {
+    const cleanupFixture = await createDashboardFixture();
+    const { controller } = createController();
+    const server = await startStatusServer(
+      {
+        ...DEFAULT_SERVICE_CONFIG,
+        server: {
+          host: '127.0.0.1',
+          port: 0,
+        },
+      },
+      controller,
+      undefined,
+      createDisabledTranscriptStore(),
+    );
+
+    try {
+      const address = server.address();
+      if (!address) {
+        throw new Error('expected bound status server address');
+      }
+
+      const response = await fetch(`${address}/api/v1/events/history?issueId=1`);
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'event_history_unavailable',
+          message: 'transcript store is disabled',
+        },
+      });
+    } finally {
+      await server.close();
+      await cleanupFixture();
+    }
+  });
+
   it('emits the stable dashboard SSE envelope for snapshot and live events', async () => {
     const cleanupFixture = await createDashboardFixture();
     const { controller, snapshot } = createController();
@@ -448,6 +745,7 @@ describe('startStatusServer', () => {
         throw new Error('expected issue event payload');
       }
       expect(JSON.parse(issueEvent.data)).toEqual({
+        id: 1,
         type: 'issue_event',
         issueId: '1',
         timestamp: '2026-05-23T00:00:03Z',
@@ -518,6 +816,7 @@ describe('startStatusServer', () => {
         throw new Error('expected issue event payload');
       }
       expect(JSON.parse(issueEvent.data)).toEqual({
+        id: 3,
         type: 'issue_event',
         issueId: '1',
         timestamp: '2026-05-23T00:00:05Z',
@@ -588,6 +887,7 @@ describe('startStatusServer', () => {
         throw new Error('expected progress event payload');
       }
       expect(JSON.parse(progressEvent.data)).toEqual({
+        id: 1,
         type: 'issue_event',
         issueId: '1',
         timestamp: '2026-05-23T00:00:05Z',
@@ -604,6 +904,7 @@ describe('startStatusServer', () => {
         throw new Error('expected stuck event payload');
       }
       expect(JSON.parse(stuckEvent.data)).toEqual({
+        id: 2,
         type: 'issue_event',
         issueId: '1',
         timestamp: '2026-05-23T00:00:06Z',
@@ -676,6 +977,7 @@ describe('startStatusServer', () => {
         throw new Error('expected replayed payload');
       }
       expect(JSON.parse(replayedEvent.data)).toEqual({
+        id: 2,
         type: 'issue_event',
         issueId: '1',
         timestamp: '2026-05-23T00:00:04Z',

@@ -383,6 +383,32 @@ button {
   font-weight: 700;
 }
 
+.dashboard-view-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(105, 130, 206, 0.34);
+  border-radius: 8px;
+  background: rgba(9, 14, 32, 0.5);
+}
+
+.dashboard-view-tabs button {
+  min-width: 92px;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: rgba(190, 201, 232, 0.78);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-view-tabs button.is-active {
+  color: #ebf2ff;
+  background: rgba(127, 99, 255, 0.28);
+}
+
 .dashboard-live-meta-strip {
   display: flex;
   align-items: center;
@@ -407,6 +433,22 @@ button {
   align-items: start;
   gap: 10px;
   min-height: 42px;
+}
+
+.dashboard-transcript-role-user {
+  border-left: 3px solid #8fd3ff;
+}
+
+.dashboard-transcript-role-assistant {
+  border-left: 3px solid #74f0bd;
+}
+
+.dashboard-transcript-role-error {
+  border-left: 3px solid #ff8f8f;
+}
+
+.dashboard-transcript-role-result {
+  border-left: 3px solid #f6d365;
 }
 
 .dashboard-event-body {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { ServiceConfig } from '../spec/index.js';
+import { TranscriptStoreUnavailableError, type TranscriptEvent, type TranscriptStore } from '../transcript/index.js';
 import type { DashboardEvent, EventBus } from './event-bus.js';
 import type { ServerStateController } from './server-state.js';
 
@@ -39,10 +40,22 @@ interface DashboardBootstrapPayload {
 }
 
 interface DashboardSseEnvelope {
+  id?: number;
   type: DashboardEvent['type'];
   timestamp: string;
   issueId?: string;
   payload: Record<string, unknown>;
+}
+
+interface TranscriptResponsePayload {
+  issueId: string;
+  events: TranscriptEvent[];
+  nextAfter: number | null;
+}
+
+interface DashboardEventsHistoryPayload {
+  events: DashboardSseEnvelope[];
+  nextAfter: number | null;
 }
 
 const DASHBOARD_SNAPSHOT_EVENT_ID = 0;
@@ -90,6 +103,14 @@ function getSnapshotTimestamp(snapshot: Record<string, unknown>): string {
   return typeof generatedAt === 'string' ? generatedAt : new Date().toISOString();
 }
 
+function parsePositiveIntegerQuery(value: string | null, fallback: number): number {
+  if (value === null) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function createBootstrapPayload(
   config: ServiceConfig,
   controller: ServerStateController,
@@ -125,6 +146,7 @@ function createBootstrapPayload(
 
 function createSseEnvelope(event: DashboardEvent): DashboardSseEnvelope {
   const envelope: DashboardSseEnvelope = {
+    id: event.id,
     type: event.type,
     timestamp: event.timestamp,
     payload: event.payload,
@@ -232,6 +254,7 @@ export async function startStatusServer(
   config: ServiceConfig,
   controller: ServerStateController,
   eventBus?: EventBus,
+  transcriptStore?: TranscriptStore,
 ): Promise<StatusServerRuntime> {
   const host = config.server.host;
   const port = config.server.port;
@@ -255,6 +278,57 @@ export async function startStatusServer(
       return;
     }
 
+    if (method === 'GET' && pathname.startsWith('/api/v1/issues/') && pathname.endsWith('/transcript')) {
+      if (!transcriptStore) {
+        respondJson(response, 503, JSON.stringify({
+          error: {
+            code: 'transcript_unavailable',
+            message: 'transcript store is not configured',
+          },
+        }));
+        return;
+      }
+
+      const issueId = decodeURIComponent(
+        pathname.slice('/api/v1/issues/'.length, -'/transcript'.length),
+      );
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const after = parsePositiveIntegerQuery(url.searchParams.get('after'), 0);
+      const limit = Math.min(parsePositiveIntegerQuery(url.searchParams.get('limit'), 200), 500);
+
+      try {
+        const events = transcriptStore.listEvents(issueId, { after, limit });
+        if (events.length === 0 && controller.getIssue(issueId) === null) {
+          respondJson(response, 404, JSON.stringify({
+            error: {
+              code: 'transcript_not_found',
+              message: `unknown transcript issue: ${issueId}`,
+            },
+          }));
+          return;
+        }
+
+        const payload: TranscriptResponsePayload = {
+          issueId,
+          events,
+          nextAfter: events.at(-1)?.id ?? null,
+        };
+        respondJson(response, 200, JSON.stringify(payload));
+      } catch (error) {
+        if (error instanceof TranscriptStoreUnavailableError) {
+          respondJson(response, 503, JSON.stringify({
+            error: {
+              code: 'transcript_unavailable',
+              message: error.message,
+            },
+          }));
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
     if (method === 'POST' && pathname === '/api/v1/refresh') {
       const refresh = controller.requestRefresh();
       respondJson(response, 202, JSON.stringify({
@@ -262,6 +336,44 @@ export async function startStatusServer(
         requestedAt: refresh.requestedAt,
         operations: ['poll', 'reconcile'],
       }));
+      return;
+    }
+
+    if (method === 'GET' && pathname === '/api/v1/events/history') {
+      if (!transcriptStore) {
+        respondJson(response, 503, JSON.stringify({
+          error: {
+            code: 'event_history_unavailable',
+            message: 'transcript store is not configured',
+          },
+        }));
+        return;
+      }
+
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const issueId = url.searchParams.get('issueId') ?? undefined;
+      const after = parsePositiveIntegerQuery(url.searchParams.get('after'), 0);
+      const limit = Math.min(parsePositiveIntegerQuery(url.searchParams.get('limit'), 200), 500);
+
+      try {
+        const events = transcriptStore.listDashboardEvents({ issueId, after, limit });
+        const payload: DashboardEventsHistoryPayload = {
+          events: events.map((event) => createSseEnvelope(event)),
+          nextAfter: events.at(-1)?.id ?? null,
+        };
+        respondJson(response, 200, JSON.stringify(payload));
+      } catch (error) {
+        if (error instanceof TranscriptStoreUnavailableError) {
+          respondJson(response, 503, JSON.stringify({
+            error: {
+              code: 'event_history_unavailable',
+              message: error.message,
+            },
+          }));
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

@@ -2,6 +2,7 @@ import { createIssueLogger, type RuntimeLogger, type EventBus } from '../logging
 import type { CodebuddyRunnerEvent, SdkSessionStore } from '../runner/index.js';
 import { buildCodebuddyCommand, runCodebuddyTurn, updateTokenUsage } from '../runner/index.js';
 import type { Issue, ServiceConfig, OrchestratorRuntimeState, RetryEntry } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import type { Tracker } from '../tracker/index.js';
 import { prepareWorkerCommand } from '../worker/index.js';
 import { createProgressFingerprint, recordProgressFingerprint } from '../progress/index.js';
@@ -49,6 +50,7 @@ export async function runContinuationCycle(
   tracker?: Tracker,
   eventBus?: EventBus,
   sessionStore?: SdkSessionStore,
+  transcriptStore?: TranscriptStore,
 ): Promise<ContinuationCycleResult> {
   const nowMs = Date.now();
   const continuedIssueIds: string[] = [];
@@ -142,6 +144,17 @@ export async function runContinuationCycle(
         resumeSessionId: runningEntry.sessionId ?? undefined,
         workspacePath: runningEntry.workspacePath,
       }), config);
+      const transcriptSession = transcriptStore?.recordSession({
+        issueId,
+        issueTitle: runningEntry.issue.title,
+        workspacePath: runningEntry.workspacePath,
+        provider: 'cli',
+        sdkSessionId: runningEntry.sessionId ?? sessionId,
+        metadata: {
+          issueIdentifier: runningEntry.issue.identifier,
+          turnIndex: nextTurnCount,
+        },
+      });
       const turnResult = await runCodebuddyTurn({
         command,
         prompt,
@@ -156,6 +169,9 @@ export async function runContinuationCycle(
           ? (evt) => { eventBus.emit({ type: 'issue_event', timestamp: new Date().toISOString(), issueId, payload: evt as unknown as Record<string, unknown> }); }
           : undefined,
         eventBus,
+        transcriptStore,
+        transcriptSessionId: transcriptSession?.id,
+        turnIndex: nextTurnCount,
       });
 
       const lastEvent = turnResult.events.at(-1)?.event ?? null;

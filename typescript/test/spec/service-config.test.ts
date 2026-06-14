@@ -69,6 +69,20 @@ describe('serviceConfigSchema', () => {
     expect(parsed.codebuddy.settingSources).toEqual(['user', 'project']);
   });
 
+  it('accepts transcript persistence settings', () => {
+    const parsed = serviceConfigSchema.parse({
+      ...DEFAULT_SERVICE_CONFIG,
+      transcript: {
+        enabled: true,
+        sqlitePath: '/tmp/codebuddy-auto/transcripts.sqlite',
+      },
+    });
+    expect(parsed.transcript).toEqual({
+      enabled: true,
+      sqlitePath: '/tmp/codebuddy-auto/transcripts.sqlite',
+    });
+  });
+
   it('rejects non-string entries in settingSources', () => {
     expect(() =>
       serviceConfigSchema.parse({

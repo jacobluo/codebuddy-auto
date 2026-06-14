@@ -93,6 +93,31 @@ describe('validatePreflight', () => {
     expect(result.errors).toContain('workspace.root does not exist: /definitely/missing');
   });
 
+  it('rejects enabled transcript storage when the SQLite parent path is a file', () => {
+    const workspaceRoot = createTempDir('codebuddy-auto-');
+    const parentFile = path.join(workspaceRoot, 'transcript-parent');
+    fs.writeFileSync(parentFile, 'not a directory\n', 'utf8');
+
+    const result = validatePreflight({
+      ...DEFAULT_SERVICE_CONFIG,
+      tracker: {
+        ...DEFAULT_SERVICE_CONFIG.tracker,
+        apiKey: 'token',
+      },
+      workspace: {
+        ...DEFAULT_SERVICE_CONFIG.workspace,
+        root: workspaceRoot,
+      },
+      transcript: {
+        enabled: true,
+        sqlitePath: path.join(parentFile, 'transcripts.sqlite'),
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(`transcript.sqlitePath parent is not a directory: ${parentFile}`);
+  });
+
   it('rejects git-worktree mode when sourceRoot is missing', () => {
     const workspaceRoot = createTempDir('codebuddy-auto-workspaces-');
 

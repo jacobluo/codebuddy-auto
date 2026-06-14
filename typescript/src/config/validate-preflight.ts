@@ -59,6 +59,17 @@ function validateSshWorker(config: ServiceConfig, errors: string[]): void {
   }
 }
 
+function validateTranscriptStorage(config: ServiceConfig, errors: string[]): void {
+  if (!config.transcript.enabled) {
+    return;
+  }
+
+  const parentPath = path.dirname(config.transcript.sqlitePath);
+  if (fs.existsSync(parentPath) && !fs.statSync(parentPath).isDirectory()) {
+    errors.push(`transcript.sqlitePath parent is not a directory: ${parentPath}`);
+  }
+}
+
 export function validatePreflight(config: ServiceConfig): PreflightResult {
   const errors: string[] = [];
 
@@ -89,6 +100,7 @@ export function validatePreflight(config: ServiceConfig): PreflightResult {
   if (config.worker.kind === 'ssh') {
     validateSshWorker(config, errors);
   }
+  validateTranscriptStorage(config, errors);
 
   return {
     ok: errors.length === 0,

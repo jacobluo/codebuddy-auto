@@ -4,6 +4,7 @@ import { createRuntimeSnapshot, type EventBus } from '../logging/index.js';
 import { createSdkSession } from '../runner/create-sdk-session.js';
 import { createSdkSessionStore, type SdkSessionStore } from '../runner/index.js';
 import type { OrchestratorRuntimeState, ServiceConfig } from '../spec/index.js';
+import type { TranscriptStore } from '../transcript/index.js';
 import type { Tracker } from '../tracker/index.js';
 import {
   createWorkerHandleStore,
@@ -22,6 +23,7 @@ export interface SchedulerRuntime {
 export interface SchedulerTickContext {
   tracker: Tracker;
   config: ServiceConfig;
+  transcriptStore?: TranscriptStore;
 }
 
 export type SchedulerTickContextProvider =
@@ -47,6 +49,7 @@ export interface StartSchedulerDependencies {
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createSession?: (opts: CreateSessionOptions) => any;
+  transcriptStore?: TranscriptStore;
   runSchedulerOnce?: typeof runSchedulerOnce;
   runStartupCleanup?: typeof runStartupCleanup;
   createRuntimeSnapshot?: typeof createRuntimeSnapshot;
@@ -75,7 +78,7 @@ export function startScheduler(
   const runOnce = dependencies.runSchedulerOnce ?? runSchedulerOnce;
   const startupCleanup = dependencies.runStartupCleanup ?? runStartupCleanup;
   const buildSnapshot = dependencies.createRuntimeSnapshot ?? createRuntimeSnapshot;
-  const getTickContext = dependencies.getTickContext ?? (() => ({ tracker, config }));
+  const getTickContext: SchedulerTickContextProvider = dependencies.getTickContext ?? (() => ({ tracker, config }));
 
   let stopped = false;
   let tickInFlight = false;
@@ -96,6 +99,7 @@ export function startScheduler(
           sessionStore,
           workerHandleStore,
           createSession,
+          transcriptStore: tickContext.transcriptStore ?? dependencies.transcriptStore,
           getConfig: () => tickContext.config,
         }, logger);
         const snapshot = buildSnapshot(state);

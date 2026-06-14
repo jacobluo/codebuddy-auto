@@ -17,6 +17,7 @@ import type { Message, Session } from '@tencent-ai/agent-sdk';
 
 import type { EventBus } from '../logging/event-bus.js';
 import type { ServiceConfig } from '../spec/index.js';
+import type { TranscriptRole, TranscriptStore } from '../transcript/index.js';
 import type { CodebuddyRunnerEvent, RunCodebuddyTurnResult } from './run-codebuddy-turn-cli.js';
 
 export interface RunSdkTurnInput {
@@ -35,6 +36,30 @@ export interface RunSdkTurnInput {
   onEvent?: (event: CodebuddyRunnerEvent) => void;
   eventBus?: EventBus;
   issueId?: string;
+  transcriptStore?: TranscriptStore;
+  transcriptSessionId?: number;
+  turnIndex?: number;
+}
+
+function toPayload(value: unknown): Record<string, unknown> {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return { value };
+}
+
+function getAssistantText(value: unknown): string | undefined {
+  const raw = toPayload(value);
+  const message = toPayload(raw['message']);
+  const content = message['content'];
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+
+  const texts = content
+    .map((entry) => toPayload(entry)['text'])
+    .filter((entry): entry is string => typeof entry === 'string');
+  return texts.length > 0 ? texts.join('\n') : undefined;
 }
 
 function mapSdkMessage(msg: Message): CodebuddyRunnerEvent | null {
@@ -129,6 +154,31 @@ function mapSdkMessage(msg: Message): CodebuddyRunnerEvent | null {
 
 export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCodebuddyTurnResult> {
   const events: CodebuddyRunnerEvent[] = [];
+  let transcriptSequence = 0;
+  const recordTranscriptEvent = (
+    role: TranscriptRole,
+    eventType: string,
+    payload: Record<string, unknown>,
+    text?: string,
+  ): void => {
+    if (!input.transcriptStore || input.transcriptSessionId === undefined || !input.issueId) {
+      return;
+    }
+    if (role === 'assistant' && eventType === 'message' && (!text || text.trim().length === 0)) {
+      return;
+    }
+    transcriptSequence += 1;
+    input.transcriptStore.recordEvent({
+      sessionId: input.transcriptSessionId,
+      issueId: input.issueId,
+      turnIndex: input.turnIndex,
+      sequence: transcriptSequence,
+      role,
+      eventType,
+      text,
+      payload,
+    });
+  };
 
   const abortController = input.abortController ?? new AbortController();
   let timeoutHandle: NodeJS.Timeout | null = null;
@@ -142,9 +192,20 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
   }
 
   try {
+    recordTranscriptEvent('user', 'prompt', { prompt: input.prompt }, input.prompt);
     await input.session.send(input.prompt);
     for await (const msg of input.session.stream()) {
       const mapped = mapSdkMessage(msg);
+      if (msg.type === 'system') {
+        recordTranscriptEvent('runtime', 'session_started', toPayload(msg));
+      } else if (msg.type === 'assistant') {
+        recordTranscriptEvent('assistant', 'message', toPayload(msg), getAssistantText(msg));
+      } else if (msg.type === 'result') {
+        const raw = toPayload(msg);
+        recordTranscriptEvent(raw['is_error'] === true ? 'error' : 'result', raw['is_error'] === true ? 'turn_failed' : 'turn_completed', raw);
+      } else {
+        recordTranscriptEvent('runtime', 'other_message', toPayload(msg));
+      }
       if (mapped) {
         events.push(mapped);
         if (input.onEvent) {
@@ -162,6 +223,7 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
     }
   } catch (error) {
     if (timedOut) {
+      recordTranscriptEvent('error', 'turn_timed_out', { timeoutMs: input.config.codebuddy.turnTimeoutMs ?? 0 });
       return {
         events: [{ event: 'turn_timed_out', payload: { timeoutMs: input.config.codebuddy.turnTimeoutMs ?? 0 } }],
         exitCode: null,
@@ -170,6 +232,7 @@ export async function runCodebuddyTurnSdk(input: RunSdkTurnInput): Promise<RunCo
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    recordTranscriptEvent('error', 'turn_failed', { message }, message);
     events.push({
       event: 'turn_failed',
       payload: { message },

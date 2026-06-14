@@ -155,7 +155,47 @@ function createPageState(overrides: Partial<DashboardPageState> = {}): Dashboard
         },
       },
     ],
+    selectedIssueTranscriptEvents: [
+      {
+        id: 3,
+        sessionId: 1,
+        issueId: '1',
+        turnIndex: 1,
+        sequence: 3,
+        role: 'assistant',
+        eventType: 'message',
+        payload: { type: 'assistant' },
+        createdAt: '2026-05-23T00:00:03Z',
+      },
+      {
+        id: 1,
+        sessionId: 1,
+        issueId: '1',
+        turnIndex: 1,
+        sequence: 1,
+        role: 'user',
+        eventType: 'prompt',
+        text: 'Implement issue one',
+        payload: { prompt: 'Implement issue one' },
+        createdAt: '2026-05-23T00:00:01Z',
+      },
+      {
+        id: 2,
+        sessionId: 1,
+        issueId: '1',
+        turnIndex: 1,
+        sequence: 2,
+        role: 'assistant',
+        eventType: 'message',
+        text: 'Working on it',
+        payload: { type: 'assistant' },
+        createdAt: '2026-05-23T00:00:02Z',
+      },
+    ],
+    selectedIssueTranscriptStatus: 'ready',
+    selectedIssueTranscriptError: null,
     onRefresh: vi.fn(async () => undefined),
+    onRefreshTranscript: vi.fn(async () => undefined),
     onRetry: vi.fn(),
     onSelectIssue: vi.fn(),
     ...overrides,
@@ -284,6 +324,10 @@ describe('dashboard UI components', () => {
         repoUrl={state.bootstrap!.repoUrl}
         selectedIssue={state.snapshot!.running[0]!}
         selectedIssueEvents={state.selectedIssueEvents}
+        transcriptEvents={state.selectedIssueTranscriptEvents}
+        transcriptStatus={state.selectedIssueTranscriptStatus}
+        transcriptError={state.selectedIssueTranscriptError}
+        onRefreshTranscript={state.onRefreshTranscript}
       />,
     );
 
@@ -301,6 +345,97 @@ describe('dashboard UI components', () => {
       />,
     );
     expect(screen.getByText('Select an issue to inspect its live event stream.')).toBeTruthy();
+  });
+
+  it('switches between live events and persisted transcript rows', () => {
+    const state = createPageState();
+    const latestTranscriptTime = new Date('2026-05-23T00:00:02Z').toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const rendered = render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={state.selectedIssueEvents}
+        transcriptEvents={state.selectedIssueTranscriptEvents}
+        transcriptStatus="ready"
+        transcriptError={null}
+        onRefreshTranscript={state.onRefreshTranscript}
+      />,
+    );
+
+    expect(screen.getByText('read_file')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Transcript' }));
+
+    expect(screen.getByText('persisted transcript')).toBeTruthy();
+    expect(screen.getByText('user · prompt')).toBeTruthy();
+    expect(screen.getByText('assistant · message')).toBeTruthy();
+    expect(screen.getByText('Implement issue one')).toBeTruthy();
+    expect(screen.getByText('Working on it')).toBeTruthy();
+    expect(screen.getAllByText('turn 1')).toHaveLength(2);
+    expect(Array.from(rendered.container.querySelectorAll('.dashboard-event-type')).map((node) => node.textContent)).toEqual([
+      'assistant · message',
+      'user · prompt',
+    ]);
+    expect(screen.getByText(latestTranscriptTime)).toBeTruthy();
+    expect(screen.queryByText('2026-05-23T00:00:02Z')).toBeNull();
+  });
+
+  it('renders transcript unavailable and request failure states', () => {
+    const state = createPageState();
+    const { rerender } = render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={[]}
+        transcriptEvents={[]}
+        transcriptStatus="unavailable"
+        transcriptError="transcript store is disabled"
+        onRefreshTranscript={state.onRefreshTranscript}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Transcript' }));
+    expect(screen.getByText('Transcript persistence is unavailable.')).toBeTruthy();
+
+    rerender(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={[]}
+        transcriptEvents={[]}
+        transcriptStatus="error"
+        transcriptError="issue transcript failed with status 500"
+        onRefreshTranscript={state.onRefreshTranscript}
+      />,
+    );
+    expect(screen.getByText('issue transcript failed with status 500')).toBeTruthy();
+  });
+
+  it('calls refresh when the transcript refresh control is used', () => {
+    const state = createPageState();
+    render(
+      <LiveEventsPanel
+        repoUrl={state.bootstrap!.repoUrl}
+        selectedIssue={state.snapshot!.running[0]!}
+        selectedIssueEvents={[]}
+        transcriptEvents={state.selectedIssueTranscriptEvents}
+        transcriptStatus="ready"
+        transcriptError={null}
+        onRefreshTranscript={state.onRefreshTranscript}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Transcript' }));
+    fireEvent.click(screen.getByRole('button', { name: 'refresh transcript' }));
+    expect(state.onRefreshTranscript).toHaveBeenCalledTimes(1);
   });
 
   it('renders failure details in the live events panel', () => {

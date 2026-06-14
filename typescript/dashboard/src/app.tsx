@@ -21,6 +21,7 @@ export function App() {
       state={{
         ...state,
         onRefresh: state.triggerRefresh,
+        onRefreshTranscript: state.refreshSelectedTranscript,
         onRetry: state.retryInitialization,
         onSelectIssue: state.selectIssue,
         nowMs,

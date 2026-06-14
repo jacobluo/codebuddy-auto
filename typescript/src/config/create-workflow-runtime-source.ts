@@ -2,6 +2,11 @@ import fs from 'node:fs/promises';
 
 import { type ServiceConfig } from '../spec/index.js';
 import { createTracker, type Tracker } from '../tracker/index.js';
+import {
+  createDisabledTranscriptStore,
+  openSqliteTranscriptStore,
+  type TranscriptStore,
+} from '../transcript/index.js';
 import { parseWorkflow, resolveWorkflowPath } from '../workflow/index.js';
 
 import { loadServiceConfig } from './load-service-config.js';
@@ -14,6 +19,7 @@ export interface WorkflowRuntimeSnapshot {
   promptTemplate: string;
   config: ServiceConfig;
   tracker: Tracker;
+  transcriptStore: TranscriptStore;
 }
 
 export interface WorkflowRuntimeReloadResult {
@@ -25,16 +31,21 @@ export interface WorkflowRuntimeReloadResult {
 export interface WorkflowRuntimeSource {
   getCurrent(): WorkflowRuntimeSnapshot;
   reload(): Promise<WorkflowRuntimeReloadResult>;
+  close(): void;
 }
 
 export interface CreateWorkflowRuntimeSourceDependencies {
   createTracker?: typeof createTracker;
+  createDisabledTranscriptStore?: typeof createDisabledTranscriptStore;
+  openSqliteTranscriptStore?: typeof openSqliteTranscriptStore;
 }
 
 async function loadSnapshot(
   workflowPath: string,
   env: Environment,
   createTrackerDependency: typeof createTracker,
+  createDisabledTranscriptStoreDependency: typeof createDisabledTranscriptStore,
+  openSqliteTranscriptStoreDependency: typeof openSqliteTranscriptStore,
 ): Promise<WorkflowRuntimeSnapshot> {
   const resolved = resolveWorkflowPath(workflowPath);
   const workflowSource = await fs.readFile(resolved.workflowPath, 'utf8');
@@ -51,6 +62,9 @@ async function loadSnapshot(
     promptTemplate: workflow.promptTemplate,
     config,
     tracker: createTrackerDependency(config),
+    transcriptStore: config.transcript.enabled
+      ? openSqliteTranscriptStoreDependency({ sqlitePath: config.transcript.sqlitePath })
+      : createDisabledTranscriptStoreDependency(),
   };
 }
 
@@ -60,7 +74,15 @@ export async function createWorkflowRuntimeSource(
   dependencies: CreateWorkflowRuntimeSourceDependencies = {},
 ): Promise<WorkflowRuntimeSource> {
   const createTrackerDependency = dependencies.createTracker ?? createTracker;
-  let current = await loadSnapshot(workflowPath, env, createTrackerDependency);
+  const createDisabledTranscriptStoreDependency = dependencies.createDisabledTranscriptStore ?? createDisabledTranscriptStore;
+  const openSqliteTranscriptStoreDependency = dependencies.openSqliteTranscriptStore ?? openSqliteTranscriptStore;
+  let current = await loadSnapshot(
+    workflowPath,
+    env,
+    createTrackerDependency,
+    createDisabledTranscriptStoreDependency,
+    openSqliteTranscriptStoreDependency,
+  );
 
   return {
     getCurrent(): WorkflowRuntimeSnapshot {
@@ -68,7 +90,15 @@ export async function createWorkflowRuntimeSource(
     },
     async reload(): Promise<WorkflowRuntimeReloadResult> {
       try {
-        current = await loadSnapshot(workflowPath, env, createTrackerDependency);
+        const next = await loadSnapshot(
+          workflowPath,
+          env,
+          createTrackerDependency,
+          createDisabledTranscriptStoreDependency,
+          openSqliteTranscriptStoreDependency,
+        );
+        current.transcriptStore.close();
+        current = next;
         return {
           ok: true,
           errors: [],
@@ -81,6 +111,9 @@ export async function createWorkflowRuntimeSource(
           workflowPath: current.workflowPath,
         };
       }
+    },
+    close(): void {
+      current.transcriptStore.close();
     },
   };
 }

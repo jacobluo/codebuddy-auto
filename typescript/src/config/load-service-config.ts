@@ -113,6 +113,10 @@ export function loadServiceConfig(
     ...DEFAULT_SERVICE_CONFIG.server,
     ...getObject(raw.server),
   };
+  const transcript = {
+    ...DEFAULT_SERVICE_CONFIG.transcript,
+    ...getObject(raw.transcript),
+  };
   const agent = {
     ...DEFAULT_SERVICE_CONFIG.agent,
     ...getObject(raw.agent),
@@ -129,6 +133,7 @@ export function loadServiceConfig(
   const workspaceOverrides = getObject(raw.workspace);
   const hooksOverrides = getObject(raw.hooks);
   const serverOverrides = getObject(raw.server);
+  const transcriptOverrides = getObject(raw.transcript);
   const agentOverrides = getObject(raw.agent);
   const workerOverrides = getObject(raw.worker);
   const codebuddyOverrides = getObject(raw.codebuddy);
@@ -181,6 +186,15 @@ export function loadServiceConfig(
   }
   if (typeof serverOverrides.host === 'string' && serverOverrides.host.length > 0) {
     server.host = serverOverrides.host;
+  }
+  if (typeof transcript.sqlitePath === 'string') {
+    transcript.sqlitePath = resolvePathValue(transcript.sqlitePath, workflowPath, env);
+  }
+  if (typeof transcriptOverrides.sqlite_path === 'string') {
+    transcript.sqlitePath = resolvePathValue(transcriptOverrides.sqlite_path, workflowPath, env);
+  }
+  if (typeof transcriptOverrides.enabled === 'boolean') {
+    transcript.enabled = transcriptOverrides.enabled;
   }
   if (typeof agentOverrides.max_concurrent_agents === 'number') {
     agent.maxConcurrentAgents = agentOverrides.max_concurrent_agents;
@@ -279,6 +293,7 @@ export function loadServiceConfig(
     workspace,
     hooks,
     server,
+    transcript,
     agent,
     worker,
     codebuddy,
