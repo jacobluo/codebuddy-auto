@@ -68,13 +68,15 @@ Description:
 ## Operating Rules
 
 1. Read available project guidance before editing, especially `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, and the nearest feature files.
-2. Confirm the issue has the scheduler label `agent-ready`, then read the task type from the issue description when present.
+2. Confirm the issue has the scheduler label `agent-ready`, then read the `Task type` field from the issue description when present. Treat it as one of: `agent-ready:ui-bug`, `agent-ready:small-feature`, `agent-ready:test`, `agent-ready:cleanup`, or `agent-ready:docs`.
 3. Keep changes focused on the issue. Do not perform broad refactors.
 4. For behavior changes, write or update tests before implementation.
-5. Run the smallest useful verification while iterating.
-6. Run the verification commands requested by the issue before handoff.
-7. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
-8. Add the `agent-finish` label only after verification passes, changes are committed and pushed, and the work is ready for human review.
+5. Prefer feature-local files before editing shared or cross-cutting modules.
+6. Run the smallest useful verification while iterating.
+7. Run the commands from the issue's `Verification` field before handoff; if missing, run `npm run verify` unless the issue is docs-only.
+8. For UI changes, capture or describe the checked viewport and changed screen.
+9. If the issue is ambiguous, blocked by missing credentials, or cannot pass verification, leave a clear comment and stop.
+10. After verified handoff, add the `agent-finish` label only when the work is ready for human review.
 
 ## Handoff Format
 
@@ -83,4 +85,7 @@ When ready for human review, provide:
 - Summary of changed behavior.
 - Files changed.
 - Verification commands and results.
+- UI evidence for visual changes.
 - Risks or follow-ups.
+
+Add the `agent-finish` label only after verification passes or after documenting a real blocker.

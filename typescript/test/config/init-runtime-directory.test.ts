@@ -60,4 +60,15 @@ describe('initRuntimeDirectory', () => {
     expect(workflow).toContain('git clone git@cnb.cool:relaxorg/symphony_repo_crm.git .');
     expect(workflow).not.toContain('git clone https://cnb.cool/relaxorg/symphony_repo_crm.git .');
   });
+
+  it('keeps generic operating rules without repository-specific harness docs', () => {
+    const template = readGenericWorkflowTemplate();
+
+    expect(template).toContain('read the `Task type` field from the issue description');
+    expect(template).toContain('agent-ready:ui-bug');
+    expect(template).toContain("issue's `Verification` field");
+    expect(template).toContain('UI evidence for visual changes');
+    expect(template).not.toContain('docs/symphony-harness.md');
+    expect(template).not.toContain('src/features/<feature>');
+  });
 });
