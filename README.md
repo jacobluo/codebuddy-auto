@@ -1,5 +1,39 @@
 # codebuddy-auto
 
+## 演示过程
+
+展示一个 issue 从创建、进入队列、被 agent 处理，到最终形成 PR 的完整链路。
+
+### 1. 创建 agent-ready issue
+
+维护者在 cnb.cool 创建 issue，按模板填写任务类型、问题描述、期望行为和验证方式。`agent-ready` 标签让调度器可以把它识别为候选任务。
+
+![创建 agent-ready issue](./images/0.issue_create.png)
+
+### 2. Issue 进入调度队列
+
+Issue 创建后，`codebuddy-auto` 会在后续 tick 中读取 tracker。符合标签、状态和并发限制的任务会被 claim，并分配独立 workspace。
+
+![Issue 进入调度队列](./images/1.issue_added.png)
+
+### 3. Dashboard 查看实时事件
+
+Dashboard 会显示当前运行中的 issue、worker 状态、SSE 事件流、turn 信息和失败原因。这里可以看到 dispatch、session、turn 等运行事件，便于判断 agent 是否真正开始工作。
+
+![Dashboard 实时事件](./images/2.issue_processing_event.png)
+
+### 4. 查看完整执行过程
+
+Transcript 会持久化 agent 对话、prompt、assistant 输出、错误和关键 runtime payload。相比只看最终状态，它更适合排查“agent 为什么这么改”“在哪一步卡住”这类问题。
+
+![Dashboard transcript 执行过程](./images/3.issue_processing_log.png)
+
+### 5. 从 issue 到 PR
+
+最后一步不是“agent 直接完成项目”，而是把 issue 的执行结果交接给维护者。一个顺利的任务通常会产生代码提交、分支或 PR，并在 tracker 中留下 `agent-finish` 这类 handoff 信号。Dashboard 能看到这个链路，但最终是否合入仍由 CI、代码审核和维护者判断。
+
+![Issue 到 PR 的交接结果](./images/4.issue_to_pr_.png)
+
 > **TypeScript 参考实现 · 基于 OpenAI Symphony SPEC + CodeBuddy Code SDK**
 
 [OpenAI Symphony](https://github.com/openai/symphony) 调度规范的 TypeScript 参考实现。Symphony 官方用 Elixir/OTP，本项目面向希望在 Node.js 生态部署类 Symphony 调度器的团队。
