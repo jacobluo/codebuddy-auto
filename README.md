@@ -287,4 +287,4 @@ Symphony 假设目标仓库已采用 [Harness Engineering](https://openai.com/in
 
 ## License
 
-Apache-2.0（与 OpenAI Symphony 保持一致）
+Apache-2.0
